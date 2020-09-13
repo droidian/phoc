@@ -142,6 +142,11 @@ phoc_server_constructed (GObject *object)
   if (self->renderer == NULL)
     g_error("Could not create renderer");
 
+  // FIXME: remove once we find something better
+  self->preferred_pixel_format = self->renderer->impl->preferred_read_format(self->renderer);
+  if (self->preferred_pixel_format == NULL)
+    g_error("Unable to get preferred pixel format.");
+
   self->data_device_manager =
     wlr_data_device_manager_create(self->wl_display);
   wlr_renderer_init_wl_display(self->renderer, self->wl_display);

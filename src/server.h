@@ -5,6 +5,7 @@
 #include <wlr/backend/session.h>
 #include <wlr/config.h>
 #include <wlr/render/wlr_renderer.h>
+#include <wlr/render/interface.h>
 #include <wlr/types/wlr_data_device.h>
 #ifdef PHOC_XWAYLAND
 #include <wlr/xwayland.h>
@@ -50,6 +51,9 @@ struct _PhocServer {
   /* WLR tools */
   struct wlr_backend *backend;
   struct wlr_renderer *renderer;
+
+  /* Workarounds */
+  enum wl_shm_format preferred_pixel_format;
 
   /* Global resources */
   struct wlr_data_device_manager *data_device_manager;
