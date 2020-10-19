@@ -770,6 +770,8 @@ phoc_output_is_builtin (struct roots_output *self)
     return TRUE;
   else if (g_str_has_prefix (output->name, "DSI-"))
     return TRUE;
+  else if (g_str_has_prefix(output->name, "HWCOMPOSER-"))
+	  return TRUE;
 
   return FALSE;
 }
