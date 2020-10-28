@@ -435,20 +435,31 @@ view_render_iterator (struct wlr_surface *surface, int sx, int sy, void *data)
 }
 
 gboolean
-view_render_to_buffer (struct roots_view *view, int width, int height, int stride, uint32_t *flags, void* data)
+view_render_to_buffer (struct roots_view *view, enum wl_shm_format fmt, int width, int height, int stride, uint32_t *flags, void* data)
 {
   PhocServer *server = phoc_server_get_default ();
   struct wlr_surface *surface = view->wlr_surface;
   struct wlr_egl *egl = wlr_gles2_renderer_get_egl (server->renderer);
   GLuint tex, fbo;
+  GLint gl_format;
 
   if (!surface || !wlr_egl_make_current (egl, EGL_NO_SURFACE, NULL)) {
     return FALSE;
   }
 
+  switch (fmt) {
+  case WL_SHM_FORMAT_ARGB8888:
+  case WL_SHM_FORMAT_XRGB8888:
+    gl_format = GL_BGRA_EXT;
+    break;
+  default:
+    gl_format = GL_RGBA;
+    break;
+  }
+
   glGenTextures (1, &tex);
   glBindTexture (GL_TEXTURE_2D, tex);
-  glTexImage2D (GL_TEXTURE_2D, 0, GL_BGRA_EXT, width, height, 0, GL_BGRA_EXT, GL_UNSIGNED_BYTE, NULL);
+  glTexImage2D (GL_TEXTURE_2D, 0, gl_format, width, height, 0, gl_format, GL_UNSIGNED_BYTE, NULL);
   glBindTexture (GL_TEXTURE_2D, 0);
 
   glGenFramebuffers (1, &fbo);
@@ -460,7 +471,7 @@ view_render_to_buffer (struct roots_view *view, int width, int height, int strid
   wlr_surface_for_each_surface (surface, view_render_iterator, view);
   wlr_renderer_end (server->renderer);
 
-  wlr_renderer_read_pixels (server->renderer, WL_SHM_FORMAT_ARGB8888, flags, stride, width, height, 0, 0, 0, 0, data);
+  wlr_renderer_read_pixels (server->renderer, fmt, flags, stride, width, height, 0, 0, 0, 0, data);
 
   glDeleteFramebuffers (1, &fbo);
   glDeleteTextures (1, &tex);

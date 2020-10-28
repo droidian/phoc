@@ -11,6 +11,9 @@
 
 #include <errno.h>
 
+/* FIXME */
+#include <wlr/render/gles2.h>
+
 G_DEFINE_TYPE(PhocServer, phoc_server, G_TYPE_OBJECT);
 
 typedef struct {
@@ -137,6 +140,14 @@ phoc_startup_session (PhocServer *server)
   g_source_set_name_by_id (id, "[phoc] phoc_startup_session");
 }
 
+/* FIXME */
+static gboolean
+can_get_preferred_pixel_format (struct wlr_renderer *renderer) {
+    if (wlr_egl_is_current(wlr_gles2_renderer_get_egl (renderer)))
+        return TRUE;
+
+    return FALSE;
+}
 
 static void
 phoc_server_constructed (GObject *object)
@@ -154,6 +165,13 @@ phoc_server_constructed (GObject *object)
   self->renderer = wlr_backend_get_renderer(self->backend);
   if (self->renderer == NULL)
     g_error("Could not create renderer");
+
+  // FIXME: remove once we find something better
+  if (can_get_preferred_pixel_format(self->renderer)) {
+      self->preferred_pixel_format = self->renderer->impl->preferred_read_format(self->renderer);
+  } else {
+      self->preferred_pixel_format = WL_SHM_FORMAT_ARGB8888;
+  }
 
   self->data_device_manager =
     wlr_data_device_manager_create(self->wl_display);

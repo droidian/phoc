@@ -394,7 +394,7 @@ thumbnail_frame_handle_copy (struct wl_client   *wl_client,
   void *data = wl_shm_buffer_get_data (frame->buffer);
 
   uint32_t flags = 0;
-  if (!view_render_to_buffer (view, width, height, stride, &flags, data)) {
+  if (!view_render_to_buffer (view, fmt, width, height, stride, &flags, data)) {
     wl_shm_buffer_end_access (frame->buffer);
     zwlr_screencopy_frame_v1_send_failed (frame_resource);
     return;
@@ -440,6 +440,7 @@ handle_get_thumbnail (struct wl_client *client,
                       struct wl_resource *phosh_private_resource,
                       uint32_t id, struct wl_resource *toplevel, uint32_t max_width, uint32_t max_height)
 {
+  PhocServer *server = phoc_server_get_default (); // FIXME: find a better way to get the preferred pixel_format
   struct phosh_private_screencopy_frame *frame =
     calloc (1, sizeof(struct phosh_private_screencopy_frame));
 
@@ -486,7 +487,7 @@ handle_get_thumbnail (struct wl_client *client,
   struct wlr_box box;
   view_get_box (view, &box);
 
-  frame->format = WL_SHM_FORMAT_ARGB8888;
+  frame->format = server->preferred_pixel_format; // FIXME: find a better way to do that
   frame->width = box.width * view->wlr_surface->current.scale;
   frame->height = box.height * view->wlr_surface->current.scale;
 
