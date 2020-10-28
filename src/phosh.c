@@ -43,41 +43,8 @@ phosh_rotate_display (struct wl_client   *client,
                       struct wl_resource *surface_resource,
                       uint32_t            degrees)
 {
-  struct phosh_private *phosh = wl_resource_get_user_data (resource);
-  enum wl_output_transform transform = WL_OUTPUT_TRANSFORM_NORMAL;
-
-  g_debug ("rotation: %d", degrees);
-  degrees %= 360;
-
-  switch (degrees) {
-  case 0:
-    transform =  WL_OUTPUT_TRANSFORM_NORMAL;
-    break;
-  case 90:
-    transform = WL_OUTPUT_TRANSFORM_90;
-    break;
-  case 180:
-    transform = WL_OUTPUT_TRANSFORM_180;
-    break;
-  case 270:
-    transform = WL_OUTPUT_TRANSFORM_270;
-    break;
-  default:
-    wl_resource_post_error (resource,
-                            PHOSH_PRIVATE_ERROR_INVALID_ARGUMENT,
-                            "Can only rotate in 90 degree steps");
-  }
-
-  /* Make sure we rotate clockwise */
-  phoc_utils_fix_transform(&transform);
-
-  if (!phosh->panel) {
-    g_warning ("Tried to rotate inexistent panel");
-    return;
-  }
-
-  wlr_output_set_transform (phosh->panel->output, transform);
-  output_damage_whole(phosh->panel->output->data);
+  wl_resource_post_error (resource, WL_DISPLAY_ERROR_INVALID_OBJECT,
+                          "Use wlr-output-management protocol instead");
 }
 
 
@@ -266,6 +233,39 @@ phosh_private_keyboard_event_grab_accelerator_request (struct wl_client   *wl_cl
 
 }
 
+
+static void
+phosh_private_keyboard_event_ungrab_accelerator_request (struct wl_client *client,
+							 struct wl_resource *resource,
+							 uint32_t action_id)
+{
+  GHashTableIter iter;
+  gpointer key, value, found = NULL;
+  struct phosh_private_keyboard_event_data *kbevent =
+    phosh_private_keyboard_event_from_resource (resource);
+
+  g_debug ("Ungrabbing accelerator %d", action_id);
+  g_hash_table_iter_init (&iter, kbevent->subscribed_accelerators);
+  while (g_hash_table_iter_next (&iter, &key, &value)) {
+    if (GPOINTER_TO_INT (value) == action_id) {
+      found = key;
+      break;
+    }
+  }
+
+  if (found) {
+    g_hash_table_remove (kbevent->subscribed_accelerators, key);
+    phosh_private_keyboard_event_send_ungrab_success_event (resource,
+							    action_id);
+
+  } else {
+    phosh_private_keyboard_event_send_ungrab_failed_event (resource,
+							   action_id,
+							   PHOSH_PRIVATE_KEYBOARD_EVENT_ERROR_INVALID_ARGUMENT);
+  }
+}
+
+
 static void
 phosh_private_keyboard_event_handle_destroy (struct wl_client   *client,
                                              struct wl_resource *resource)
@@ -275,6 +275,7 @@ phosh_private_keyboard_event_handle_destroy (struct wl_client   *client,
 
 static const struct phosh_private_keyboard_event_interface phosh_private_keyboard_event_impl = {
   .grab_accelerator_request = phosh_private_keyboard_event_grab_accelerator_request,
+  .ungrab_accelerator_request = phosh_private_keyboard_event_ungrab_accelerator_request,
   .destroy = phosh_private_keyboard_event_handle_destroy
 };
 
@@ -307,7 +308,7 @@ handle_get_keyboard_event (struct wl_client   *client,
       g_free (kbevent);
       wl_client_post_no_memory (client);
       return;
-    }
+  }
 
   struct phosh_private *phosh_private = phosh_private_from_resource (phosh_private_resource);
 

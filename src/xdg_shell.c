@@ -42,14 +42,14 @@ static void popup_handle_map(struct wl_listener *listener, void *data) {
 	PhocServer *server = phoc_server_get_default ();
 	struct roots_xdg_popup *popup = wl_container_of(listener, popup, map);
 	view_damage_whole(popup->view_child.view);
-	input_update_cursor_focus(server->input);
+	phoc_input_update_cursor_focus(server->input);
 }
 
 static void popup_handle_unmap(struct wl_listener *listener, void *data) {
 	PhocServer *server = phoc_server_get_default ();
 	struct roots_xdg_popup *popup = wl_container_of(listener, popup, unmap);
 	view_damage_whole(popup->view_child.view);
-	input_update_cursor_focus(server->input);
+	phoc_input_update_cursor_focus(server->input);
 }
 
 static struct roots_xdg_popup *popup_create(struct roots_view *view,
@@ -322,9 +322,9 @@ static void handle_request_move(struct wl_listener *listener, void *data) {
 	struct roots_xdg_surface *roots_xdg_surface =
 		wl_container_of(listener, roots_xdg_surface, request_move);
 	struct roots_view *view = &roots_xdg_surface->view;
-	struct roots_input *input = server->input;
+	PhocInput *input = server->input;
 	struct wlr_xdg_toplevel_move_event *e = data;
-	struct roots_seat *seat = input_seat_from_wlr_seat(input, e->seat->seat);
+	struct roots_seat *seat = phoc_input_seat_from_wlr_seat(input, e->seat->seat);
 
 	// TODO verify event serial
 	if (!seat || roots_seat_get_cursor(seat)->mode != ROOTS_CURSOR_PASSTHROUGH) {
@@ -338,9 +338,9 @@ static void handle_request_resize(struct wl_listener *listener, void *data) {
 	struct roots_xdg_surface *roots_xdg_surface =
 		wl_container_of(listener, roots_xdg_surface, request_resize);
 	struct roots_view *view = &roots_xdg_surface->view;
-	struct roots_input *input = server->input;
+	PhocInput *input = server->input;
 	struct wlr_xdg_toplevel_resize_event *e = data;
-	struct roots_seat *seat = input_seat_from_wlr_seat(input, e->seat->seat);
+	struct roots_seat *seat = phoc_input_seat_from_wlr_seat(input, e->seat->seat);
 
 	// TODO verify event serial
 	assert(seat);

@@ -36,7 +36,7 @@ struct _PhocServer {
   /* Phoc resources */
   struct roots_config *config;
   PhocDesktop *desktop;
-  struct roots_input *input;
+  PhocInput *input;
   PhocServerDebugFlags debug_flags;
   gboolean inited;
 

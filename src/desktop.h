@@ -44,6 +44,7 @@ G_DECLARE_FINAL_TYPE (PhocDesktop, phoc_desktop, PHOC, DESKTOP, GObject);
 /* These need to know about PhocDesktop so we have them after the type definition.
  * This will fix itself once output / view / phosh are gobjects and have their
  * most of their members made non-public */
+#include "input.h"
 #include "output.h"
 #include "view.h"
 #include "phosh.h"

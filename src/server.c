@@ -271,7 +271,7 @@ phoc_server_setup (PhocServer *self, const char *config_path,
   self->mainloop = mainloop;
   self->exit_status = 1;
   self->desktop = phoc_desktop_new (self->config);
-  self->input = input_create(self->config);
+  self->input = phoc_input_new (self->config);
   self->session = g_strdup (session);
   self->mainloop = mainloop;
   self->debug_flags = debug_flags;
@@ -297,7 +297,7 @@ phoc_server_setup (PhocServer *self, const char *config_path,
 #ifdef PHOC_XWAYLAND
   if (self->desktop->xwayland != NULL) {
     struct roots_seat *xwayland_seat =
-      input_get_seat(self->input, ROOTS_CONFIG_DEFAULT_SEAT_NAME);
+      phoc_input_get_seat(self->input, ROOTS_CONFIG_DEFAULT_SEAT_NAME);
     wlr_xwayland_set_seat(self->desktop->xwayland, xwayland_seat->seat);
   }
 #endif

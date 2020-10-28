@@ -39,8 +39,6 @@ typedef void (*roots_surface_iterator_func_t)(struct roots_output *output,
 void rotate_child_position(double *sx, double *sy, double sw, double sh,
 	double pw, double ph, float rotation);
 
-struct roots_input;
-
 void output_surface_for_each_surface(struct roots_output *output,
 	struct wlr_surface *surface, double ox, double oy,
 	roots_surface_iterator_func_t iterator, void *user_data);
@@ -51,7 +49,7 @@ void output_view_for_each_surface(struct roots_output *output,
 	struct roots_view *view, roots_surface_iterator_func_t iterator,
 	void *user_data);
 void output_drag_icons_for_each_surface(struct roots_output *output,
-	struct roots_input *input, roots_surface_iterator_func_t iterator,
+	PhocInput *input, roots_surface_iterator_func_t iterator,
 	void *user_data);
 void output_layer_for_each_surface(struct roots_output *output,
 	struct wl_list *layer_surfaces, roots_surface_iterator_func_t iterator,

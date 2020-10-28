@@ -15,11 +15,18 @@
 #ifdef PHOC_XWAYLAND
 #include <wlr/xwayland.h>
 #endif
-#include "settings.h"
 #include "input.h"
 #include "keyboard.h"
 #include "seat.h"
-#include "server.h"
+
+G_DEFINE_TYPE (PhocInput, phoc_input, G_TYPE_OBJECT);
+
+enum {
+  PROP_0,
+  PROP_CONFIG,
+  PROP_LAST_PROP,
+};
+static GParamSpec *props[PROP_LAST_PROP];
 
 const char *
 phoc_input_get_device_type (enum wlr_input_device_type type)
@@ -42,114 +49,219 @@ phoc_input_get_device_type (enum wlr_input_device_type type)
   }
 }
 
-struct roots_seat *input_get_seat(struct roots_input *input, char *name) {
-	struct roots_seat *seat = NULL;
-	wl_list_for_each(seat, &input->seats, link) {
-		if (strcmp(seat->seat->name, name) == 0) {
-			return seat;
-		}
-	}
+static void
+phoc_input_set_property (GObject      *object,
+                         guint         property_id,
+                         const GValue *value,
+                         GParamSpec   *pspec)
+{
+  PhocInput *self = PHOC_INPUT (object);
 
-	seat = roots_seat_create(input, name);
-	return seat;
+  switch (property_id) {
+  case PROP_CONFIG:
+    self->config = g_value_get_pointer (value);
+    g_object_notify_by_pspec (G_OBJECT (self), props[PROP_CONFIG]);
+    break;
+  default:
+    G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
+    break;
+  }
 }
 
-static void handle_new_input(struct wl_listener *listener, void *data) {
-	struct wlr_input_device *device = data;
-	struct roots_input *input = wl_container_of(listener, input, new_input);
+static void
+phoc_input_get_property (GObject    *object,
+                         guint       property_id,
+                         GValue     *value,
+                         GParamSpec *pspec)
+{
+  PhocInput *self = PHOC_INPUT (object);
 
-	char *seat_name = ROOTS_CONFIG_DEFAULT_SEAT_NAME;
-	struct roots_device_config *dc =
-		roots_config_get_device(input->config, device);
-	if (dc) {
-		seat_name = dc->seat;
-	}
-
-	struct roots_seat *seat = input_get_seat(input, seat_name);
-	if (!seat) {
-		g_warning("could not create roots seat");
-		return;
-	}
-
-	g_debug("New input device: %s (%d:%d) %s seat:%s", device->name,
-		device->vendor, device->product,
-		phoc_input_get_device_type(device->type), seat_name);
-
-	roots_seat_add_device(seat, device);
-
-	if (dc && wlr_input_device_is_libinput(device)) {
-		struct libinput_device *libinput_dev =
-			wlr_libinput_get_device_handle(device);
-
-		g_debug("input has config, tap_enabled: %d\n", dc->tap_enabled);
-		if (dc->tap_enabled) {
-			libinput_device_config_tap_set_enabled(libinput_dev,
-					LIBINPUT_CONFIG_TAP_ENABLED);
-		}
-	}
+  switch (property_id) {
+  case PROP_CONFIG:
+    g_value_set_pointer (value, self->config);
+    break;
+  default:
+    G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
+    break;
+  }
 }
 
-struct roots_input *input_create(struct roots_config *config) {
-	PhocServer *server = phoc_server_get_default ();
-	g_debug("Initializing roots input");
-	assert(server->desktop);
+struct roots_seat *
+phoc_input_get_seat (PhocInput *self, char *name)
+{
+  struct roots_seat *seat = NULL;
 
-	struct roots_input *input = calloc(1, sizeof(struct roots_input));
-	if (input == NULL) {
-		return NULL;
-	}
+  wl_list_for_each (seat, &self->seats, link) {
+    if (strcmp (seat->seat->name, name) == 0) {
+      return seat;
+    }
+  }
 
-	input->config = config;
-
-	wl_list_init(&input->seats);
-
-	input->new_input.notify = handle_new_input;
-	wl_signal_add(&server->backend->events.new_input, &input->new_input);
-
-	return input;
+  seat = roots_seat_create (self, name);
+  return seat;
 }
 
-void input_destroy(struct roots_input *input) {
-	// TODO
+static void
+handle_new_input (struct wl_listener *listener, void *data)
+{
+  struct wlr_input_device *device = data;
+  PhocInput *input = wl_container_of (listener, input, new_input);
+
+  char *seat_name = ROOTS_CONFIG_DEFAULT_SEAT_NAME;
+  struct roots_device_config *dc =
+    roots_config_get_device (input->config, device);
+
+  if (dc) {
+    seat_name = dc->seat;
+  }
+
+  struct roots_seat *seat = phoc_input_get_seat (input, seat_name);
+
+  if (!seat) {
+    g_warning ("could not create roots seat");
+    return;
+  }
+
+  g_debug ("New input device: %s (%d:%d) %s seat:%s", device->name,
+           device->vendor, device->product,
+           phoc_input_get_device_type (device->type), seat_name);
+
+  roots_seat_add_device (seat, device);
+
+  if (dc && wlr_input_device_is_libinput (device)) {
+    struct libinput_device *libinput_dev =
+      wlr_libinput_get_device_handle (device);
+
+    g_debug ("input has config, tap_enabled: %d\n", dc->tap_enabled);
+    if (dc->tap_enabled) {
+      libinput_device_config_tap_set_enabled (libinput_dev,
+                                              LIBINPUT_CONFIG_TAP_ENABLED);
+    }
+  }
 }
 
-struct roots_seat *input_seat_from_wlr_seat(struct roots_input *input,
-		struct wlr_seat *wlr_seat) {
-	struct roots_seat *seat = NULL;
-	wl_list_for_each(seat, &input->seats, link) {
-		if (seat->seat == wlr_seat) {
-			return seat;
-		}
-	}
-	return seat;
+static void
+phoc_input_init (PhocInput *self)
+{
 }
 
-bool input_view_has_focus(struct roots_input *input, struct roots_view *view) {
-	if (!view) {
-		return false;
-	}
-	struct roots_seat *seat;
-	wl_list_for_each(seat, &input->seats, link) {
-		if (view == roots_seat_get_focus(seat)) {
-			return true;
-		}
-	}
-
-	return false;
+PhocInput *
+phoc_input_new (struct roots_config *config)
+{
+  return g_object_new (PHOC_TYPE_INPUT,
+                       "config", config,
+                       NULL);
 }
 
-static inline int64_t timespec_to_msec(const struct timespec *a) {
-	return (int64_t)a->tv_sec * 1000 + a->tv_nsec / 1000000;
+static void
+phoc_input_constructed (GObject *object)
+{
+  PhocInput *self = PHOC_INPUT (object);
+  PhocServer *server = phoc_server_get_default ();
+
+  g_debug ("Initializing roots input");
+  assert (server->desktop);
+
+  wl_list_init (&self->seats);
+
+  self->new_input.notify = handle_new_input;
+  wl_signal_add (&server->backend->events.new_input, &self->new_input);
+  G_OBJECT_CLASS (phoc_input_parent_class)->constructed (object);
+
 }
 
-void input_update_cursor_focus(struct roots_input *input) {
-	struct timespec now;
-	clock_gettime(CLOCK_MONOTONIC, &now);
-	g_assert_nonnull (input);
+static void
+phoc_input_finalize (GObject *object)
+{
+  PhocInput *self = PHOC_INPUT (object);
 
-	struct roots_seat *seat;
-	wl_list_for_each(seat, &input->seats, link) {
-		roots_cursor_update_position(roots_seat_get_cursor (seat),
-					     timespec_to_msec(&now));
-	}
+  wl_list_remove (&self->seats);
+
+  G_OBJECT_CLASS (phoc_input_parent_class)->finalize (object);
+}
+
+static void
+phoc_input_dispose (GObject *object)
+{
+  PhocInput *self = PHOC_INPUT (object);
+
+  g_clear_object (&self->config);
+
+  G_OBJECT_CLASS (phoc_input_parent_class)->dispose (object);
+}
+
+static void
+phoc_input_class_init (PhocInputClass *klass)
+{
+  GObjectClass *object_class = (GObjectClass *)klass;
+
+  object_class->set_property = phoc_input_set_property;
+  object_class->get_property = phoc_input_get_property;
+
+  object_class->constructed = phoc_input_constructed;
+  object_class->dispose = phoc_input_dispose;
+  object_class->finalize = phoc_input_finalize;
+
+  props[PROP_CONFIG] =
+    g_param_spec_pointer (
+      "config",
+      "Config",
+      "The config object",
+      G_PARAM_CONSTRUCT_ONLY | G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+
+  g_object_class_install_properties (object_class, PROP_LAST_PROP, props);
+
+}
+
+struct roots_seat *
+phoc_input_seat_from_wlr_seat (PhocInput       *self,
+                               struct wlr_seat *wlr_seat)
+{
+  struct roots_seat *seat = NULL;
+
+  wl_list_for_each (seat, &self->seats, link) {
+    if (seat->seat == wlr_seat) {
+      return seat;
+    }
+  }
+  return seat;
+}
+
+bool
+phoc_input_view_has_focus (PhocInput *self, struct roots_view *view)
+{
+  if (!view) {
+    return false;
+  }
+  struct roots_seat *seat;
+
+  wl_list_for_each (seat, &self->seats, link) {
+    if (view == roots_seat_get_focus (seat)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+static inline int64_t
+timespec_to_msec (const struct timespec *a)
+{
+  return (int64_t)a->tv_sec * 1000 + a->tv_nsec / 1000000;
+}
+
+void
+phoc_input_update_cursor_focus (PhocInput *self)
+{
+  struct timespec now;
+
+  clock_gettime (CLOCK_MONOTONIC, &now);
+  g_assert_nonnull (self);
+
+  struct roots_seat *seat;
+
+  wl_list_for_each (seat, &self->seats, link) {
+    roots_cursor_update_position (roots_seat_get_cursor (seat),
+                                  timespec_to_msec (&now));
+  }
 }
