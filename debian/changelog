@@ -1,3 +1,29 @@
+phoc (0.4.4) amber-phone; urgency=medium
+
+  [ Guido Günther ]
+  * desktop: Refresh all views when auto-maximize changes.
+    So far this only affected new views but when e.g. unplugging an
+    external (switching to 'phone' mode) we want running apps to
+    behave.
+  * phosh: Drop rotate-display.
+    The rotate_display served us well but it's too simplistic (no events,
+    degrees instead of transforms, ...). Since phosh now uses
+    wlr-output-management for bid to use this part of the private protocol.
+  * d/control: Add breaks for older phosh.
+    These require the rotate_display private protocol bit
+  * phosh: Fix indentation
+  * phosh: Ungrab accelerators.
+    This lead to a compositor crash so far
+
+  [ Clayton Craft ]
+  * input: convert roots_input to PhocInput gobject
+  * input: apply phosh code formatting styles.
+    This is a cosmetic change that applies code formatting styles from
+    Phosh's style guidelines to input.c/h.
+  * Use PhocInput objects instead of roots_input
+
+ -- Guido Günther <agx@sigxcpu.org>  Tue, 27 Oct 2020 09:01:06 +0100
+
 phoc (0.4.3) amber-phone; urgency=medium
 
   [ Guido Günther ]

@@ -65,7 +65,7 @@ handle_request_focus(struct wl_client *client,
   PhocGtkSurface *gtk_surface =
     gtk_surface_from_resource (resource);
   PhocServer *server = phoc_server_get_default ();
-  struct roots_input *input = server->input;
+  PhocInput *input = server->input;
   struct roots_seat *seat = input_last_active_seat(input);
   struct roots_view *view;
 

@@ -298,7 +298,7 @@ static bool scan_out_fullscreen_view(struct roots_output *output) {
 }
 
 static void render_drag_icons(struct roots_output *output,
-		pixman_region32_t *damage, struct roots_input *input) {
+		pixman_region32_t *damage, PhocInput *input) {
 	struct render_data data = {
 		.damage = damage,
 		.alpha = 1.0f,

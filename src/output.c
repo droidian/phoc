@@ -236,7 +236,7 @@ void output_layer_for_each_surface(struct roots_output *output,
 }
 
 void output_drag_icons_for_each_surface(struct roots_output *output,
-		struct roots_input *input, roots_surface_iterator_func_t iterator,
+		PhocInput *input, roots_surface_iterator_func_t iterator,
 		void *user_data) {
 	struct wlr_box *output_box =
 		wlr_output_layout_get_box(output->desktop->layout, output->wlr_output);
@@ -660,7 +660,7 @@ void handle_new_output(struct wl_listener *listener, void *data) {
 		new_output);
 	struct wlr_output *wlr_output = data;
 	PhocServer *server = phoc_server_get_default ();
-	struct roots_input *input = server->input;
+	PhocInput *input = server->input;
 	struct roots_config *config = desktop->config;
 
 	wlr_log(WLR_DEBUG, "Output '%s' added", wlr_output->name);

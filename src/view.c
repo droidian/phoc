@@ -542,7 +542,7 @@ bool view_center(struct roots_view *view) {
 	view_get_geometry (view, &geom);
 
 	PhocDesktop *desktop = view->desktop;
-	struct roots_input *input = server->input;
+	PhocInput *input = server->input;
 	struct roots_seat *seat = input_last_active_seat(input);
 	struct roots_cursor *cursor;
 
@@ -645,7 +645,7 @@ static void subsurface_handle_map(struct wl_listener *listener,
 		wl_container_of(listener, subsurface, map);
 	struct roots_view *view = subsurface->view_child.view;
 	view_damage_whole(view);
-	input_update_cursor_focus(server->input);
+	phoc_input_update_cursor_focus(server->input);
 
 	struct wlr_box box;
 	view_get_box(view, &box);
@@ -666,7 +666,7 @@ static void subsurface_handle_unmap(struct wl_listener *listener,
 		wl_container_of(listener, subsurface, unmap);
 	struct roots_view *view = subsurface->view_child.view;
 	view_damage_whole(view);
-	input_update_cursor_focus(server->input);
+	phoc_input_update_cursor_focus(server->input);
 }
 
 struct roots_subsurface *subsurface_create(struct roots_view *view,
@@ -781,7 +781,7 @@ void view_map(struct roots_view *view, struct wlr_surface *surface) {
 
 	wl_list_insert(&view->desktop->views, &view->link);
 	view_damage_whole(view);
-	input_update_cursor_focus(server->input);
+	phoc_input_update_cursor_focus(server->input);
 }
 
 void view_unmap(struct roots_view *view) {
@@ -817,7 +817,7 @@ void view_unmap(struct roots_view *view) {
 
 void view_initial_focus(struct roots_view *view) {
 	PhocServer *server = phoc_server_get_default ();
-	struct roots_input *input = server->input;
+	PhocInput *input = server->input;
 	// TODO what seat gets focus? the one with the last input event?
 	struct roots_seat *seat;
 	wl_list_for_each(seat, &input->seats, link) {

@@ -53,7 +53,7 @@ Depends:
  mutter-common,
 Recommends: phosh
 Breaks:
- phosh (<< 0.2.0),
+ phosh (<< 0.4.5),
 Description: Wayland compositor for mobile phones
  Tiny wayland compositor based on wlroots for use on mobile phones like the
  Librem 5.

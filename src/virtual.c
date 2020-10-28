@@ -15,7 +15,7 @@ phoc_handle_virtual_keyboard (struct wl_listener *listener, void *data)
     wl_container_of (listener, desktop, virtual_keyboard_new);
   struct wlr_virtual_keyboard_v1 *keyboard = data;
 
-  struct roots_seat *seat = input_seat_from_wlr_seat (server->input,
+  struct roots_seat *seat = phoc_input_seat_from_wlr_seat (server->input,
 						      keyboard->seat);
   g_return_if_fail (seat);
 
@@ -36,7 +36,7 @@ phoc_handle_virtual_pointer(struct wl_listener *listener, void *data)
 
   g_return_if_fail (PHOC_IS_DESKTOP (desktop));
   g_return_if_fail (PHOC_IS_SERVER (server));
-  seat = input_get_seat (server->input, seat_name);
+  seat = phoc_input_get_seat (server->input, seat_name);
   g_return_if_fail (seat);
 
   g_debug ("New virtual input device: %s (%d:%d) %s seat:%s", device->name,

@@ -322,7 +322,7 @@ void arrange_layers(struct roots_output *output) {
 		}
 	}
 
-	struct roots_input *input = server->input;
+	PhocInput *input = server->input;
 	struct roots_seat *seat;
 	wl_list_for_each(seat, &input->seats, link) {
 		roots_seat_set_focus_layer(seat,
@@ -518,7 +518,7 @@ static void popup_handle_map(struct wl_listener *listener, void *data) {
 
 	wlr_surface_send_enter(popup->wlr_popup->base->surface, wlr_output);
 	popup_damage(popup, true);
-	input_update_cursor_focus(server->input);
+	phoc_input_update_cursor_focus(server->input);
 }
 
 static void popup_handle_unmap(struct wl_listener *listener, void *data) {
@@ -530,7 +530,7 @@ static void popup_handle_unmap(struct wl_listener *listener, void *data) {
 	}
 	wl_list_remove(&popup->new_subsurface.link);
 	popup_damage(popup, true);
-	input_update_cursor_focus(server->input);
+	phoc_input_update_cursor_focus(server->input);
 }
 
 static void popup_handle_commit(struct wl_listener *listener, void *data) {
@@ -638,7 +638,7 @@ static void subsurface_handle_map(struct wl_listener *listener, void *data) {
 
 	wlr_surface_send_enter(subsurface->wlr_subsurface->surface, subsurface_get_root_layer(subsurface)->layer_surface->output);
 	subsurface_damage(subsurface, true);
-	input_update_cursor_focus(server->input);
+	phoc_input_update_cursor_focus(server->input);
 }
 
 static void subsurface_handle_unmap(struct wl_listener *listener, void *data) {
@@ -650,7 +650,7 @@ static void subsurface_handle_unmap(struct wl_listener *listener, void *data) {
 	}
 	wl_list_remove(&subsurface->new_subsurface.link);
 	subsurface_damage(subsurface, true);
-	input_update_cursor_focus(server->input);
+	phoc_input_update_cursor_focus(server->input);
 }
 
 static void subsurface_handle_commit(struct wl_listener *listener, void *data) {
@@ -736,7 +736,7 @@ static void handle_unmap(struct wl_listener *listener, void *data) {
 	wl_list_remove(&layer->new_subsurface.link);
 
 	unmap(layer->layer_surface);
-	input_update_cursor_focus(server->input);
+	phoc_input_update_cursor_focus(server->input);
 }
 
 void handle_layer_shell_surface(struct wl_listener *listener, void *data) {
@@ -756,7 +756,7 @@ void handle_layer_shell_surface(struct wl_listener *listener, void *data) {
 		layer_surface->client_pending.margin.left);
 
 	if (!layer_surface->output) {
-		struct roots_input *input = server->input;
+		PhocInput *input = server->input;
 		struct roots_seat *seat = input_last_active_seat(input);
 		assert(seat); // Technically speaking we should handle this case
 		struct roots_cursor *cursor = roots_seat_get_cursor(seat);

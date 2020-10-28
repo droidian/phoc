@@ -9,10 +9,10 @@
 #include "text_input.h"
 
 struct roots_seat {
-	struct roots_input *input;
+	PhocInput *input;
 	struct wlr_seat *seat;
 	struct roots_cursor *cursor;
-	struct wl_list link; // roots_input::seats
+	struct wl_list link; // PhocInput::seats
 
 	// coordinates of the first touch point if it exists
 	int32_t touch_id;
@@ -136,7 +136,7 @@ struct roots_pointer_constraint {
 	struct wl_listener destroy;
 };
 
-struct roots_seat *roots_seat_create(struct roots_input *input, char *name);
+struct roots_seat *roots_seat_create(PhocInput *input, char *name);
 
 void roots_seat_destroy(struct roots_seat *seat);
 
@@ -182,5 +182,7 @@ bool roots_seat_allow_input(struct roots_seat *seat,
 		struct wl_resource *resource);
 
 void roots_seat_maybe_set_cursor (struct roots_seat *seat, const char *name);
+
+struct roots_seat *input_last_active_seat(PhocInput *input);
 
 #endif

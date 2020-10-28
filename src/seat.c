@@ -743,7 +743,7 @@ void roots_seat_destroy(struct roots_seat *seat) {
 	wlr_seat_destroy(seat->seat);
 }
 
-struct roots_seat *roots_seat_create(struct roots_input *input, char *name) {
+struct roots_seat *roots_seat_create(PhocInput *input, char *name) {
 	PhocServer *server = phoc_server_get_default ();
 	struct roots_seat *seat = calloc(1, sizeof(struct roots_seat));
 	if (!seat) {
@@ -1419,7 +1419,7 @@ void roots_seat_set_focus(struct roots_seat *seat, struct roots_view *view) {
 	seat->has_focus = false;
 
 	// Deactivate the old view if it is not focused by some other seat
-	if (prev_focus != NULL && !input_view_has_focus(seat->input, prev_focus)) {
+	if (prev_focus != NULL && !phoc_input_view_has_focus(seat->input, prev_focus)) {
 		view_activate(prev_focus, false);
 	}
 
@@ -1673,7 +1673,7 @@ void roots_seat_end_compositor_grab(struct roots_seat *seat) {
 	cursor->mode = ROOTS_CURSOR_PASSTHROUGH;
 }
 
-struct roots_seat *input_last_active_seat(struct roots_input *input) {
+struct roots_seat *input_last_active_seat(PhocInput *input) {
 	struct roots_seat *seat = NULL, *_seat;
 	wl_list_for_each(_seat, &input->seats, link) {
 		if (!seat || (seat->seat->last_event.tv_sec > _seat->seat->last_event.tv_sec &&
