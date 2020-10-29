@@ -253,6 +253,7 @@ phoc_phosh_private_keyboard_event_grab_accelerator_request (struct wl_client   *
     return;
   }
 
+/*
   if (!keysym_is_subscribeable (combo)) {
     g_debug ("Requested keysym %s is not subscribeable!", accelerator);
 
@@ -261,6 +262,7 @@ phoc_phosh_private_keyboard_event_grab_accelerator_request (struct wl_client   *
                                                          PHOSH_PRIVATE_KEYBOARD_EVENT_ERROR_INVALID_KEYSYM);
     return;
   }
+*/
 
   new_action_id = kbevent->phosh->last_action_id++;
 
