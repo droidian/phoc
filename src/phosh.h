@@ -6,6 +6,7 @@
 
 #pragma once
 #include <wlr/types/wlr_layer_shell_v1.h>
+#include <wlr/types/wlr_switch.h>
 #include <gmodule.h>
 #include "keybindings.h"
 
@@ -47,3 +48,4 @@ struct phosh_private_xdg_switcher *phosh_private_xdg_switcher_from_resource(stru
 struct phosh_private_screencopy_frame *phosh_private_screencopy_frame_from_resource(struct wl_resource *resource);
 
 bool phosh_forward_keysym (PhocKeyCombo *combo, uint32_t timestamp);
+bool phosh_forward_switch_event (struct wlr_event_switch_toggle *event);

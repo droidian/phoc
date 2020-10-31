@@ -15,6 +15,7 @@
 #include <wayland-server-core.h>
 #include <wlr/config.h>
 #include <wlr/types/wlr_surface.h>
+#include <wlr/types/wlr_switch.h>
 #include <wlr/util/log.h>
 #include <wlr/render/wlr_texture.h>
 #include <wlr/types/wlr_matrix.h>
@@ -649,4 +650,23 @@ phosh_forward_keysym (PhocKeyCombo *combo,
   }
 
   return forwarded;
+}
+
+bool
+phosh_forward_switch_event (struct wlr_event_switch_toggle *event)
+{
+  PhocServer *server = phoc_server_get_default ();
+
+  struct phosh_private *phosh_private;
+  phosh_private = server->desktop->phosh;
+
+  if (phosh_private && phosh_private->resource) {
+      phosh_private_send_switch_event (phosh_private->resource,
+                                       event->switch_type,
+                                       event->switch_state);
+
+      return true;
+  }
+
+  return false;
 }

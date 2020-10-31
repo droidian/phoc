@@ -21,6 +21,22 @@ void roots_switch_handle_toggle(struct roots_switch *switch_device,
 				event->switch_state != sc->switch_state) {
 			continue;
 		}
-		g_warning ("Unhandled switch event %s", sc->name);
+		g_debug ("Handling switch event %i (state %i)", event->switch_type,
+		         event->switch_state);
+
+		if (!phosh_forward_switch_event (event)) {
+			/* FIXME: If the switch reliability is set to RELIABILITY_RELIABLE
+			 * and the lid/slide is closed, libinput will dispatch an
+			 * event just after the device has been added -- but
+			 * this means that the phosh private protocol is not ready
+			 * yet.
+			 *
+			 * Workaround this by trying again after one second. This
+			 * is less than ideal and should be changed for something
+			 * better.
+			*/
+			/* TODO REIMPLEMENT THIS */
+			g_warning ("Fail");
+		}
 	}
 }
