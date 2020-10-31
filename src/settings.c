@@ -74,6 +74,8 @@ static void add_switch_config(struct wl_list *switches, const char *switch_name,
 		sc->switch_type = WLR_SWITCH_TYPE_TABLET_MODE;
 	} else if (strcmp(switch_name, "lid") == 0) {
 		sc->switch_type = WLR_SWITCH_TYPE_LID;
+	} else if (strcmp(switch_name, "keypad_slide") == 0) {
+		sc->switch_type = WLR_SWITCH_TYPE_KEYPAD_SLIDE;
 	} else {
 		sc->switch_type = -1;
 		sc->name = strdup(switch_name);
