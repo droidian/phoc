@@ -78,13 +78,6 @@ struct roots_pointer {
 	struct wl_list link;
 };
 
-struct roots_touch {
-	struct roots_seat *seat;
-	struct wlr_input_device *device;
-	struct wl_listener device_destroy;
-	struct wl_list link;
-};
-
 struct roots_tablet {
 	struct roots_seat *seat;
 	struct wlr_input_device *device;

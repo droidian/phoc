@@ -11,9 +11,7 @@
 #include <wlr/config.h>
 #include <wlr/types/wlr_compositor.h>
 #include <wlr/types/wlr_output_layout.h>
-#ifdef PHOC_HAS_WLR_OUTPUT_POWER_MANAGEMENT
 #include <wlr/types/wlr_output_power_management_v1.h>
-#endif
 #include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/util/log.h>
 #include <wlr/util/region.h>
@@ -513,19 +511,24 @@ void handle_output_manager_apply(struct wl_listener *listener, void *data) {
 	// First disable outputs we need to disable
 	wl_list_for_each(config_head, &config->heads, link) {
 		struct wlr_output *wlr_output = config_head->state.output;
-		if (!config_head->state.enabled) {
-			wlr_output_enable(wlr_output, false);
-			wlr_output_layout_remove(desktop->layout, wlr_output);
-			ok &= wlr_output_commit(wlr_output);
-		}
+		if (config_head->state.enabled)
+			continue;
+
+		if (!wlr_output->enabled)
+			continue;
+
+		wlr_output_enable(wlr_output, false);
+		wlr_output_layout_remove(desktop->layout, wlr_output);
+		ok &= wlr_output_commit(wlr_output);
 	}
 
 	// Then enable outputs that need to
 	wl_list_for_each(config_head, &config->heads, link) {
 		struct wlr_output *wlr_output = config_head->state.output;
-		if (!config_head->state.enabled) {
+
+		if (!config_head->state.enabled)
 			continue;
-		}
+
 		wlr_output_enable(wlr_output, true);
 		if (config_head->state.mode != NULL) {
 			wlr_output_set_mode(wlr_output, config_head->state.mode);
@@ -539,7 +542,11 @@ void handle_output_manager_apply(struct wl_listener *listener, void *data) {
 			config_head->state.x, config_head->state.y);
 		wlr_output_set_transform(wlr_output, config_head->state.transform);
 		wlr_output_set_scale(wlr_output, config_head->state.scale);
+		struct roots_output *output = wlr_output->data;
 		ok &= wlr_output_commit(wlr_output);
+		if (output->fullscreen_view) {
+			view_set_fullscreen(output->fullscreen_view, true, wlr_output);
+		}
 	}
 
 	if (ok) {
@@ -562,7 +569,6 @@ void handle_output_manager_test(struct wl_listener *listener, void *data) {
 	wlr_output_configuration_v1_destroy(config);
 }
 
-#ifdef PHOC_HAS_WLR_OUTPUT_POWER_MANAGEMENT
 void
 phoc_output_handle_output_power_manager_set_mode(struct wl_listener *listener, void *data)
 {
@@ -599,7 +605,6 @@ phoc_output_handle_output_power_manager_set_mode(struct wl_listener *listener, v
   if (enable)
     output_damage_whole (self);
 }
-#endif
 
 static void output_destroy(struct roots_output *output) {
 	// TODO: cursor

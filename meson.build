@@ -1,5 +1,5 @@
 project('phoc', 'c',
-          version: '0.4.4',
+          version: '0.5.0',
           license: 'GPLv3+',
     meson_version: '>= 0.47.0',
   default_options: [
@@ -120,6 +120,11 @@ add_project_arguments(
 
 gnome = import('gnome')
 
+meson.add_install_script(
+  join_paths('build-aux', 'post_install.py'),
+  join_paths(get_option('prefix'), get_option('datadir'))
+)
+
 subdir('protocols')
 subdir('src')
 subdir('tests')
@@ -142,7 +147,6 @@ message('\n'.join(summary))
 config_h = configuration_data()
 config_h.set_quoted('PHOC_VERSION', meson.project_version())
 config_h.set('PHOC_XWAYLAND', have_xwayland)
-config_h.set('PHOC_HAS_WLR_OUTPUT_POWER_MANAGEMENT', wlroots_has_output_power_management)
 
 configure_file(
   input: 'config.h.in',

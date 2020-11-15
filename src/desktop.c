@@ -20,9 +20,7 @@
 #include <wlr/types/wlr_input_inhibitor.h>
 #include <wlr/types/wlr_layer_shell_v1.h>
 #include <wlr/types/wlr_output_layout.h>
-#ifdef PHOC_HAS_WLR_OUTPUT_POWER_MANAGEMENT
 #include <wlr/types/wlr_output_power_management_v1.h>
-#endif
 #include <wlr/types/wlr_pointer_constraints_v1.h>
 #include <wlr/types/wlr_server_decoration.h>
 #include <wlr/types/wlr_tablet_v2.h>
@@ -610,14 +608,12 @@ phoc_desktop_constructed (GObject *object)
   wl_signal_add(&self->output_manager_v1->events.test,
 		&self->output_manager_test);
 
-#ifdef PHOC_HAS_WLR_OUTPUT_POWER_MANAGEMENT
   self->output_power_manager_v1 =
     wlr_output_power_manager_v1_create(server->wl_display);
   self->output_power_manager_set_mode.notify =
     phoc_output_handle_output_power_manager_set_mode;
   wl_signal_add(&self->output_power_manager_v1->events.set_mode,
 		&self->output_power_manager_set_mode);
-#endif
 
   wlr_data_control_manager_v1_create(server->wl_display);
 

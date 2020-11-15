@@ -66,9 +66,7 @@ void output_for_each_surface(struct roots_output *output,
 void handle_new_output(struct wl_listener *listener, void *data);
 void handle_output_manager_apply(struct wl_listener *listener, void *data);
 void handle_output_manager_test(struct wl_listener *listener, void *data);
-#ifdef PHOC_HAS_WLR_OUTPUT_POWER_MANAGEMENT
 void phoc_output_handle_output_power_manager_set_mode(struct wl_listener *listener, void *data);
-#endif
 
 struct roots_view;
 struct roots_drag_icon;

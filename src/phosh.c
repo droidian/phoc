@@ -26,6 +26,11 @@
 #include "render.h"
 #include "utils.h"
 
+/* help older (0.8.2) libxkbcommon */
+#ifndef XKB_KEY_XF86RotationLockToggle
+# define XKB_KEY_XF86RotationLockToggle 0x1008FFB7
+#endif
+
 struct phosh_private_keyboard_event_data {
   GHashTable *subscribed_accelerators;
   struct wl_resource *resource;
@@ -149,28 +154,17 @@ phosh_private_accelerator_already_subscribed (PhocKeyCombo *combo)
 }
 
 static bool
-keysym_is_media (xkb_keysym_t keysym)
+keysym_is_subscribeable (PhocKeyCombo *combo)
 {
-  switch (keysym) {
-  case XKB_KEY_XF86AudioLowerVolume:
-  case XKB_KEY_XF86AudioRaiseVolume:
-  case XKB_KEY_XF86AudioMute:
-  case XKB_KEY_XF86AudioMicMute:
-  case XKB_KEY_XF86AudioPlay:
-  case XKB_KEY_XF86AudioPause:
-  case XKB_KEY_XF86AudioStop:
-  case XKB_KEY_XF86AudioNext:
-  case XKB_KEY_XF86AudioPrev:
+  /* Allow to bind all keys with modifiers that aren't just shift/caps */
+  if (combo->modifiers >= WLR_MODIFIER_CTRL)
     return true;
-  default:
-    return false;
-  }
-}
 
-static bool
-keysym_is_subscribeable (xkb_keysym_t keysym)
-{
-  return keysym_is_media (keysym);
+  /* keys on multi media keyboards */
+  if (combo->keysym >= XKB_KEY_XF86MonBrightnessUp && combo->keysym <= XKB_KEY_XF86RotationLockToggle)
+    return true;
+
+  return false;
 }
 
 static void
@@ -196,7 +190,7 @@ phosh_private_keyboard_event_grab_accelerator_request (struct wl_client   *wl_cl
     return;
   }
 
-  if (!keysym_is_subscribeable (combo->keysym)) {
+  if (!keysym_is_subscribeable (combo)) {
     g_debug ("Requested keysym %s is not subscribeable!", accelerator);
 
     phosh_private_keyboard_event_send_grab_failed_event (resource,

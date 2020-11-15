@@ -24,6 +24,7 @@
 #include "keyboard.h"
 #include "seat.h"
 #include "text_input.h"
+#include "touch.h"
 #include "xcursor.h"
 
 static void handle_keyboard_key(struct wl_listener *listener, void *data) {
@@ -460,7 +461,7 @@ void roots_seat_configure_cursor(struct roots_seat *seat) {
 	struct wlr_cursor *cursor = seat->cursor->cursor;
 
 	struct roots_pointer *pointer;
-	struct roots_touch *touch;
+	PhocTouch *touch;
 	struct roots_tablet *tablet;
 	struct roots_output *output;
 
@@ -907,29 +908,21 @@ static void seat_add_switch(struct roots_seat *seat,
 }
 
 static void handle_touch_destroy(struct wl_listener *listener, void *data) {
-	struct roots_touch *touch =
-		wl_container_of(listener, touch, device_destroy);
+	PhocTouch *touch = wl_container_of(listener, touch, device_destroy);
 	struct roots_seat *seat = touch->seat;
 
 	wl_list_remove(&touch->link);
 	wlr_cursor_detach_input_device(seat->cursor->cursor, touch->device);
 	wl_list_remove(&touch->device_destroy.link);
-	free(touch);
+	g_object_unref (touch);
 
 	seat_update_capabilities(seat);
 }
 
 static void seat_add_touch(struct roots_seat *seat,
 		struct wlr_input_device *device) {
-	struct roots_touch *touch = calloc(1, sizeof(struct roots_touch));
-	if (!touch) {
-		wlr_log(WLR_ERROR, "could not allocate touch for seat");
-		return;
-	}
+	PhocTouch *touch = phoc_touch_new (device, seat);
 
-	device->data = touch;
-	touch->device = device;
-	touch->seat = seat;
 	wl_list_insert(&seat->touch, &touch->link);
 
 	touch->device_destroy.notify = handle_touch_destroy;

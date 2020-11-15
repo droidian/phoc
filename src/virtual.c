@@ -4,6 +4,7 @@
 
 #define _POSIX_C_SOURCE 199309L
 #include <wlr/types/wlr_virtual_keyboard_v1.h>
+#include <wlr/version.h>
 #include "virtual.h"
 #include "seat.h"
 
@@ -45,7 +46,7 @@ phoc_handle_virtual_pointer(struct wl_listener *listener, void *data)
 
   roots_seat_add_device (seat, device);
 
-#if 0 /* TODO: can be enabled after next wlroots release */
+#if WLR_VERSION_MAJOR > 0 || WLR_VERSION_MINOR >= 11
   if (event->suggested_output) {
     wlr_cursor_map_input_to_output(seat->cursor->cursor, device,
 				   event->suggested_output);

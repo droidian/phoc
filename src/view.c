@@ -360,29 +360,31 @@ view_auto_maximize(struct roots_view *view)
 void view_set_fullscreen(struct roots_view *view, bool fullscreen,
 		struct wlr_output *output) {
 	bool was_fullscreen = view->fullscreen_output != NULL;
-	if (was_fullscreen == fullscreen) {
-		// TODO: support changing the output?
-		return;
-	}
 
 	// TODO: check if client is focused?
 
-	if (view->impl->set_fullscreen) {
-		view->impl->set_fullscreen(view, fullscreen);
+	if (!was_fullscreen) {
+		if (view->impl->set_fullscreen) {
+			view->impl->set_fullscreen(view, fullscreen);
+		}
+
+		if (view->toplevel_handle) {
+			wlr_foreign_toplevel_handle_v1_set_fullscreen(view->toplevel_handle,
+					fullscreen);
+		}
 	}
 
-	if (view->toplevel_handle) {
-		wlr_foreign_toplevel_handle_v1_set_fullscreen(view->toplevel_handle,
-				fullscreen);
-	}
-
-	if (!was_fullscreen && fullscreen) {
+	if (fullscreen) {
 		if (output == NULL) {
 			output = view_get_output(view);
 		}
 		struct roots_output *roots_output = output->data;
 		if (roots_output == NULL) {
 			return;
+		}
+
+		if (was_fullscreen) {
+			view->fullscreen_output->fullscreen_view = NULL;
 		}
 
 		struct wlr_box view_box;

@@ -28,9 +28,6 @@ struct _PhocInput {
 
   /* private */
   struct roots_config *config;
-  struct xkb_keymap   *keymap;
-  uint32_t             meta_key;
-  GnomeXkbInfo        *xkbinfo;
 };
 
 PhocInput         *phoc_input_new (struct roots_config *config);

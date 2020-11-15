@@ -1,3 +1,33 @@
+phoc (0.5.0) amber-phone; urgency=high
+
+  [ Guido Günther ]
+  * phosh: Allow to bind rebular keys plust <SUPER> modifier
+  * gitlab-ci: Remove build artifacts in ..
+  * output: handle_output_manager_apply: Make both loops use the same logic
+  * Drop PHOC_HAS_WLR_OUTPUT_POWER_MANAGEMENT
+  * output: handle_output_manager_apply: Don't disable already disabled outputs
+  * phosh: Define keysym for older libxkb-common
+  * phosh: Allow to bind more keys
+
+  [ Dorota Czaplejewicz ]
+  * keyboard: Do not override keymap on virtual keyboard
+
+  [ Sebastian Krzyszkowiak ]
+  * view: Allow to switch outputs of fullscreen surface
+  * output: Refresh fullscreen view when its output is reconfigured
+  * gitlab-ci: Don't pull wlroots from sid
+  * virtual: Allow suggested_output usage on recent enough wlroots
+
+  [ Alexander Mikhaylenko ]
+  * meson: Compile gschemas on install
+
+  [ Clayton Craft ]
+  * input: remove unused PhocInput members
+  * touch: add new PhocTouch gobject for touch input devices
+  * seat: use PhocTouch for touch input devices
+
+ -- Sebastian Krzyszkowiak <sebastian.krzyszkowiak@puri.sm>  Sat, 14 Nov 2020 17:54:34 +0100
+
 phoc (0.4.4) amber-phone; urgency=medium
 
   [ Guido Günther ]

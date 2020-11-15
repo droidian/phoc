@@ -443,6 +443,11 @@ on_input_setting_changed (PhocKeyboard *self,
 
   g_debug ("Setting changed, reloading input settings");
 
+  if (wlr_input_device_get_virtual_keyboard(self->device) != NULL) {
+	  g_debug ("Virtual keyboard in use, not switching layout");
+	  return;
+  }
+
   sources = g_settings_get_value(settings, "sources");
 
   g_variant_iter_init (&iter, sources);

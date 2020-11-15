@@ -28,6 +28,7 @@ variables:
     - ninja -C _build install
 
 .before_script_debian: &before_script_debian
+  - rm -f ../* || true
   - apt-get -y update
   - apt-get -y install $DEPS
   - apt-get -y build-dep .
@@ -136,14 +137,7 @@ package-deb-without-wlroots:
   variables:
     DEB_BUILD_PROFILES: ""
   dependencies: []
-  before_script:
-    - echo "deb http://deb.debian.org/debian/ sid main" > /etc/apt/sources.list.d/sid.list
-    - apt-get -y update
-    # This pulls in wlroots build-deps and so avoids pulling in e.g. mesa from
-    # sid due to pulling wlroots from sid
-    # Once we have wlroots in our archive we can drop the build profile
-    - DEB_BUILD_PROFILES=pkg.phoc.embedwlroots apt-get -y -t buster build-dep .
-    - apt-get -y -t sid install libwlroots-dev meson
+  before_script: *before_script_debian_buster
   script:
     - rm -rf "${L5_WORKING_DIR}"; mkdir -p "${L5_WORKING_DIR}"
     - dpkg-buildpackage -b -uc -us
