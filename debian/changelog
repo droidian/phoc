@@ -1,3 +1,10 @@
+phoc (0.5.1) amber-phone; urgency=high
+
+  [ Dorota Czaplejewicz ]
+  * text_input: Don't forward events from unfocused text inputs
+
+ -- Sebastian Krzyszkowiak <sebastian.krzyszkowiak@puri.sm>  Wed, 18 Nov 2020 21:20:45 +0100
+
 phoc (0.5.0) amber-phone; urgency=high
 
   [ Guido Günther ]

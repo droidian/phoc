@@ -93,11 +93,21 @@ static void handle_im_destroy(struct wl_listener *listener, void *data) {
 	}
 }
 
+static bool text_input_is_focused(struct wlr_text_input_v3 *text_input) {
+	// roots_input_method_relay_set_focus ensures
+	// that focus sits on the single text input with focused_surface set.
+	return text_input->focused_surface != NULL;
+}
+
 static void relay_send_im_done(struct roots_input_method_relay *relay,
 		struct wlr_text_input_v3 *input) {
 	struct wlr_input_method_v2 *input_method = relay->input_method;
 	if (!input_method) {
 		wlr_log(WLR_INFO, "Sending IM_DONE but im is gone");
+		return;
+	}
+	if (!text_input_is_focused(input)) {
+		// Don't let input method know about events from unfocused surfaces.
 		return;
 	}
 	// TODO: only send each of those if they were modified
@@ -137,6 +147,12 @@ static void handle_text_input_enable(struct wl_listener *listener, void *data) {
 	}
 	struct roots_text_input *text_input = text_input_to_roots(relay,
 		(struct wlr_text_input_v3*)data);
+	// relay_send_im_done protects from receiving unfocussed done,
+	// but activate must be prevented too.
+	// TODO: when enter happens?
+	if (!text_input_is_focused(text_input->input)) {
+		return;
+	}
 	wlr_input_method_v2_send_activate(relay->input_method);
 	relay_send_im_done(relay, text_input->input);
 }
@@ -163,6 +179,11 @@ static void relay_disable_text_input(struct roots_input_method_relay *relay,
 		struct roots_text_input *text_input) {
 	if (relay->input_method == NULL) {
 		wlr_log(WLR_DEBUG, "Disabling text input, but input method is gone");
+		return;
+	}
+	// relay_send_im_done protects from receiving unfocussed done,
+	// but deactivate must be prevented too
+	if (!text_input_is_focused(text_input->input)) {
 		return;
 	}
 	wlr_input_method_v2_send_deactivate(relay->input_method);
