@@ -28,6 +28,12 @@ enum {
 };
 static GParamSpec *props[PROP_LAST_PROP];
 
+enum {
+  TOUCH_DESTROY,
+  N_SIGNALS
+};
+static guint signals[N_SIGNALS] = { 0 };
+
 static void
 phoc_touch_set_property (GObject      *object,
                          guint         property_id,
@@ -88,14 +94,31 @@ phoc_touch_new (struct wlr_input_device *device, struct roots_seat *seat)
 }
 
 static void
+handle_touch_destroy (struct wl_listener *listener, void *data)
+{
+  PhocTouch *self = wl_container_of (listener, self, touch_destroy);
+
+  g_signal_emit (self, signals[TOUCH_DESTROY], 0);
+}
+
+static void
 phoc_touch_constructed (GObject *object)
 {
+  PhocTouch *self = PHOC_TOUCH (object);
+
+  self->touch_destroy.notify = handle_touch_destroy;
+  wl_signal_add (&self->device->events.destroy, &self->touch_destroy);
+
   G_OBJECT_CLASS (phoc_touch_parent_class)->constructed (object);
 }
 
 static void
 phoc_touch_finalize (GObject *object)
 {
+  PhocTouch *self = PHOC_TOUCH (object);
+
+  wl_list_remove (&self->touch_destroy.link);
+
   G_OBJECT_CLASS (phoc_touch_parent_class)->finalize (object);
 }
 
@@ -130,4 +153,10 @@ phoc_touch_class_init (PhocTouchClass *klass)
       "The seat object",
       G_PARAM_CONSTRUCT_ONLY | G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS | G_PARAM_EXPLICIT_NOTIFY);
   g_object_class_install_properties (object_class, PROP_LAST_PROP, props);
+
+  signals[TOUCH_DESTROY] = g_signal_new ("touch-destroyed",
+                                         G_TYPE_OBJECT,
+                                         G_SIGNAL_RUN_LAST,
+                                         0, NULL, NULL, NULL, G_TYPE_NONE, 0);
+
 }

@@ -101,7 +101,7 @@ buffer_damage_finish:
 }
 
 static void
-collect_touch_points (struct roots_output *output, struct wlr_surface *surface, struct wlr_box box, float scale)
+collect_touch_points (PhocOutput *output, struct wlr_surface *surface, struct wlr_box box, float scale)
 {
   PhocServer *server = phoc_server_get_default ();
   if (G_LIKELY (!(server->debug_flags & PHOC_SERVER_DEBUG_FLAG_TOUCH_POINTS))) {
@@ -122,7 +122,7 @@ collect_touch_points (struct roots_output *output, struct wlr_surface *surface, 
   }
 }
 
-static void render_surface_iterator(struct roots_output *output,
+static void render_surface_iterator(PhocOutput *output,
 		struct wlr_surface *surface, struct wlr_box *_box, float rotation,
 		float scale, void *_data) {
 	struct render_data *data = _data;
@@ -136,8 +136,8 @@ static void render_surface_iterator(struct roots_output *output,
 	}
 
 	struct wlr_box box = *_box;
-	scale_box(&box, scale);
-	scale_box(&box, wlr_output->scale);
+	phoc_output_scale_box(wlr_output->data, &box, scale);
+	phoc_output_scale_box(wlr_output->data, &box, wlr_output->scale);
 
 	float matrix[9];
 	enum wl_output_transform transform =
@@ -154,7 +154,7 @@ static void render_surface_iterator(struct roots_output *output,
 	collect_touch_points(output, surface, box, scale);
 }
 
-static void render_decorations(struct roots_output *output,
+static void render_decorations(PhocOutput *output,
 		struct roots_view *view, struct render_data *data) {
 	if (!view->decorated || view->wlr_surface == NULL) {
 		return;
@@ -165,15 +165,12 @@ static void render_decorations(struct roots_output *output,
 	assert(renderer);
 
 	struct wlr_box box;
-	get_decoration_box(view, output, &box);
-
-	struct wlr_box rotated;
-	wlr_box_rotated_bounds(&rotated, &box, view->rotation);
+	phoc_output_get_decoration_box(output, view, &box);
 
 	pixman_region32_t damage;
 	pixman_region32_init(&damage);
-	pixman_region32_union_rect(&damage, &damage, rotated.x, rotated.y,
-		rotated.width, rotated.height);
+	pixman_region32_union_rect(&damage, &damage, box.x, box.y,
+		box.width, box.height);
 	pixman_region32_intersect(&damage, &damage, data->damage);
 	bool damaged = pixman_region32_not_empty(&damage);
 	if (!damaged) {
@@ -182,7 +179,7 @@ static void render_decorations(struct roots_output *output,
 
 	float matrix[9];
 	wlr_matrix_project_box(matrix, &box, WL_OUTPUT_TRANSFORM_NORMAL,
-		view->rotation, output->wlr_output->transform_matrix);
+		0, output->wlr_output->transform_matrix);
 	float color[] = { 0.2, 0.2, 0.2, view->alpha };
 
 	int nrects;
@@ -197,7 +194,7 @@ buffer_damage_finish:
 	pixman_region32_fini(&damage);
 }
 
-static void render_view(struct roots_output *output, struct roots_view *view,
+static void render_view(PhocOutput *output, struct roots_view *view,
 		struct render_data *data) {
 	// Do not render views fullscreened on other outputs
 	if (view->fullscreen_output != NULL && view->fullscreen_output != output) {
@@ -208,27 +205,27 @@ static void render_view(struct roots_output *output, struct roots_view *view,
 	if (view->fullscreen_output == NULL) {
 		render_decorations(output, view, data);
 	}
-	output_view_for_each_surface(output, view, render_surface_iterator, data);
+	phoc_output_view_for_each_surface(output, view, render_surface_iterator, data);
 }
 
-static void render_layer(struct roots_output *output,
+static void render_layer(PhocOutput *output,
 		pixman_region32_t *damage, struct wl_list *layer_surfaces) {
 	struct render_data data = {
 		.damage = damage,
 		.alpha = 1.0f,
 	};
-	output_layer_for_each_surface(output, layer_surfaces,
+	phoc_output_layer_for_each_surface(output, layer_surfaces,
 		render_surface_iterator, &data);
 }
 
-static void count_surface_iterator(struct roots_output *output,
+static void count_surface_iterator(PhocOutput *output,
 		struct wlr_surface *surface, struct wlr_box *_box, float rotation,
 		float scale, void *data) {
 	size_t *n = data;
 	n++;
 }
 
-static bool scan_out_fullscreen_view(struct roots_output *output) {
+static bool scan_out_fullscreen_view(PhocOutput *output) {
 	struct wlr_output *wlr_output = output->wlr_output;
 	PhocServer *server = phoc_server_get_default ();
 
@@ -258,7 +255,7 @@ static bool scan_out_fullscreen_view(struct roots_output *output) {
 		return false;
 	}
 	size_t n_surfaces = 0;
-	output_view_for_each_surface(output, view,
+	phoc_output_view_for_each_surface(output, view,
 		count_surface_iterator, &n_surfaces);
 	if (n_surfaces > 1) {
 		return false;
@@ -297,13 +294,13 @@ static bool scan_out_fullscreen_view(struct roots_output *output) {
 	return wlr_output_commit(wlr_output);
 }
 
-static void render_drag_icons(struct roots_output *output,
+static void render_drag_icons(PhocOutput *output,
 		pixman_region32_t *damage, PhocInput *input) {
 	struct render_data data = {
 		.damage = damage,
 		.alpha = 1.0f,
 	};
-	output_drag_icons_for_each_surface(output, input,
+	phoc_output_drag_icons_for_each_surface(output, input,
 		render_surface_iterator, &data);
 }
 
@@ -348,7 +345,7 @@ render_touch_point_cb (gpointer data, gpointer user_data)
 {
   struct touch_point_data *touch_point = data;
 
-  struct roots_output *output = user_data;
+  PhocOutput *output = user_data;
   struct wlr_output *wlr_output = output->wlr_output;
 
   struct wlr_box point_box = wlr_box_from_touch_point (touch_point, TOUCH_POINT_RADIUS * wlr_output->scale);
@@ -364,7 +361,7 @@ render_touch_point_cb (gpointer data, gpointer user_data)
 }
 
 static void
-render_touch_points (struct roots_output *output)
+render_touch_points (PhocOutput *output)
 {
   PhocServer *server = phoc_server_get_default ();
   if (G_LIKELY (!(server->debug_flags & PHOC_SERVER_DEBUG_FLAG_TOUCH_POINTS))) {
@@ -378,7 +375,7 @@ damage_touch_point_cb (gpointer data, gpointer user_data)
 {
   struct touch_point_data *touch_point = data;
 
-  struct roots_output *output = user_data;
+  PhocOutput *output = user_data;
   struct wlr_output *wlr_output = output->wlr_output;
 
   struct wlr_box box = wlr_box_from_touch_point (touch_point, TOUCH_POINT_RADIUS * wlr_output->scale);
@@ -389,7 +386,7 @@ damage_touch_point_cb (gpointer data, gpointer user_data)
 }
 
 static void
-damage_touch_points (struct roots_output *output)
+damage_touch_points (PhocOutput *output)
 {
   if (!g_list_length (output->debug_touch_points)) {
     return;
@@ -484,14 +481,14 @@ view_render_to_buffer (struct roots_view *view, enum wl_shm_format fmt, int widt
   return TRUE;
 }
 
-static void surface_send_frame_done_iterator(struct roots_output *output,
+static void surface_send_frame_done_iterator(PhocOutput *output,
 		struct wlr_surface *surface, struct wlr_box *box, float rotation,
 		float scale, void *data) {
 	struct timespec *when = data;
 	wlr_surface_send_frame_done(surface, when);
 }
 
-void output_render(struct roots_output *output) {
+void output_render(PhocOutput *output) {
 	struct wlr_output *wlr_output = output->wlr_output;
 	PhocDesktop *desktop = output->desktop;
 	PhocServer *server = phoc_server_get_default ();
@@ -603,7 +600,7 @@ void output_render(struct roots_output *output) {
 		if (view->type == ROOTS_XWAYLAND_VIEW) {
 			struct roots_xwayland_surface *xwayland_surface =
 				roots_xwayland_surface_from_view(view);
-			output_xwayland_children_for_each_surface(output,
+			phoc_output_xwayland_children_for_each_surface(output,
 				xwayland_surface->xwayland_surface,
 				render_surface_iterator, &data);
 		}
@@ -621,10 +618,12 @@ void output_render(struct roots_output *output) {
 		render_layer(output, &buffer_damage,
 			&output->layers[ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM]);
 
-		// Render all views
 		struct roots_view *view;
+			// Render all views
 		wl_list_for_each_reverse(view, &desktop->views, link) {
-			render_view(output, view, &data);
+			if (phoc_desktop_view_is_visible(desktop, view)) {
+				render_view(output, view, &data);
+			}
 		}
 
 		// Render top layer above views
@@ -689,7 +688,7 @@ buffer_damage_finish:
 
 send_frame_done:
 	// Send frame done events to all surfaces
-	output_for_each_surface(output, surface_send_frame_done_iterator, &now);
+	phoc_output_for_each_surface(output, surface_send_frame_done_iterator, &now, true);
 
 	damage_touch_points(output);
 	g_list_free_full(output->debug_touch_points, g_free);

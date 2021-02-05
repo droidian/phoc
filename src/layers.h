@@ -4,6 +4,7 @@
 #include <wlr/types/wlr_box.h>
 #include <wlr/types/wlr_surface.h>
 #include <wlr/types/wlr_layer_shell_v1.h>
+#include "output.h"
 
 enum layer_parent {
 	LAYER_PARENT_LAYER,
@@ -63,8 +64,6 @@ struct roots_layer_subsurface {
 	struct wl_list subsurfaces; // roots_layer_subsurface::link
 };
 
-
-struct roots_output;
-void arrange_layers(struct roots_output *output);
+void arrange_layers(PhocOutput *output);
 
 #endif

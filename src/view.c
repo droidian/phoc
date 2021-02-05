@@ -69,6 +69,11 @@ gboolean view_is_maximized(const struct roots_view *view)
 	return view->state == PHOC_VIEW_STATE_MAXIMIZED;
 }
 
+gboolean view_is_tiled(const struct roots_view *view)
+{
+	return view->state == PHOC_VIEW_STATE_TILED;
+}
+
 void view_get_box(const struct roots_view *view, struct wlr_box *box) {
 	box->x = view->box.x;
 	box->y = view->box.y;
@@ -164,7 +169,7 @@ static void view_update_output(struct roots_view *view,
 	struct wlr_box box;
 	view_get_box(view, &box);
 
-	struct roots_output *output;
+	PhocOutput *output;
 	wl_list_for_each(output, &desktop->outputs, link) {
 		bool intersected = before != NULL && wlr_output_layout_intersects(
 			desktop->layout, output->wlr_output, before);
@@ -187,10 +192,26 @@ static void view_update_output(struct roots_view *view,
 	}
 }
 
+static void
+view_save(struct roots_view *view)
+{
+  if (view_is_maximized (view) || view_is_tiled (view))
+    return;
+
+  /* backup window state */
+  view->saved.x = view->box.x;
+  view->saved.y = view->box.y;
+  view->saved.width = view->box.width;
+  view->saved.height = view->box.height;
+}
+
 void view_move(struct roots_view *view, double x, double y) {
 	if (view->box.x == x && view->box.y == y) {
 		return;
 	}
+
+	view->pending_move_resize.update_x = false;
+	view->pending_move_resize.update_y = false;
 
 	struct wlr_box before;
 	view_get_box(view, &before);
@@ -212,8 +233,9 @@ void view_activate(struct roots_view *view, bool activate) {
 			activate);
 	}
 
-	if (activate && view->fullscreen_output) {
+	if (activate && view->fullscreen_output && view->fullscreen_output->force_shell_reveal) {
 		view->fullscreen_output->force_shell_reveal = false;
+		phoc_output_damage_whole(view->fullscreen_output);
 	}
 }
 
@@ -274,18 +296,53 @@ void view_arrange_maximized(struct roots_view *view) {
 		return;
 	}
 
-	struct roots_output *roots_output = output->data;
+	PhocOutput *phoc_output = output->data;
 	struct wlr_box *output_box =
 		wlr_output_layout_get_box(view->desktop->layout, output);
-	struct wlr_box usable_area;
-	memcpy(&usable_area, &roots_output->usable_area,
-			sizeof(struct wlr_box));
+	struct wlr_box usable_area = phoc_output->usable_area;
 	usable_area.x += output_box->x;
 	usable_area.y += output_box->y;
 
 	view_move_resize(view, usable_area.x / view->scale, usable_area.y / view->scale,
 			usable_area.width / view->scale, usable_area.height / view->scale);
-	view_rotate(view, 0);
+}
+
+void
+view_arrange_tiled (struct roots_view *view)
+{
+  struct wlr_output *output = view_get_output (view);
+  if (!output)
+    return;
+
+  if (view->fullscreen_output)
+    return;
+
+  PhocOutput *phoc_output = output->data;
+  struct wlr_box *output_box = wlr_output_layout_get_box (view->desktop->layout, output);
+  struct wlr_box usable_area = phoc_output->usable_area;
+  int x;
+
+  usable_area.x += output_box->x;
+  usable_area.y += output_box->y;
+
+  switch (view->tile_direction) {
+  case PHOC_VIEW_TILE_LEFT:
+    x = usable_area.x;
+    break;
+  case PHOC_VIEW_TILE_RIGHT:
+    x = usable_area.x + (0.5 * usable_area.width);
+    break;
+  default:
+    g_error ("Invalid tiling direction %d", view->tile_direction);
+  }
+
+  /*
+   * No need to take geometry into account since maximized surfaces
+   * usually don't have drop shadows. It wouldn't be up to date here
+   * yet anyway since a client's configure is not yet processed.
+   */
+  view_move_resize (view, x, usable_area.y,
+                    usable_area.width / 2, usable_area.height);
 }
 
 /*
@@ -302,49 +359,23 @@ want_auto_maximize(struct roots_view *view) {
   return false;
 }
 
-void view_maximize(struct roots_view *view, bool maximize) {
-	if (view_is_maximized (view) == maximize
-	    || view->fullscreen_output != NULL) {
-		return;
-	}
-
-	if (!maximize && want_auto_maximize(view)) {
+void view_maximize(struct roots_view *view) {
+	if (view_is_maximized (view) || view->fullscreen_output != NULL) {
 		return;
 	}
 
 	if (view->impl->maximize) {
-		view->impl->maximize(view, maximize);
+		view->impl->maximize(view, true);
 	}
 
 	if (view->toplevel_handle) {
-		wlr_foreign_toplevel_handle_v1_set_maximized(view->toplevel_handle,
-			maximize);
+		wlr_foreign_toplevel_handle_v1_set_maximized(view->toplevel_handle, true);
 	}
 
-	if (!view_is_maximized(view) && maximize) {
-		view->state = PHOC_VIEW_STATE_MAXIMIZED;
-		view->saved.x = view->box.x;
-		view->saved.y = view->box.y;
-		view->saved.rotation = view->rotation;
-		view->saved.width = view->box.width;
-		view->saved.height = view->box.height;
+	view_save (view);
 
-		view_arrange_maximized(view);
-	}
-
-	if (view_is_maximized(view) && !maximize) {
-		if (view->saved.state == PHOC_VIEW_STATE_TILED) {
-			view->state = PHOC_VIEW_STATE_TILED;
-			if (view->impl->maximize) {
-				view->impl->maximize(view, true);
-			}
-		}  else {
-			view->state = PHOC_VIEW_STATE_NORMAL;
-		}
-		view_move_resize(view, view->saved.x, view->saved.y,
-				 view->saved.width, view->saved.height);
-		view_rotate(view, view->saved.rotation);
-	}
+	view->state = PHOC_VIEW_STATE_MAXIMIZED;
+	view_arrange_maximized(view);
 }
 
 /*
@@ -354,7 +385,27 @@ void
 view_auto_maximize(struct roots_view *view)
 {
   if (want_auto_maximize (view))
-    view_maximize (view, true);
+    view_maximize (view);
+}
+
+void
+view_restore(struct roots_view *view)
+{
+  if (!view_is_maximized (view) && !view_is_tiled (view))
+    return;
+
+  if (want_auto_maximize (view))
+    return;
+
+  view->state = PHOC_VIEW_STATE_NORMAL;
+  view_move_resize (view, view->saved.x, view->saved.y,
+                    view->saved.width, view->saved.height);
+
+  if (view->toplevel_handle)
+    wlr_foreign_toplevel_handle_v1_set_maximized (view->toplevel_handle, false);
+
+  if (view->impl->maximize)
+    view->impl->maximize (view, false);
 }
 
 void view_set_fullscreen(struct roots_view *view, bool fullscreen,
@@ -378,8 +429,8 @@ void view_set_fullscreen(struct roots_view *view, bool fullscreen,
 		if (output == NULL) {
 			output = view_get_output(view);
 		}
-		struct roots_output *roots_output = output->data;
-		if (roots_output == NULL) {
+		PhocOutput *phoc_output = output->data;
+		if (phoc_output == NULL) {
 			return;
 		}
 
@@ -390,45 +441,36 @@ void view_set_fullscreen(struct roots_view *view, bool fullscreen,
 		struct wlr_box view_box;
 		view_get_box(view, &view_box);
 
-		view->saved.x = view->box.x;
-		view->saved.y = view->box.y;
-		view->saved.rotation = view->rotation;
-		view->saved.width = view_box.width;
-		view->saved.height = view_box.height;
+		view_save (view);
 
 		struct wlr_box *output_box =
 			wlr_output_layout_get_box(view->desktop->layout, output);
 		view_move_resize(view, output_box->x, output_box->y, output_box->width,
 			output_box->height);
-		view_rotate(view, 0);
 
-		roots_output->fullscreen_view = view;
-		roots_output->force_shell_reveal = false;
-		view->fullscreen_output = roots_output;
-		output_damage_whole(roots_output);
+		phoc_output->fullscreen_view = view;
+		phoc_output->force_shell_reveal = false;
+		view->fullscreen_output = phoc_output;
+		phoc_output_damage_whole(phoc_output);
 	}
 
 	if (was_fullscreen && !fullscreen) {
-		view_move_resize(view, view->saved.x, view->saved.y, view->saved.width,
-			view->saved.height);
-		view_rotate(view, view->saved.rotation);
+		phoc_output_damage_whole(view->fullscreen_output);
 
-		output_damage_whole(view->fullscreen_output);
 		view->fullscreen_output->fullscreen_view = NULL;
 		view->fullscreen_output = NULL;
 
+		if (view->state == PHOC_VIEW_STATE_MAXIMIZED) {
+			view_arrange_maximized (view);
+		} else if (view->state == PHOC_VIEW_STATE_TILED) {
+			view_arrange_tiled (view);
+		} else {
+			view_move_resize(view, view->saved.x, view->saved.y,
+			                 view->saved.width, view->saved.height);
+		}
+
 		view_auto_maximize(view);
 	}
-}
-
-void view_rotate(struct roots_view *view, float rotation) {
-	if (view->rotation == rotation) {
-		return;
-	}
-
-	view_damage_whole(view);
-	view->rotation = rotation;
-	view_damage_whole(view);
 }
 
 void view_close(struct roots_view *view) {
@@ -443,7 +485,7 @@ view_move_to_next_output (struct roots_view *view, enum wlr_direction direction)
   PhocDesktop *desktop = view->desktop;
   struct wlr_output_layout *layout = view->desktop->layout;
   const struct wlr_output_layout_output *l_output;
-  struct roots_output *roots_output;
+  PhocOutput *phoc_output;
   struct wlr_output *output, *new_output;
   struct wlr_box usable_area;
   double x, y;
@@ -461,8 +503,8 @@ view_move_to_next_output (struct roots_view *view, enum wlr_direction direction)
   if (!new_output)
     return false;
 
-  roots_output = new_output->data;
-  memcpy(&usable_area, &roots_output->usable_area, sizeof(struct wlr_box));
+  phoc_output = new_output->data;
+  usable_area = phoc_output->usable_area;
   l_output = wlr_output_layout_get(desktop->layout, new_output);
 
   /* use a proper position on the new output */
@@ -470,13 +512,14 @@ view_move_to_next_output (struct roots_view *view, enum wlr_direction direction)
   y = usable_area.y + l_output->y;
   g_debug("moving view to %f %f", x, y);
 
+  view->saved.x = x;
+  view->saved.y = y;
+  view_move(view, x, y);
+
   if (view_is_maximized (view)) {
-    view->saved.x = x;
-    view->saved.y = y;
-    view_move(view, x, y);
     view_arrange_maximized (view);
-  } else {
-    view_move(view, x, y);
+  } else if (view_is_tiled (view)) {
+    view_arrange_tiled (view);
   }
 
   return true;
@@ -485,56 +528,18 @@ view_move_to_next_output (struct roots_view *view, enum wlr_direction direction)
 void
 view_tile(struct roots_view *view, PhocViewTileDirection direction)
 {
-  struct wlr_output *output = view_get_output(view);
-  struct roots_output *roots_output = output->data;
-  struct wlr_box *output_box =
-    wlr_output_layout_get_box(view->desktop->layout, output);
-  struct wlr_box usable_area;
-  int x;
-
   if (view->fullscreen_output)
     return;
 
-  if (!output)
-    return;
-
   /* Set the maximized flag on the toplevel so it remove it's drop shadows */
-  if (view->impl->maximize) {
-	  view->impl->maximize(view, true);
-  }
+  if (view->impl->maximize)
+    view->impl->maximize(view, true);
 
-  /* backup window state */
+  view_save (view);
+
   view->state = PHOC_VIEW_STATE_TILED;
-  view->saved.x = view->box.x;
-  view->saved.y = view->box.y;
-  view->saved.rotation = view->rotation;
-  view->saved.width = view->box.width;
-  view->saved.height = view->box.height;
-
-  memcpy(&usable_area, &roots_output->usable_area,
-	 sizeof(struct wlr_box));
-  usable_area.x += output_box->x;
-  usable_area.y += output_box->y;
-
-  switch (direction) {
-  case PHOC_VIEW_TILE_LEFT:
-    x = usable_area.x;
-    break;
-  case PHOC_VIEW_TILE_RIGHT:
-    x = usable_area.x + (0.5 * usable_area.width);
-    break;
-  default:
-    g_error ("Invalid tiling direction %d", direction);
-  }
-
-  /*
-   * No need to take geometry into account since maximized surfaces
-   * usually don't have drop shadows. It wouldn't be up to date here
-   * yet anyway since a client's configure is not yet processed.
-   */
-  view_move_resize(view, x, usable_area.y,
-		   usable_area.width / 2, usable_area.height);
-  view_rotate(view, 0);
+  view->tile_direction = direction;
+  view_arrange_tiled (view);
 }
 
 bool view_center(struct roots_view *view) {
@@ -563,10 +568,8 @@ bool view_center(struct roots_view *view) {
 	const struct wlr_output_layout_output *l_output =
 		wlr_output_layout_get(desktop->layout, output);
 
-	struct wlr_box usable_area;
-	struct roots_output *roots_output = output->data;
-
-	memcpy(&usable_area, &roots_output->usable_area, sizeof(struct wlr_box));
+	PhocOutput *phoc_output = output->data;
+	struct wlr_box usable_area = phoc_output->usable_area;
 
 	double view_x = (double)(usable_area.width - box.width) / 2 +
 	  usable_area.x + l_output->x - geom.x * view->scale;
@@ -575,6 +578,17 @@ bool view_center(struct roots_view *view) {
 
 	g_debug ("moving view to %f %f", view_x, view_y);
 	view_move(view, view_x / view->scale, view_y / view->scale);
+
+	if (!desktop->maximize) {
+		// TODO: fitting floating oversized windows requires more work (!228)
+		return true;
+	}
+
+	if (view->box.width > phoc_output->usable_area.width || view->box.height > phoc_output->usable_area.height) {
+		view_resize (view,
+		             (view->box.width > phoc_output->usable_area.width) ? phoc_output->usable_area.width : view->box.width,
+		             (view->box.height > phoc_output->usable_area.height) ? phoc_output->usable_area.height : view->box.height);
+	}
 
 	return true;
 }
@@ -651,7 +665,7 @@ static void subsurface_handle_map(struct wl_listener *listener,
 
 	struct wlr_box box;
 	view_get_box(view, &box);
-	struct roots_output *output;
+	PhocOutput *output;
 	wl_list_for_each(output, &view->desktop->outputs, link) {
 		bool intersects = wlr_output_layout_intersects(view->desktop->layout,
 			output->wlr_output, &box);
@@ -740,11 +754,11 @@ static void view_update_scale(struct roots_view *view) {
 		return;
 	}
 
-	struct roots_output *roots_output = output->data;
+	PhocOutput *phoc_output = output->data;
 
 	float scalex = 1.0f, scaley = 1.0f, oldscale = view->scale;
-	scalex = roots_output->usable_area.width / (float)view->box.width;
-	scaley = roots_output->usable_area.height / (float)view->box.height;
+	scalex = phoc_output->usable_area.width / (float)view->box.width;
+	scaley = phoc_output->usable_area.height / (float)view->box.height;
 	if (scaley < scalex) {
 		view->scale = scaley;
 	} else {
@@ -759,6 +773,8 @@ static void view_update_scale(struct roots_view *view) {
 	if (view->scale != oldscale) {
 		if (view_is_maximized(view)) {
 			view_arrange_maximized(view);
+		} else if (view_is_tiled(view)) {
+			view_arrange_tiled(view);
 		} else {
 			view_center(view);
 		}
@@ -781,6 +797,14 @@ void view_map(struct roots_view *view, struct wlr_surface *surface) {
 	wl_signal_add(&view->wlr_surface->events.new_subsurface,
 		&view->new_subsurface);
 
+	if (view->desktop->maximize && !wl_list_empty(&view->desktop->views)) {
+		// mapping a new stack may make the old stack disappear, so damage its area
+		struct roots_view *top_view = wl_container_of(view->desktop->views.next, view, link);
+		while (top_view) {
+			view_damage_whole(top_view);
+			top_view = top_view->parent;
+		}
+	}
 	wl_list_insert(&view->desktop->views, &view->link);
 	view_damage_whole(view);
 	phoc_input_update_cursor_focus(server->input);
@@ -789,10 +813,11 @@ void view_map(struct roots_view *view, struct wlr_surface *surface) {
 void view_unmap(struct roots_view *view) {
 	assert(view->wlr_surface != NULL);
 
+	bool was_visible = phoc_desktop_view_is_visible(view->desktop, view);
+
 	wl_signal_emit(&view->events.unmap, view);
 
 	view_damage_whole(view);
-	wl_list_remove(&view->link);
 
 	wl_list_remove(&view->new_subsurface.link);
 
@@ -802,9 +827,20 @@ void view_unmap(struct roots_view *view) {
 	}
 
 	if (view->fullscreen_output != NULL) {
-		output_damage_whole(view->fullscreen_output);
+		phoc_output_damage_whole(view->fullscreen_output);
 		view->fullscreen_output->fullscreen_view = NULL;
 		view->fullscreen_output = NULL;
+	}
+
+	wl_list_remove(&view->link);
+
+	if (was_visible && view->desktop->maximize && !wl_list_empty(&view->desktop->views)) {
+		// damage the newly activated stack as well since it may have just become visible
+		struct roots_view *top_view = wl_container_of(view->desktop->views.next, view, link);
+		while (top_view) {
+			view_damage_whole(top_view);
+			top_view = top_view->parent;
+		}
 	}
 
 	view->wlr_surface = NULL;
@@ -850,16 +886,16 @@ void view_setup(struct roots_view *view) {
 }
 
 void view_apply_damage(struct roots_view *view) {
-	struct roots_output *output;
+	PhocOutput *output;
 	wl_list_for_each(output, &view->desktop->outputs, link) {
-		output_damage_from_view(output, view);
+		phoc_output_damage_from_view(output, view);
 	}
 }
 
 void view_damage_whole(struct roots_view *view) {
-	struct roots_output *output;
+	PhocOutput *output;
 	wl_list_for_each(output, &view->desktop->outputs, link) {
-		output_damage_whole_view(output, view);
+		phoc_output_damage_whole_view(output, view);
 	}
 }
 
@@ -957,7 +993,11 @@ static void handle_toplevel_handle_request_maximize(struct wl_listener *listener
 	struct roots_view *view = wl_container_of(listener, view,
 			toplevel_handle_request_maximize);
 	struct wlr_foreign_toplevel_handle_v1_maximized_event *event = data;
-	view_maximize(view, event->maximized);
+	if (event->maximized) {
+		view_maximize(view);
+	} else {
+		view_restore(view);
+	}
 }
 
 static void handle_toplevel_handle_request_activate(struct wl_listener *listener,

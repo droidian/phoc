@@ -11,7 +11,6 @@ enum roots_cursor_mode {
 	ROOTS_CURSOR_PASSTHROUGH = 0,
 	ROOTS_CURSOR_MOVE = 1,
 	ROOTS_CURSOR_RESIZE = 2,
-	ROOTS_CURSOR_ROTATE = 3,
 };
 
 struct roots_cursor {
@@ -31,7 +30,6 @@ struct roots_cursor {
 	struct wl_client *cursor_client;
 	int offs_x, offs_y;
 	int view_x, view_y, view_width, view_height;
-	float view_rotation;
 	uint32_t resize_edges;
 
 	struct roots_seat_view *pointer_view;

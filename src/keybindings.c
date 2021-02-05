@@ -46,8 +46,8 @@ handle_maximize (struct roots_seat *seat)
 {
   struct roots_view *focus = roots_seat_get_focus(seat);
 
-  if (focus != NULL && !view_is_maximized(focus))
-    view_maximize(focus, TRUE);
+  if (focus != NULL)
+    view_maximize(focus);
 }
 
 static void
@@ -55,8 +55,8 @@ handle_unmaximize (struct roots_seat *seat)
 {
   struct roots_view *focus = roots_seat_get_focus(seat);
 
-  if (focus != NULL && view_is_maximized(focus))
-    view_maximize(focus, FALSE);
+  if (focus != NULL)
+    view_restore(focus);
 }
 
 static void
@@ -84,8 +84,12 @@ handle_toggle_maximized (struct roots_seat *seat)
 {
   struct roots_view *focus = roots_seat_get_focus(seat);
 
-  if (focus != NULL)
-    view_maximize(focus, !view_is_maximized(focus));
+  if (focus != NULL) {
+    if (view_is_maximized(focus))
+      view_restore(focus);
+    else
+      view_maximize(focus);
+  }
 }
 
 static void

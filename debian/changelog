@@ -1,3 +1,55 @@
+phoc (0.6.0) amber-phone; urgency=medium
+
+  [ Clayton Craft ]
+  * utils: apply phosh code formatting styles
+  * output: apply phosh code formatting styles
+  * Move rotate_child_position to phoc_utils_rotate_child_position
+  * output: convert roots_output to PhocOutput gobject
+  * desktop: add handler for new output
+  * desktop: add handler for output destroy
+  * Use PhocOutput instead of roots_output
+  * touch: emit g_signal on touch destroy
+  * seat: use touch-destroy signal from PhocTouch
+  * desktop: add input_output_map hash for tracking mapping of input-->output
+  * seat: create mapping of touch devices to outputs
+  * seat: disable touch events when mapped output is disabled
+
+  [ Sebastian Krzyszkowiak ]
+  * d/rules: Enable all hardening options
+  * Reintroduce a5bdd630bbb67a680aa5308a32c2e69aef0a08e5 (!210) back
+  * server: Don't set _WAYLAND_DISPLAY
+  * view_move: Cancel pending move_resize when moving
+  * seat: begin_move: Try to put the surface behind the cursor when unmaximized
+  * cursor: Update cursor immediately when move/resize/rotate ends
+  * cursor: Don't error out on a unhandled meta key+mouse button press
+  * view: Add view_is_tiled function
+  * view: Split view_restore from view_maximize
+  * view: Don't backup state when the surface is already maximized or tiled
+  * view: Move tiling logic into view_arrange_tiled
+  * view: Move state saving into dedicated function
+  * view_restore: Don't restore saved state
+  * view_set_fullscreen: Correctly restore previous window state when leaving fullscreen
+  * view: Properly restore maximized/tiled views when moved or resized
+  * automaximize: Don't draw surfaces that aren't part of the current stack
+  * desktop: Rename desktop_surface_at to phoc_desktop_surface_at
+  * output: Don't accept damage from views that aren't visible
+  * render: Don't send frame done events to views that aren't visible
+  * view_unmap: Damage the newly activated stack when in automaximize mode
+  * view_activate: Damage the output when disabling forced shell reveal
+  * Remove view rotation handling
+  * Replace struct memcpy's with assigment operator
+  * view_center: Try to clamp the view size into available space
+  * roots_handle_shell_reveal: Do not require surface to be non-null
+  * gitlab-ci: Add package-deb-without-wlroots:arm64 job
+  * roots_handle_shell_reveal: Null-check wlr_output_layout_output_at result
+  * phoc_desktop_view_is_visible: Check for the view being unmapped
+  * view_unmap: Remove from the view list after destroying children
+
+  [ Guido Günther ]
+  * cursor: Fix missing-default-case warning
+
+ -- Sebastian Krzyszkowiak <sebastian.krzyszkowiak@puri.sm>  Mon, 04 Jan 2021 20:38:41 +0100
+
 phoc (0.5.1) amber-phone; urgency=high
 
   [ Dorota Czaplejewicz ]

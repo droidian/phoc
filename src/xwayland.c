@@ -256,7 +256,11 @@ static void handle_request_maximize(struct wl_listener *listener, void *data) {
 
 	bool maximized = xwayland_surface->maximized_vert &&
 		xwayland_surface->maximized_horz;
-	view_maximize(view, maximized);
+	if (maximized) {
+		view_maximize(view);
+	} else {
+		view_restore(view);
+	}
 }
 
 static void handle_request_fullscreen(struct wl_listener *listener,
@@ -328,7 +332,9 @@ static void handle_map(struct wl_listener *listener, void *data) {
 	wl_signal_add(&surface->surface->events.commit,
 		&roots_surface->surface_commit);
 
-	view_maximize(view, surface->maximized_horz && surface->maximized_vert);
+	if (surface->maximized_horz && surface->maximized_vert) {
+		view_maximize(view);
+	}
 	view_auto_maximize(view);
 
 	view_map(view, surface->surface);

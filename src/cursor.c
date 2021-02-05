@@ -14,6 +14,7 @@
 #include <linux/input-event-codes.h>
 #include "cursor.h"
 #include "desktop.h"
+#include "utils.h"
 #include "view.h"
 #include "xcursor.h"
 
@@ -104,30 +105,29 @@ static bool roots_handle_shell_reveal(struct wlr_surface *surface, double lx, do
 	PhocServer *server = phoc_server_get_default ();
 	PhocDesktop *desktop = server->desktop;
 
-	if (!surface) {
-		return false;
-	}
+	if (surface) {
+		struct wlr_surface *root = wlr_surface_get_root_surface(surface), *iter = root;
 
-	struct wlr_surface *root = wlr_surface_get_root_surface(surface), *iter = root;
+		while (wlr_surface_is_xdg_surface(iter)) {
+			struct wlr_xdg_surface *xdg_surface = wlr_xdg_surface_from_wlr_surface(iter);
+			if (xdg_surface->role == WLR_XDG_SURFACE_ROLE_POPUP) {
+				iter = xdg_surface->popup->parent;
+			} else {
+				break;
+			}
+		}
 
-	while (wlr_surface_is_xdg_surface(iter)) {
-		struct wlr_xdg_surface *xdg_surface = wlr_xdg_surface_from_wlr_surface(iter);
-		if (xdg_surface->role == WLR_XDG_SURFACE_ROLE_POPUP) {
-			iter = xdg_surface->popup->parent;
-		} else {
-			break;
+		if (wlr_surface_is_layer_surface(iter)) {
+			return false;
 		}
 	}
 
-	if (wlr_surface_is_layer_surface(iter)) {
+	struct wlr_output *wlr_output = wlr_output_layout_output_at(desktop->layout, lx, ly);
+	if (!wlr_output) {
 		return false;
 	}
 
-	struct wlr_output *wlr_output = wlr_output_layout_output_at(desktop->layout, lx, ly);
-	struct roots_output *output = wlr_output->data;
-	if (!output) {
-		return false;
-	}
+	PhocOutput *output = wlr_output->data;
 
 	struct wlr_box *output_box =
 		wlr_output_layout_get_box(desktop->layout, wlr_output);
@@ -160,15 +160,15 @@ static bool roots_handle_shell_reveal(struct wlr_surface *surface, double lx, do
 			(bottom && ly >= output_box->y + (1.0 - threshold) * output_box->height - 1) ||
 			(left   && lx <= output_box->x + threshold * output_box->width) ||
 			(right  && lx >= output_box->x + (1.0 - threshold) * output_box->width - 1)) {
-		if (output->fullscreen_view && output->fullscreen_view->wlr_surface == root) {
+		if (output->fullscreen_view) {
 			output->force_shell_reveal = true;
-			output_damage_whole(output);
+			phoc_output_damage_whole(output);
 		}
 		return true;
 	} else {
 		if (output->force_shell_reveal) {
 			output->force_shell_reveal = false;
-			output_damage_whole(output);
+			phoc_output_damage_whole(output);
 		}
 	}
 
@@ -182,7 +182,7 @@ static void roots_passthrough_cursor(struct roots_cursor *cursor,
 	struct roots_view *view = NULL;
 	struct roots_seat *seat = cursor->seat;
 	PhocDesktop *desktop = server->desktop;
-	struct wlr_surface *surface = desktop_surface_at(desktop,
+	struct wlr_surface *surface = phoc_desktop_surface_at(desktop,
 			cursor->cursor->x, cursor->cursor->y, &sx, &sy, &view);
 
 	struct wl_client *client = NULL;
@@ -291,21 +291,6 @@ void roots_cursor_update_position(struct roots_cursor *cursor,
 					height < 1 ? 1 : height);
 		}
 		break;
-	case ROOTS_CURSOR_ROTATE:
-		view = roots_seat_get_focus(seat);
-		if (view != NULL) {
-			int ox = view->box.x + view->wlr_surface->current.width/2,
-				oy = view->box.y + view->wlr_surface->current.height/2;
-			int ux = cursor->offs_x - ox,
-				uy = cursor->offs_y - oy;
-			int vx = cursor->cursor->x - ox,
-				vy = cursor->cursor->y - oy;
-			float angle = atan2(ux*vy - uy*vx, vx*ux + vy*uy);
-			int steps = 12;
-			angle = round(angle/M_PI*steps) / (steps/M_PI);
-			view_rotate(view, cursor->view_rotation + angle);
-		}
-		break;
 	default:
 		g_error("Invalid cursor mode %d", cursor->mode);
 	}
@@ -322,7 +307,7 @@ static void roots_cursor_press_button(struct roots_cursor *cursor,
 
 	double sx, sy;
 	struct roots_view *view;
-	struct wlr_surface *surface = desktop_surface_at(desktop,
+	struct wlr_surface *surface = phoc_desktop_surface_at(desktop,
 			lx, ly, &sx, &sy, &view);
 
 	if (state == WLR_BUTTON_PRESSED && view &&
@@ -348,11 +333,9 @@ static void roots_cursor_press_button(struct roots_cursor *cursor,
 			}
 			roots_seat_begin_resize(seat, view, edges);
 			break;
-		case BTN_MIDDLE:
-			roots_seat_begin_rotate(seat, view);
-			break;
 		default:
-			g_error("Invalid button %d", button);
+			/* don't care */
+			break;
 		}
 	} else {
 		if (view && !surface && cursor->pointer_view) {
@@ -363,6 +346,7 @@ static void roots_cursor_press_button(struct roots_cursor *cursor,
 		if (state == WLR_BUTTON_RELEASED &&
 				cursor->mode != ROOTS_CURSOR_PASSTHROUGH) {
 			cursor->mode = ROOTS_CURSOR_PASSTHROUGH;
+			roots_cursor_update_focus(cursor);
 		}
 
 		if (state == WLR_BUTTON_PRESSED) {
@@ -402,29 +386,26 @@ void roots_cursor_handle_motion(struct roots_cursor *cursor,
 		struct roots_view *view = cursor->pointer_view->view;
 		assert(view);
 
-		// TODO: handle rotated views
-		if (view->rotation == 0.0) {
-			double lx1 = cursor->cursor->x;
-			double ly1 = cursor->cursor->y;
+		double lx1 = cursor->cursor->x;
+		double ly1 = cursor->cursor->y;
 
-			double lx2 = lx1 + dx;
-			double ly2 = ly1 + dy;
+		double lx2 = lx1 + dx;
+		double ly2 = ly1 + dy;
 
-			double sx1 = lx1 - view->box.x;
-			double sy1 = ly1 - view->box.y;
+		double sx1 = lx1 - view->box.x;
+		double sy1 = ly1 - view->box.y;
 
-			double sx2 = lx2 - view->box.x;
-			double sy2 = ly2 - view->box.y;
+		double sx2 = lx2 - view->box.x;
+		double sy2 = ly2 - view->box.y;
 
-			double sx2_confined, sy2_confined;
-			if (!wlr_region_confine(&cursor->confine, sx1, sy1, sx2, sy2,
-					&sx2_confined, &sy2_confined)) {
-				return;
-			}
-
-			dx = sx2_confined - sx1;
-			dy = sy2_confined - sy1;
+		double sx2_confined, sy2_confined;
+		if (!wlr_region_confine(&cursor->confine, sx1, sy1, sx2, sy2,
+				&sx2_confined, &sy2_confined)) {
+			return;
 		}
+
+		dx = sx2_confined - sx1;
+		dy = sy2_confined - sy1;
 	}
 
 	wlr_cursor_move(cursor->cursor, event->device, dx, dy);
@@ -485,11 +466,11 @@ void roots_cursor_handle_touch_down(struct roots_cursor *cursor,
 
 	double sx, sy;
 	struct roots_view *view;
-	struct wlr_surface *surface = desktop_surface_at(
+	struct wlr_surface *surface = phoc_desktop_surface_at(
 		desktop, lx, ly, &sx, &sy, &view);
+	bool shell_revealed = roots_handle_shell_reveal(surface, lx, ly, PHOC_SHELL_REVEAL_TOUCH_THRESHOLD);
 
-	if (surface && !roots_handle_shell_reveal(surface, lx, ly, PHOC_SHELL_REVEAL_TOUCH_THRESHOLD) &&
-	    roots_seat_allow_input(seat, surface->resource)) {
+	if (!shell_revealed && surface && roots_seat_allow_input(seat, surface->resource)) {
 		wlr_seat_touch_notify_down(seat->seat, surface,
 			event->time_msec, event->touch_id, sx, sy);
 		wlr_seat_touch_point_focus(seat->seat, surface,
@@ -509,7 +490,7 @@ void roots_cursor_handle_touch_down(struct roots_cursor *cursor,
 	}
 
 	if (server->debug_flags & PHOC_SERVER_DEBUG_FLAG_TOUCH_POINTS) {
-		struct roots_output *output;
+		PhocOutput *output;
 		wl_list_for_each(output, &desktop->outputs, link) {
 			if (wlr_output_layout_contains_point(desktop->layout, output->wlr_output, lx, ly)) {
 				double ox = lx, oy = ly;
@@ -556,7 +537,7 @@ void roots_cursor_handle_touch_motion(struct roots_cursor *cursor,
 	if (!wlr_output) {
 		return;
 	}
-	struct roots_output *roots_output = wlr_output->data;
+	PhocOutput *phoc_output = wlr_output->data;
 
 	double sx, sy;
 	struct wlr_surface *surface = point->focus_surface;
@@ -571,7 +552,7 @@ void roots_cursor_handle_touch_motion(struct roots_cursor *cursor,
 		if (wlr_surface_is_layer_surface(root)) {
 			struct wlr_layer_surface_v1 *layer_surface = wlr_layer_surface_v1_from_wlr_surface(root);
 			struct roots_layer_surface *layer;
-			wl_list_for_each_reverse(layer, &roots_output->layers[layer_surface->current.layer], link) {
+			wl_list_for_each_reverse(layer, &phoc_output->layers[layer_surface->current.layer], link) {
 				if (layer->layer_surface->surface == root) {
 					sx = lx - layer->geo.x;
 					sy = ly - layer->geo.y;
@@ -580,7 +561,7 @@ void roots_cursor_handle_touch_motion(struct roots_cursor *cursor,
 				}
 			}
 			// try the overlay layer as well since the on-screen keyboard might have been elevated there
-			wl_list_for_each_reverse(layer, &roots_output->layers[ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY], link) {
+			wl_list_for_each_reverse(layer, &phoc_output->layers[ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY], link) {
 				if (layer->layer_surface->surface == root) {
 					sx = lx - layer->geo.x;
 					sy = ly - layer->geo.y;
@@ -594,11 +575,10 @@ void roots_cursor_handle_touch_motion(struct roots_cursor *cursor,
 				scale = view->scale;
 				sx = lx / scale - view->box.x;
 				sy = ly / scale - view->box.y;
-				rotate_child_position(&sx, &sy, 0, 0, view->box.width, view->box.height, -view->rotation);
 				found = true;
 			} else {
 				// FIXME: buggy fallback, but at least handles xdg_popups for now...
-				surface = desktop_surface_at(desktop, lx, ly, &sx, &sy, NULL);
+				surface = phoc_desktop_surface_at(desktop, lx, ly, &sx, &sy, NULL);
 			}
 		}
 
@@ -708,7 +688,7 @@ void roots_cursor_handle_constraint_commit(struct roots_cursor *cursor) {
 	PhocDesktop *desktop = server->desktop;
 
 	double sx, sy;
-	struct wlr_surface *surface = desktop_surface_at(desktop,
+	struct wlr_surface *surface = phoc_desktop_surface_at(desktop,
 			cursor->cursor->x, cursor->cursor->y, &sx, &sy, NULL);
 	// This should never happen but views move around right when they're
 	// created from (0, 0) to their actual coordinates.
@@ -769,14 +749,8 @@ void roots_cursor_constrain(struct roots_cursor *cursor,
 		if (nboxes > 0) {
 			struct roots_view *view = cursor->pointer_view->view;
 
-			double box_sx = (boxes[0].x1 + boxes[0].x2) / 2.;
-			double box_sy = (boxes[0].y1 + boxes[0].y2) / 2.;
-
-			rotate_child_position(&box_sx, &box_sy, 0, 0, view->box.width, view->box.height,
-				view->rotation);
-
-			double lx = view->box.x + box_sx;
-			double ly = view->box.y + box_sy;
+			double lx = view->box.x + (boxes[0].x1 + boxes[0].x2) / 2.;
+			double ly = view->box.y + (boxes[0].y1 + boxes[0].y2) / 2.;
 
 			wlr_cursor_warp_closest(cursor->cursor, NULL, lx, ly);
 		}

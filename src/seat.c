@@ -178,9 +178,16 @@ static void handle_touch_down(struct wl_listener *listener, void *data) {
         PhocServer *server = phoc_server_get_default ();
 	struct roots_cursor *cursor =
 		wl_container_of(listener, cursor, touch_down);
-	PhocDesktop *desktop = server->desktop;
-	wlr_idle_notify_activity(desktop->idle, cursor->seat->seat);
 	struct wlr_event_touch_down *event = data;
+	PhocDesktop *desktop = server->desktop;
+	PhocOutput *output = g_hash_table_lookup (desktop->input_output_map,
+							   event->device->name);
+	if (output && !output->wlr_output->enabled) {
+		g_debug("Touch event ignored since output '%s' is disabled.",
+			output->wlr_output->name);
+		return;
+	}
+	wlr_idle_notify_activity(desktop->idle, cursor->seat->seat);
 	roots_cursor_handle_touch_down(cursor, event);
 }
 
@@ -188,20 +195,37 @@ static void handle_touch_up(struct wl_listener *listener, void *data) {
         PhocServer *server = phoc_server_get_default ();
 	struct roots_cursor *cursor =
 		wl_container_of(listener, cursor, touch_up);
-	PhocDesktop *desktop = server->desktop;
-	wlr_idle_notify_activity(desktop->idle, cursor->seat->seat);
 	struct wlr_event_touch_up *event = data;
+	PhocDesktop *desktop = server->desktop;
+	PhocOutput *output = g_hash_table_lookup (desktop->input_output_map,
+							   event->device->name);
+	/* handle touch up regardless of output status so events don't become stuck */
 	roots_cursor_handle_touch_up(cursor, event);
+	if (output && !output->wlr_output->enabled) {
+		g_debug("Touch event ignored since output '%s' is disabled.",
+			output->wlr_output->name);
+		return;
+	}
+	wlr_idle_notify_activity(desktop->idle, cursor->seat->seat);
 }
 
 static void handle_touch_motion(struct wl_listener *listener, void *data) {
         PhocServer *server = phoc_server_get_default ();
 	struct roots_cursor *cursor =
 		wl_container_of(listener, cursor, touch_motion);
-	PhocDesktop *desktop = server->desktop;
-	wlr_idle_notify_activity(desktop->idle, cursor->seat->seat);
 	struct wlr_event_touch_motion *event = data;
+	PhocDesktop *desktop = server->desktop;
+	PhocOutput *output = g_hash_table_lookup (desktop->input_output_map,
+							   event->device->name);
+	/* handle touch motion regardless of output status so events don't become
+	   stuck */
 	roots_cursor_handle_touch_motion(cursor, event);
+	if (output && !output->wlr_output->enabled) {
+		g_debug("Touch event ignored since output '%s' is disabled.",
+			output->wlr_output->name);
+		return;
+	}
+	wlr_idle_notify_activity(desktop->idle, cursor->seat->seat);
 }
 
 static void handle_tablet_tool_position(struct roots_cursor *cursor,
@@ -226,7 +250,7 @@ static void handle_tablet_tool_position(struct roots_cursor *cursor,
 
 	double sx, sy;
 	PhocDesktop *desktop = server->desktop;
-	struct wlr_surface *surface = desktop_surface_at(desktop,
+	struct wlr_surface *surface = phoc_desktop_surface_at(desktop,
 			cursor->cursor->x, cursor->cursor->y, &sx, &sy, NULL);
 	struct roots_tablet_tool *roots_tool = tool->data;
 
@@ -435,7 +459,7 @@ static void seat_reset_device_mappings(struct roots_seat *seat,
 }
 
 static void seat_set_device_output_mappings(struct roots_seat *seat,
-		struct wlr_input_device *device, struct roots_output *output) {
+		struct wlr_input_device *device, PhocOutput *output) {
 	struct wlr_cursor *cursor = seat->cursor->cursor;
 
 	switch (device->type) {
@@ -463,7 +487,7 @@ void roots_seat_configure_cursor(struct roots_seat *seat) {
 	struct roots_pointer *pointer;
 	PhocTouch *touch;
 	struct roots_tablet *tablet;
-	struct roots_output *output;
+	PhocOutput *output;
 
 	// reset mappings
 	wlr_cursor_map_to_output(cursor, NULL);
@@ -490,6 +514,12 @@ void roots_seat_configure_cursor(struct roots_seat *seat) {
 		wl_list_for_each(touch, &seat->touch, link) {
 			seat_set_device_output_mappings(seat, touch->device,
 				output);
+			g_debug("Added mapping for touch device '%s' to output '%s'",
+				touch->device->name,
+				output->wlr_output->name);
+			g_hash_table_insert (desktop->input_output_map,
+					     g_strdup (touch->device->name),
+					     output);
 		}
 	}
 }
@@ -717,10 +747,10 @@ void roots_drag_icon_update_position(struct roots_drag_icon *icon) {
 
 void roots_drag_icon_damage_whole(struct roots_drag_icon *icon) {
 	PhocServer *server = phoc_server_get_default ();
-	struct roots_output *output;
+	PhocOutput *output;
 	wl_list_for_each(output, &server->desktop->outputs,
 			link) {
-		output_damage_whole_drag_icon(output, icon);
+		phoc_output_damage_whole_drag_icon(output, icon);
 	}
 }
 
@@ -907,13 +937,17 @@ static void seat_add_switch(struct roots_seat *seat,
 	wl_signal_add(&switch_device->device->switch_device->events.toggle, &switch_device->toggle);
 }
 
-static void handle_touch_destroy(struct wl_listener *listener, void *data) {
-	PhocTouch *touch = wl_container_of(listener, touch, device_destroy);
+static void
+handle_touch_destroy(PhocTouch *touch)
+{
 	struct roots_seat *seat = touch->seat;
+	PhocServer *server = phoc_server_get_default ();
+	PhocDesktop *desktop = server->desktop;
 
+	g_debug("Removing touch device: %s", touch->device->name);
+	g_hash_table_remove (desktop->input_output_map, touch->device->name);
 	wl_list_remove(&touch->link);
 	wlr_cursor_detach_input_device(seat->cursor->cursor, touch->device);
-	wl_list_remove(&touch->device_destroy.link);
 	g_object_unref (touch);
 
 	seat_update_capabilities(seat);
@@ -925,8 +959,9 @@ static void seat_add_touch(struct roots_seat *seat,
 
 	wl_list_insert(&seat->touch, &touch->link);
 
-	touch->device_destroy.notify = handle_touch_destroy;
-	wl_signal_add(&touch->device->events.destroy, &touch->device_destroy);
+	g_signal_connect(touch, "touch-destroyed",
+			 G_CALLBACK (handle_touch_destroy),
+			 NULL);
 
 	wlr_cursor_attach_input_device(seat->cursor->cursor, device);
 	roots_seat_configure_cursor(seat);
@@ -1191,7 +1226,7 @@ void roots_seat_configure_xcursor(struct roots_seat *seat) {
 		}
 	}
 
-	struct roots_output *output;
+	PhocOutput *output;
 	wl_list_for_each(output, &server->desktop->outputs, link) {
 		float scale = output->wlr_output->scale;
 #if (WLR_VERSION_MAJOR > 0 || WLR_VERSION_MINOR > 10)
@@ -1370,7 +1405,7 @@ void roots_seat_set_focus(struct roots_seat *seat, struct roots_view *view) {
 
 	if (view && unfullscreen) {
 		PhocDesktop *desktop = view->desktop;
-		struct roots_output *output;
+		PhocOutput *output;
 		struct wlr_box box;
 		view_get_box(view, &box);
 		wl_list_for_each(output, &desktop->outputs, link) {
@@ -1517,7 +1552,7 @@ void roots_seat_set_exclusive_client(struct roots_seat *seat,
 		seat->exclusive_client = client;
 		// Triggers a refocus of the topmost surface layer if necessary
 		// TODO: Make layer surface focus per-output based on cursor position
-		struct roots_output *output;
+		PhocOutput *output;
 		wl_list_for_each(output, &server->desktop->outputs, link) {
 			arrange_layers(output);
 		}
@@ -1584,14 +1619,20 @@ void roots_seat_begin_move(struct roots_seat *seat, struct roots_view *view) {
 	cursor->mode = ROOTS_CURSOR_MOVE;
 	cursor->offs_x = cursor->cursor->x;
 	cursor->offs_y = cursor->cursor->y;
-	if (view_is_maximized(view)) {
-		cursor->view_x = view->saved.x;
-		cursor->view_y = view->saved.y;
+	if (view_is_maximized(view) || view_is_tiled(view)) {
+		// calculate normalized (0..1) position of cursor in maximized window
+		// and make it stay the same after restoring saved size
+		double x = (cursor->cursor->x - view->box.x) / view->box.width;
+		double y = (cursor->cursor->y - view->box.y) / view->box.height;
+		cursor->view_x = cursor->cursor->x - x * view->saved.width;
+		cursor->view_y = cursor->cursor->y - y * view->saved.height;
+		view->saved.x = cursor->view_x;
+		view->saved.y = cursor->view_y;
+		view_restore(view);
 	} else {
 		cursor->view_x = view->box.x;
 		cursor->view_y = view->box.y;
 	}
-	view_maximize(view, false);
 	wlr_seat_pointer_clear_focus(seat->seat);
 
 	roots_seat_maybe_set_cursor (seat, ROOTS_XCURSOR_MOVE);
@@ -1606,37 +1647,25 @@ void roots_seat_begin_resize(struct roots_seat *seat, struct roots_view *view,
 	cursor->mode = ROOTS_CURSOR_RESIZE;
 	cursor->offs_x = cursor->cursor->x;
 	cursor->offs_y = cursor->cursor->y;
-	if (view_is_maximized(view)) {
-		cursor->view_x = view->saved.x;
-		cursor->view_y = view->saved.y;
-		cursor->view_width = view->saved.width;
-		cursor->view_height = view->saved.height;
-	} else {
-		cursor->view_x = view->box.x;
-		cursor->view_y = view->box.y;
-		struct wlr_box box;
-		view_get_box(view, &box);
-		cursor->view_width = box.width;
-		cursor->view_height = box.height;
+	if (view_is_maximized(view) || view_is_tiled(view)) {
+		view->saved.x = view->box.x;
+		view->saved.y = view->box.y;
+		view->saved.width = view->box.width;
+		view->saved.height = view->box.height;
+		view_restore(view);
 	}
+
+	cursor->view_x = view->box.x;
+	cursor->view_y = view->box.y;
+	struct wlr_box box;
+	view_get_box(view, &box);
+	cursor->view_width = box.width;
+	cursor->view_height = box.height;
 	cursor->resize_edges = edges;
-	view_maximize(view, false);
 	wlr_seat_pointer_clear_focus(seat->seat);
 
 	const char *resize_name = wlr_xcursor_get_resize_name(edges);
 	roots_seat_maybe_set_cursor (seat, resize_name);
-}
-
-void roots_seat_begin_rotate(struct roots_seat *seat, struct roots_view *view) {
-	struct roots_cursor *cursor = seat->cursor;
-	cursor->mode = ROOTS_CURSOR_ROTATE;
-	cursor->offs_x = cursor->cursor->x;
-	cursor->offs_y = cursor->cursor->y;
-	cursor->view_rotation = view->rotation;
-	view_maximize(view, false);
-	wlr_seat_pointer_clear_focus(seat->seat);
-
-	roots_seat_maybe_set_cursor (seat, ROOTS_XCURSOR_ROTATE);
 }
 
 void roots_seat_end_compositor_grab(struct roots_seat *seat) {
@@ -1653,9 +1682,6 @@ void roots_seat_end_compositor_grab(struct roots_seat *seat) {
 			break;
 		case ROOTS_CURSOR_RESIZE:
 			view_move_resize(view, cursor->view_x, cursor->view_y, cursor->view_width, cursor->view_height);
-			break;
-		case ROOTS_CURSOR_ROTATE:
-			view->rotation = cursor->view_rotation;
 			break;
 		case ROOTS_CURSOR_PASSTHROUGH:
 			break;

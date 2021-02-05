@@ -25,7 +25,7 @@ struct _PhocTouch {
   GObject                  parent;
 
   struct wl_list           link; // seat::touch
-  struct wl_listener       device_destroy;
+  struct wl_listener       touch_destroy;
   struct roots_seat       *seat;
   struct wlr_input_device *device;
 

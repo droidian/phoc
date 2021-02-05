@@ -31,8 +31,10 @@
 #include <wlr/util/log.h>
 #include <wlr/version.h>
 #include "layers.h"
+#include "output.h"
 #include "seat.h"
 #include "server.h"
+#include "utils.h"
 #include "view.h"
 #include "virtual.h"
 #include "xcursor.h"
@@ -93,12 +95,8 @@ static bool view_at(struct roots_view *view, double lx, double ly,
 		return false;
 	}
 
-	double view_sx = lx - (view->box.x * view->scale);
-	double view_sy = ly - (view->box.y * view->scale);
-	rotate_child_position(&view_sx, &view_sy, 0, 0,
-		view->box.width, view->box.height, -view->rotation);
-	view_sx /= view->scale;
-	view_sy /= view->scale;
+	double view_sx = lx / view->scale - view->box.x;
+	double view_sy = ly / view->scale - view->box.y;
 
 	double _sx, _sy;
 	struct wlr_surface *_surface = NULL;
@@ -140,15 +138,16 @@ static struct roots_view *desktop_view_at(PhocDesktop *desktop,
 		double *sx, double *sy) {
 	struct roots_view *view;
 	wl_list_for_each(view, &desktop->views, link) {
-		if (view_at(view, lx, ly, surface, sx, sy)) {
+		if (phoc_desktop_view_is_visible(desktop, view) && view_at(view, lx, ly, surface, sx, sy)) {
 			return view;
 		}
 	}
 	return NULL;
 }
 
-static struct wlr_surface *layer_surface_at(struct roots_output *output,
-		struct wl_list *layer, double ox, double oy, double *sx, double *sy) {
+static struct wlr_surface *layer_surface_at(struct wl_list *layer, double ox,
+                                             double oy, double *sx, double *sy)
+{
 	struct roots_layer_surface *roots_surface;
 
 	wl_list_for_each_reverse(roots_surface, layer, link) {
@@ -186,35 +185,33 @@ static struct wlr_surface *layer_surface_at(struct roots_output *output,
 	return NULL;
 }
 
-struct wlr_surface *desktop_surface_at(PhocDesktop *desktop,
+struct wlr_surface *phoc_desktop_surface_at(PhocDesktop *desktop,
 		double lx, double ly, double *sx, double *sy,
 		struct roots_view **view) {
 	struct wlr_surface *surface = NULL;
 	struct wlr_output *wlr_output =
 		wlr_output_layout_output_at(desktop->layout, lx, ly);
-	struct roots_output *roots_output = NULL;
+	PhocOutput *phoc_output = NULL;
 	double ox = lx, oy = ly;
 	if (view) {
 		*view = NULL;
 	}
 
 	if (wlr_output) {
-		roots_output = wlr_output->data;
+		phoc_output = wlr_output->data;
 		wlr_output_layout_output_coords(desktop->layout, wlr_output, &ox, &oy);
 
-		if ((surface = layer_surface_at(roots_output,
-					&roots_output->layers[ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY],
-					ox, oy, sx, sy))) {
+		if ((surface = layer_surface_at(&phoc_output->layers[ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY],
+						ox, oy, sx, sy))) {
 			return surface;
 		}
 
-		struct roots_output *output = wlr_output->data;
+		PhocOutput *output = wlr_output->data;
 		if (output != NULL && output->fullscreen_view != NULL) {
 
 			if (output->force_shell_reveal) {
-				if ((surface = layer_surface_at(roots_output,
-						&roots_output->layers[ZWLR_LAYER_SHELL_V1_LAYER_TOP],
-						ox, oy, sx, sy))) {
+				if ((surface = layer_surface_at(&phoc_output->layers[ZWLR_LAYER_SHELL_V1_LAYER_TOP],
+								ox, oy, sx, sy))) {
 					return surface;
 				}
 			}
@@ -229,9 +226,8 @@ struct wlr_surface *desktop_surface_at(PhocDesktop *desktop,
 			}
 		}
 
-		if ((surface = layer_surface_at(roots_output,
-					&roots_output->layers[ZWLR_LAYER_SHELL_V1_LAYER_TOP],
-					ox, oy, sx, sy))) {
+		if ((surface = layer_surface_at(&phoc_output->layers[ZWLR_LAYER_SHELL_V1_LAYER_TOP],
+						ox, oy, sx, sy))) {
 			return surface;
 		}
 	}
@@ -245,18 +241,59 @@ struct wlr_surface *desktop_surface_at(PhocDesktop *desktop,
 	}
 
 	if (wlr_output) {
-		if ((surface = layer_surface_at(roots_output,
-					&roots_output->layers[ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM],
-					ox, oy, sx, sy))) {
+		if ((surface = layer_surface_at(&phoc_output->layers[ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM],
+						ox, oy, sx, sy))) {
 			return surface;
 		}
-		if ((surface = layer_surface_at(roots_output,
-					&roots_output->layers[ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND],
-					ox, oy, sx, sy))) {
+		if ((surface = layer_surface_at(&phoc_output->layers[ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND],
+						ox, oy, sx, sy))) {
 			return surface;
 		}
 	}
 	return NULL;
+}
+
+gboolean
+phoc_desktop_view_is_visible (PhocDesktop *desktop, struct roots_view *view)
+{
+  if (!view->wlr_surface) {
+    return false;
+  }
+
+  g_assert_false (wl_list_empty (&desktop->views));
+
+  if (wl_list_length (&desktop->outputs) != 1) {
+    // current heuristics work well only for single output
+    return true;
+  }
+
+  if (!desktop->maximize) {
+    return true;
+  }
+
+  struct roots_view *top_view = wl_container_of (desktop->views.next, view, link);
+
+#ifdef PHOC_XWAYLAND
+  // XWayland parent relations can be complicated and aren't described by roots_view
+  // relationships very well at the moment, so just make all XWayland windows visible
+  // when some XWayland window is active for now
+  if (view->type == ROOTS_XWAYLAND_VIEW && top_view->type == ROOTS_XWAYLAND_VIEW) {
+    return true;
+  }
+#endif
+
+  struct roots_view *v = top_view;
+  while (v) {
+    if (v == view) {
+      return true;
+    }
+    if (view_is_maximized (v)) {
+      return false;
+    }
+    v = v->parent;
+  }
+
+  return false;
 }
 
 static void
@@ -267,7 +304,7 @@ handle_layout_change (struct wl_listener *listener, void *data)
   struct wlr_box *center_output_box;
   double center_x, center_y;
   struct roots_view *view;
-  struct roots_output *output;
+  PhocOutput *output;
 
   self = wl_container_of (listener, self, layout_change);
   center_output = wlr_output_layout_get_center_output (self->layout);
@@ -290,7 +327,7 @@ handle_layout_change (struct wl_listener *listener, void *data)
 
   /* Damage all outputs since the move above damaged old layout space */
   wl_list_for_each(output, &self->outputs, link)
-    output_damage_whole(output);
+    phoc_output_damage_whole(output);
 }
 
 static void input_inhibit_activate(struct wl_listener *listener, void *data) {
@@ -334,14 +371,9 @@ static void handle_constraint_destroy(struct wl_listener *listener,
 		if (wlr_constraint->current.committed &
 				WLR_POINTER_CONSTRAINT_V1_STATE_CURSOR_HINT &&
 				cursor->pointer_view) {
-			double sx = wlr_constraint->current.cursor_hint.x;
-			double sy = wlr_constraint->current.cursor_hint.y;
-
 			struct roots_view *view = cursor->pointer_view->view;
-			rotate_child_position(&sx, &sy, 0, 0, view->box.width, view->box.height,
-				view->rotation);
-			double lx = view->box.x + sx;
-			double ly = view->box.y + sy;
+			double lx = view->box.x + wlr_constraint->current.cursor_hint.x;
+			double ly = view->box.y + wlr_constraint->current.cursor_hint.y;
 
 			wlr_cursor_warp(cursor->cursor, NULL, lx, ly);
 		}
@@ -365,7 +397,7 @@ static void handle_pointer_constraint(struct wl_listener *listener,
 	wl_signal_add(&wlr_constraint->events.destroy, &constraint->destroy);
 
 	double sx, sy;
-	struct wlr_surface *surface = desktop_surface_at(
+	struct wlr_surface *surface = phoc_desktop_surface_at(
 		server->desktop,
 		cursor->cursor->x, cursor->cursor->y, &sx, &sy, NULL);
 
@@ -443,6 +475,38 @@ void handle_xwayland_ready(struct wl_listener *listener, void *data) {
   xcb_disconnect (xcb_conn);
 }
 #endif
+
+static void
+handle_output_destroy (PhocOutput *destroyed_output)
+{
+	PhocDesktop *self = destroyed_output->desktop;
+	PhocOutput *output;
+	char *input_name;
+	GHashTableIter iter;
+	g_hash_table_iter_init (&iter, self->input_output_map);
+	while (g_hash_table_iter_next (&iter, (gpointer) &input_name,
+				       (gpointer) &output)){
+		if (destroyed_output == output){
+			g_debug ("Removing mapping for input device '%s' to output '%s'",
+				 input_name, output->wlr_output->name);
+			g_hash_table_remove (self->input_output_map, input_name);
+			break;
+		}
+
+	}
+	g_object_unref (destroyed_output);
+}
+
+static void
+handle_new_output (struct wl_listener *listener, void *data)
+{
+	PhocDesktop *self = wl_container_of (listener, self, new_output);
+	PhocOutput *output = phoc_output_new (self, (struct wlr_output *)data);
+
+	g_signal_connect (output, "output-destroyed",
+			  G_CALLBACK (handle_output_destroy),
+			  NULL);
+}
 
 static void
 phoc_desktop_constructed (GObject *object)
@@ -641,6 +705,9 @@ phoc_desktop_finalize (GObject *object)
   g_clear_pointer (&self->phosh, phosh_destroy);
   g_clear_pointer (&self->gtk_shell, phoc_gtk_shell_destroy);
 
+  g_hash_table_remove_all (self->input_output_map);
+  g_hash_table_unref (self->input_output_map);
+
   G_OBJECT_CLASS (phoc_desktop_parent_class)->finalize (object);
 }
 
@@ -670,6 +737,10 @@ phoc_desktop_class_init (PhocDesktopClass *klass)
 static void
 phoc_desktop_init (PhocDesktop *self)
 {
+  self->input_output_map = g_hash_table_new_full (g_str_hash,
+                                                  g_str_equal,
+                                                  g_free,
+                                                  NULL);
 }
 
 
@@ -688,7 +759,7 @@ phoc_desktop_new (struct roots_config *config)
 void
 phoc_desktop_toggle_output_blank (PhocDesktop *self)
 {
-  struct roots_output *output;
+  PhocOutput *output;
 
   wl_list_for_each(output, &self->outputs, link) {
     gboolean enable = !output->wlr_output->enabled;
@@ -696,7 +767,7 @@ phoc_desktop_toggle_output_blank (PhocDesktop *self)
     wlr_output_enable (output->wlr_output, enable);
     wlr_output_commit (output->wlr_output);
     if (enable)
-      output_damage_whole(output);
+      phoc_output_damage_whole(output);
   }
 }
 

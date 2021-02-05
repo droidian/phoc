@@ -7,5 +7,5 @@
 
 #include "output.h"
 
-void output_render(struct roots_output *output);
+void output_render(PhocOutput *output);
 gboolean view_render_to_buffer (struct roots_view *view, enum wl_shm_format fmt, int width, int height, int stride, uint32_t *flags, void* data);

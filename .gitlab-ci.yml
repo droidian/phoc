@@ -166,6 +166,25 @@ package-deb-with-wlroots:arm64:
     paths:
       - "${L5_WORKING_DIR}"
 
+package-deb-without-wlroots:arm64:
+  tags:
+    - librem5:arm64
+  stage: package
+  image: debian:buster
+  variables:
+    DEB_BUILD_PROFILES: ""
+  dependencies: []
+  before_script: *before_script_debian_buster
+  script:
+    - rm -rf "${L5_WORKING_DIR}"; mkdir -p "${L5_WORKING_DIR}"
+    - dpkg-buildpackage -b -uc -us
+    # Must be dynamically linked against wlroots
+    - ldd debian/phoc/usr/bin/phoc | grep libwlroots
+    - cp -l ../*.deb ../*.changes ../*.buildinfo "${L5_WORKING_DIR}/"
+  artifacts:
+    paths:
+      - "${L5_WORKING_DIR}"
+
 autopkgtest-debian-buster-package:
   dependencies:
     - package-deb-with-wlroots

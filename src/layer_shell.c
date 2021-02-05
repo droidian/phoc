@@ -93,7 +93,7 @@ static void update_cursors(struct roots_layer_surface *roots_surface,
 		struct roots_cursor *cursor = roots_seat_get_cursor(seat);
 		double sx, sy;
 
-		struct wlr_surface *surface = desktop_surface_at(
+		struct wlr_surface *surface = phoc_desktop_surface_at(
 			server->desktop,
 			cursor->cursor->x, cursor->cursor->y, &sx, &sy, NULL);
 
@@ -242,7 +242,7 @@ static void change_osk(const struct osk_origin *osk, struct wl_list layers[LAYER
 	}
 }
 
-void arrange_layers(struct roots_output *output) {
+void arrange_layers(PhocOutput *output) {
 	struct wlr_box usable_area = { 0 };
 	PhocServer *server = phoc_server_get_default ();
 
@@ -276,12 +276,14 @@ void arrange_layers(struct roots_output *output) {
 	arrange_layer(output->wlr_output, &server->input->seats,
 			&output->layers[ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND],
 			&usable_area, true);
-	memcpy(&output->usable_area, &usable_area, sizeof(struct wlr_box));
+	output->usable_area = usable_area;
 
 	struct roots_view *view;
 	wl_list_for_each(view, &output->desktop->views, link) {
 		if (view_is_maximized(view)) {
 			view_arrange_maximized(view);
+		} else if (view_is_tiled(view)) {
+			view_arrange_tiled(view);
 		} else if (output->desktop->maximize) {
 			view_center(view);
 		}
@@ -345,7 +347,7 @@ static void handle_surface_commit(struct wl_listener *listener, void *data) {
 	struct wlr_layer_surface_v1 *layer_surface = layer->layer_surface;
 	struct wlr_output *wlr_output = layer_surface->output;
 	if (wlr_output != NULL) {
-		struct roots_output *output = wlr_output->data;
+		PhocOutput *output = wlr_output->data;
 		struct wlr_box old_geo = layer->geo;
 		arrange_layers(output);
 
@@ -372,13 +374,13 @@ static void handle_surface_commit(struct wl_listener *listener, void *data) {
 			layer->layer = layer_surface->current.layer;
 		}
 		if (geo_changed || layer_changed) {
-			output_damage_whole_local_surface(output, layer_surface->surface,
-					old_geo.x, old_geo.y);
-			output_damage_whole_local_surface(output, layer_surface->surface,
-					layer->geo.x, layer->geo.y);
+			phoc_output_damage_whole_local_surface(output, layer_surface->surface,
+							       old_geo.x, old_geo.y);
+			phoc_output_damage_whole_local_surface(output, layer_surface->surface,
+							       layer->geo.x, layer->geo.y);
 		} else {
-			output_damage_from_local_surface(output, layer_surface->surface,
-					layer->geo.x, layer->geo.y);
+			phoc_output_damage_from_local_surface(output, layer_surface->surface,
+							      layer->geo.x, layer->geo.y);
 		}
 	}
 }
@@ -387,8 +389,7 @@ static void unmap(struct wlr_layer_surface_v1 *layer_surface) {
 	struct roots_layer_surface *layer = layer_surface->data;
 	struct wlr_output *wlr_output = layer_surface->output;
 	if (wlr_output != NULL) {
-		struct roots_output *output = wlr_output->data;
-		output_damage_whole_local_surface(output, layer_surface->surface,
+		phoc_output_damage_whole_local_surface(wlr_output->data, layer_surface->surface,
 			layer->geo.x, layer->geo.y);
 	}
 }
@@ -406,7 +407,7 @@ static void handle_destroy(struct wl_listener *listener, void *data) {
 	wl_list_remove(&layer->surface_commit.link);
 	if (layer->layer_surface->output) {
 		wl_list_remove(&layer->output_destroy.link);
-		arrange_layers((struct roots_output *)layer->layer_surface->output->data);
+		arrange_layers((PhocOutput *)layer->layer_surface->output->data);
 	}
 	free(layer);
 }
@@ -434,7 +435,7 @@ static void popup_unconstrain(struct roots_layer_popup *popup) {
 	struct roots_layer_surface *layer = popup_get_root_layer(popup);
 	struct wlr_xdg_popup *wlr_popup = popup->wlr_popup;
 
-	struct roots_output *output = layer->layer_surface->output->data;
+	PhocOutput *output = layer->layer_surface->output->data;
 
 	// the output box expressed in the coordinate system of the toplevel parent
 	// of the popup
@@ -468,12 +469,12 @@ static void popup_damage(struct roots_layer_popup *layer_popup, bool whole) {
 	if (!wlr_output) {
 		return;
 	}
-	struct roots_output *output = wlr_output->data;
 
 	if (whole) {
-		output_damage_whole_local_surface(output, surface, ox, oy);
+		phoc_output_damage_whole_local_surface(wlr_output->data, surface, ox, oy);
 	} else {
-		output_damage_from_local_surface(output, surface, ox, oy);
+		phoc_output_damage_from_local_surface(layer->layer_surface->output->data,
+						      surface, ox, oy);
 	}
 }
 
@@ -599,15 +600,16 @@ static void subsurface_damage(struct roots_layer_subsurface *subsurface, bool wh
 	if (!wlr_output) {
 		return;
 	}
-	struct roots_output *output = wlr_output->data;
 	int ox = subsurface->wlr_subsurface->current.x + layer->geo.x;
 	int oy = subsurface->wlr_subsurface->current.y + layer->geo.y;
 	if (whole) {
-		output_damage_whole_local_surface(output, subsurface->wlr_subsurface->surface,
-			ox, oy);
+		phoc_output_damage_whole_local_surface(wlr_output->data,
+						       subsurface->wlr_subsurface->surface,
+						       ox, oy);
 	} else {
-		output_damage_from_local_surface(output, subsurface->wlr_subsurface->surface,
-			ox, oy);
+		phoc_output_damage_from_local_surface(wlr_output->data,
+						      subsurface->wlr_subsurface->surface,
+						      ox, oy);
 	}
 }
 
@@ -718,9 +720,9 @@ static void handle_map(struct wl_listener *listener, void *data) {
 	layer->new_subsurface.notify = handle_new_subsurface;
 	wl_signal_add(&layer_surface->surface->events.new_subsurface, &layer->new_subsurface);
 
-	struct roots_output *output = wlr_output->data;
-	output_damage_whole_local_surface(output, layer_surface->surface,
-		layer->geo.x, layer->geo.y);
+	phoc_output_damage_whole_local_surface(wlr_output->data,
+					       layer_surface->surface, layer->geo.x,
+					       layer->geo.y);
 	wlr_surface_send_enter(layer_surface->surface, wlr_output);
 }
 
@@ -806,7 +808,7 @@ void handle_layer_shell_surface(struct wl_listener *listener, void *data) {
 	roots_surface->layer_surface = layer_surface;
 	layer_surface->data = roots_surface;
 
-	struct roots_output *output = layer_surface->output->data;
+	PhocOutput *output = layer_surface->output->data;
 	wl_list_insert(&output->layers[layer_surface->client_pending.layer], &roots_surface->link);
 
 	// Temporarily set the layer's current state to client_pending

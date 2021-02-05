@@ -55,7 +55,7 @@ struct _PhocDesktop {
 
 	struct wl_list views; // roots_view::link
 
-	struct wl_list outputs; // roots_output::link
+	struct wl_list outputs; // PhocOutput::link
 	struct timespec last_frame;
 
 	struct roots_config *config;
@@ -111,6 +111,7 @@ struct _PhocDesktop {
 
 	GSettings *settings;
 	gboolean maximize, scale_to_fit;
+	GHashTable *input_output_map;
 
 	/* Protocols that upstreamable implementations */
 	struct phosh_private *phosh;
@@ -124,9 +125,10 @@ gboolean     phoc_desktop_get_auto_maximize (PhocDesktop *self);
 void         phoc_desktop_set_scale_to_fit (PhocDesktop *self, gboolean on);
 gboolean     phoc_desktop_get_scale_to_fit (PhocDesktop *self);
 
-struct wlr_surface *desktop_surface_at(PhocDesktop *desktop,
+struct wlr_surface *phoc_desktop_surface_at(PhocDesktop *desktop,
 		double lx, double ly, double *sx, double *sy,
 		struct roots_view **view);
+gboolean phoc_desktop_view_is_visible (PhocDesktop *desktop, struct roots_view *view);
 
 void handle_xdg_shell_surface(struct wl_listener *listener, void *data);
 void handle_xdg_toplevel_decoration(struct wl_listener *listener, void *data);

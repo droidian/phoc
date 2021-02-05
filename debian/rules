@@ -1,5 +1,7 @@
 #!/usr/bin/make -f
 
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+
 ifneq ($(filter pkg.phoc.embedwlroots,$(DEB_BUILD_PROFILES)),)
     MESON_OPTS += -Dembed-wlroots=enabled
 else
