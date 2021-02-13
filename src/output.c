@@ -982,8 +982,8 @@ phoc_output_is_builtin (PhocOutput *output)
     return TRUE;
   else if (g_str_has_prefix (output->wlr_output->name, "DSI-"))
     return TRUE;
-  else if (g_str_has_prefix(output->name, "HWCOMPOSER-"))
-	  return TRUE;
+  else if (g_str_has_prefix (output->wlr_output->name, "HWCOMPOSER-"))
+    return TRUE;
 
   return FALSE;
 }
