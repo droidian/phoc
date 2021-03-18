@@ -109,6 +109,8 @@ struct roots_xdg_surface {
 
 	struct wlr_xdg_surface *xdg_surface;
 
+	struct wlr_box saved_geometry;
+
 	struct wl_listener destroy;
 	struct wl_listener new_popup;
 	struct wl_listener map;
@@ -193,6 +195,7 @@ struct roots_xdg_toplevel_decoration {
 void view_init(struct roots_view *view, const struct roots_view_interface *impl,
 	enum roots_view_type type, PhocDesktop *desktop);
 void view_destroy(struct roots_view *view);
+void view_appear_activated(struct roots_view *view, bool activated);
 void view_activate(struct roots_view *view, bool activate);
 void view_apply_damage(struct roots_view *view);
 void view_damage_whole(struct roots_view *view);
@@ -204,8 +207,8 @@ void view_update_decorated(struct roots_view *view, bool decorated);
 void view_initial_focus(struct roots_view *view);
 void view_map(struct roots_view *view, struct wlr_surface *surface);
 void view_unmap(struct roots_view *view);
-void view_arrange_maximized(struct roots_view *view);
-void view_arrange_tiled(struct roots_view *view);
+void view_arrange_maximized(struct roots_view *view, struct wlr_output *output);
+void view_arrange_tiled(struct roots_view *view, struct wlr_output *output);
 void view_get_box(const struct roots_view *view, struct wlr_box *box);
 void view_get_geometry(struct roots_view *view, struct wlr_box *box);
 void view_move(struct roots_view *view, double x, double y);
@@ -214,8 +217,8 @@ void view_resize(struct roots_view *view, uint32_t width, uint32_t height);
 void view_move_resize(struct roots_view *view, double x, double y,
 	uint32_t width, uint32_t height);
 void view_auto_maximize(struct roots_view *view);
-void view_tile(struct roots_view *view, PhocViewTileDirection direction);
-void view_maximize(struct roots_view *view);
+void view_tile(struct roots_view *view, PhocViewTileDirection direction, struct wlr_output *output);
+void view_maximize(struct roots_view *view, struct wlr_output *output);
 void view_restore(struct roots_view *view);
 void view_set_fullscreen(struct roots_view *view, bool fullscreen,
 	struct wlr_output *output);

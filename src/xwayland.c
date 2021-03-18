@@ -257,7 +257,7 @@ static void handle_request_maximize(struct wl_listener *listener, void *data) {
 	bool maximized = xwayland_surface->maximized_vert &&
 		xwayland_surface->maximized_horz;
 	if (maximized) {
-		view_maximize(view);
+		view_maximize(view, NULL);
 	} else {
 		view_restore(view);
 	}
@@ -333,7 +333,7 @@ static void handle_map(struct wl_listener *listener, void *data) {
 		&roots_surface->surface_commit);
 
 	if (surface->maximized_horz && surface->maximized_vert) {
-		view_maximize(view);
+		view_maximize(view, NULL);
 	}
 	view_auto_maximize(view);
 

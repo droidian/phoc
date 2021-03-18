@@ -71,6 +71,7 @@ static void text_input_clear_pending_focused_surface(
 static void text_input_set_pending_focused_surface(
 		struct roots_text_input *text_input, struct wlr_surface *surface) {
 	text_input_clear_pending_focused_surface(text_input);
+	g_assert(surface);
 	text_input->pending_focused_surface = surface;
 	wl_signal_add(&surface->events.destroy,
 		&text_input->pending_focused_surface_destroy);
@@ -126,27 +127,14 @@ static void relay_send_im_done(struct roots_input_method_relay *relay,
 	// TODO: pass intent, display popup size
 }
 
-static struct roots_text_input *text_input_to_roots(
-		struct roots_input_method_relay *relay,
-		struct wlr_text_input_v3 *text_input) {
-	struct roots_text_input *roots_text_input = NULL;
-	wl_list_for_each(roots_text_input, &relay->text_inputs, link) {
-		if (roots_text_input->input == text_input) {
-			return roots_text_input;
-		}
-	}
-	return NULL;
-}
-
 static void handle_text_input_enable(struct wl_listener *listener, void *data) {
-	struct roots_input_method_relay *relay = wl_container_of(listener, relay,
-		text_input_enable);
+	struct roots_text_input *text_input = wl_container_of(listener, text_input,
+		enable);
+	struct roots_input_method_relay *relay = text_input->relay;
 	if (relay->input_method == NULL) {
 		wlr_log(WLR_INFO, "Enabling text input when input method is gone");
 		return;
 	}
-	struct roots_text_input *text_input = text_input_to_roots(relay,
-		(struct wlr_text_input_v3*)data);
 	// relay_send_im_done protects from receiving unfocussed done,
 	// but activate must be prevented too.
 	// TODO: when enter happens?
@@ -159,10 +147,9 @@ static void handle_text_input_enable(struct wl_listener *listener, void *data) {
 
 static void handle_text_input_commit(struct wl_listener *listener,
 		void *data) {
-	struct roots_input_method_relay *relay = wl_container_of(listener, relay,
-		text_input_commit);
-	struct roots_text_input *text_input = text_input_to_roots(relay,
-		(struct wlr_text_input_v3*)data);
+	struct roots_text_input *text_input = wl_container_of(listener, text_input,
+		commit);
+	struct roots_input_method_relay *relay = text_input->relay;
 	if (!text_input->input->current_enabled) {
 		wlr_log(WLR_INFO, "Inactive text input tried to commit an update");
 		return;
@@ -192,24 +179,26 @@ static void relay_disable_text_input(struct roots_input_method_relay *relay,
 
 static void handle_text_input_disable(struct wl_listener *listener,
 		void *data) {
-	struct roots_input_method_relay *relay = wl_container_of(listener, relay,
-		text_input_disable);
-	struct roots_text_input *text_input = text_input_to_roots(relay,
-		(struct wlr_text_input_v3*)data);
+	struct roots_text_input *text_input = wl_container_of(listener, text_input,
+		disable);
+	struct roots_input_method_relay *relay = text_input->relay;
 	relay_disable_text_input(relay, text_input);
 }
 
 static void handle_text_input_destroy(struct wl_listener *listener,
 		void *data) {
-	struct roots_input_method_relay *relay = wl_container_of(listener, relay,
-		text_input_destroy);
-	struct roots_text_input *text_input = text_input_to_roots(relay,
-		(struct wlr_text_input_v3*)data);
+	struct roots_text_input *text_input = wl_container_of(listener, text_input,
+		destroy);
+	struct roots_input_method_relay *relay = text_input->relay;
 
 	if (text_input->input->current_enabled) {
 		relay_disable_text_input(relay, text_input);
 	}
 	text_input_clear_pending_focused_surface(text_input);
+	wl_list_remove(&text_input->commit.link);
+	wl_list_remove(&text_input->destroy.link);
+	wl_list_remove(&text_input->disable.link);
+	wl_list_remove(&text_input->enable.link);
 	wl_list_remove(&text_input->link);
 	text_input->input = NULL;
 	free(text_input);
@@ -221,7 +210,7 @@ static void handle_pending_focused_surface_destroy(struct wl_listener *listener,
 		pending_focused_surface_destroy);
 	struct wlr_surface *surface = data;
 	assert(text_input->pending_focused_surface == surface);
-	text_input->pending_focused_surface = NULL;
+	text_input_clear_pending_focused_surface(text_input);
 }
 
 struct roots_text_input *roots_text_input_create(
@@ -234,17 +223,17 @@ struct roots_text_input *roots_text_input_create(
 	input->input = text_input;
 	input->relay = relay;
 
-	wl_signal_add(&text_input->events.enable, &relay->text_input_enable);
-	relay->text_input_enable.notify = handle_text_input_enable;
+	wl_signal_add(&text_input->events.enable, &input->enable);
+	input->enable.notify = handle_text_input_enable;
 
-	wl_signal_add(&text_input->events.commit, &relay->text_input_commit);
-	relay->text_input_commit.notify = handle_text_input_commit;
+	wl_signal_add(&text_input->events.commit, &input->commit);
+	input->commit.notify = handle_text_input_commit;
 
-	wl_signal_add(&text_input->events.disable, &relay->text_input_disable);
-	relay->text_input_disable.notify = handle_text_input_disable;
+	wl_signal_add(&text_input->events.disable, &input->disable);
+	input->disable.notify = handle_text_input_disable;
 
-	wl_signal_add(&text_input->events.destroy, &relay->text_input_destroy);
-	relay->text_input_destroy.notify = handle_text_input_destroy;
+	wl_signal_add(&text_input->events.destroy, &input->destroy);
+	input->destroy.notify = handle_text_input_destroy;
 
 	input->pending_focused_surface_destroy.notify =
 		handle_pending_focused_surface_destroy;
@@ -314,6 +303,11 @@ void roots_input_method_relay_init(struct roots_seat *seat,
 	wl_signal_add(
 		&server->desktop->input_method->events.input_method,
 		&relay->input_method_new);
+}
+
+void roots_input_method_relay_destroy(struct roots_input_method_relay *relay) {
+	wl_list_remove(&relay->text_input_new.link);
+	wl_list_remove(&relay->input_method_new.link);
 }
 
 void roots_input_method_relay_set_focus(struct roots_input_method_relay *relay,

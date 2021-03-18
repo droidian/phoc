@@ -1,5 +1,7 @@
 include:
  - 'https://source.puri.sm/Librem5/librem5-ci/raw/master/librem5-pipeline-definitions.yml'
+ - 'https://source.puri.sm/Librem5/librem5-ci/raw/master/librem5-pipeline-amber-jobs.yml'
+ - 'https://source.puri.sm/Librem5/librem5-ci/raw/master/librem5-pipeline-byzantium-jobs.yml'
 
 stages:
  - build
@@ -12,7 +14,6 @@ variables:
   ALPINE_EDGE_DEPS: |
         git meson ninja gnome-desktop-dev gobject-introspection-dev
         libinput-dev wayland-dev wayland-protocols libxkbcommon-dev wlroots-dev
-  DEB_BUILD_PROFILES: pkg.phoc.embedwlroots
   XVFB_RUN: xvfb-run -s -noreset
 
 .tags: &tags
@@ -57,6 +58,9 @@ build-with-xwayland-debian-buster:
   artifacts:
     paths:
       - _build
+  except:
+    variables:
+      - $PKG_ONLY == "1"
 
 build-with-xwayland-debian-bullseye:
   stage: build
@@ -66,6 +70,9 @@ build-with-xwayland-debian-bullseye:
      BUILD_ARGS: -Dxwayland=enabled
   <<: *tags
   <<: *build
+  except:
+    variables:
+      - $PKG_ONLY == "1"
 
 build-without-xwayland-debian-buster:
   stage: build
@@ -75,6 +82,9 @@ build-without-xwayland-debian-buster:
      BUILD_ARGS: -Dxwayland=disabled
   <<: *tags
   <<: *build
+  except:
+    variables:
+      - $PKG_ONLY == "1"
 
 build-with-xwayland-alpinelinux-edge:
   stage: build
@@ -85,6 +95,9 @@ build-with-xwayland-alpinelinux-edge:
   <<: *tags
   <<: *build
   allow_failure: true
+  except:
+    variables:
+      - $PKG_ONLY == "1"
 
 build-without-xwayland-alpinelinux-edge:
   stage: build
@@ -95,13 +108,16 @@ build-without-xwayland-alpinelinux-edge:
   <<: *tags
   <<: *build
   allow_failure: true
+  except:
+    variables:
+      - $PKG_ONLY == "1"
 
 
 unit-test-with-xwayland-debian-buster:
   <<: *tags
   stage: test
   image: debian:buster
-  dependencies:
+  needs:
     - build-with-xwayland-debian-buster
   before_script: *before_script_debian_buster
   script:
@@ -112,86 +128,6 @@ unit-test-with-xwayland-debian-buster:
     when: always
     paths:
       - _build
-
-package-deb-with-wlroots:
-  <<: *tags
-  stage: package
-  image: debian:buster
-  dependencies: []
-  before_script: *before_script_debian_buster
-  script:
-    - rm -rf "${L5_WORKING_DIR}"; mkdir -p "${L5_WORKING_DIR}"
-    - git submodule update --init
-    - dpkg-buildpackage -b -uc -us
-    # Must not be dynamically linked against wlroots
-    - ldd debian/phoc/usr/bin/phoc | grep libwlroots && exit 1 || true
-    - cp -l ../*.deb ../*.changes ../*.buildinfo "${L5_WORKING_DIR}/"
-  artifacts:
-    paths:
-      - "${L5_WORKING_DIR}"
-
-package-deb-without-wlroots:
-  <<: *tags
-  stage: package
-  image: debian:buster
-  variables:
-    DEB_BUILD_PROFILES: ""
-  dependencies: []
-  before_script: *before_script_debian_buster
-  script:
-    - rm -rf "${L5_WORKING_DIR}"; mkdir -p "${L5_WORKING_DIR}"
-    - dpkg-buildpackage -b -uc -us
-    # Must be dynamically linked against wlroots
-    - ldd debian/phoc/usr/bin/phoc | grep libwlroots
-    - cp -l ../*.deb ../*.changes ../*.buildinfo "${L5_WORKING_DIR}/"
-  artifacts:
-    paths:
-      - "${L5_WORKING_DIR}"
-
-package-deb-with-wlroots:arm64:
-  tags:
-    - librem5:arm64
-  stage: package
-  image: debian:buster
-  dependencies: []
-  before_script: *before_script_debian_buster
-  script:
-    - rm -rf "${L5_WORKING_DIR}"; mkdir -p "${L5_WORKING_DIR}"
-    - git submodule update --init
-    - dpkg-buildpackage -b -uc -us
-    # Must not be dynamically linked against wlroots
-    - ldd debian/phoc/usr/bin/phoc | grep libwlroots && exit 1 || true
-    - cp -l ../*.deb ../*.changes ../*.buildinfo "${L5_WORKING_DIR}/"
-  artifacts:
-    paths:
-      - "${L5_WORKING_DIR}"
-
-package-deb-without-wlroots:arm64:
-  tags:
-    - librem5:arm64
-  stage: package
-  image: debian:buster
-  variables:
-    DEB_BUILD_PROFILES: ""
-  dependencies: []
-  before_script: *before_script_debian_buster
-  script:
-    - rm -rf "${L5_WORKING_DIR}"; mkdir -p "${L5_WORKING_DIR}"
-    - dpkg-buildpackage -b -uc -us
-    # Must be dynamically linked against wlroots
-    - ldd debian/phoc/usr/bin/phoc | grep libwlroots
-    - cp -l ../*.deb ../*.changes ../*.buildinfo "${L5_WORKING_DIR}/"
-  artifacts:
-    paths:
-      - "${L5_WORKING_DIR}"
-
-autopkgtest-debian-buster-package:
-  dependencies:
-    - package-deb-with-wlroots
-  extends: .l5-autopkgtest-debian-package
-
-lintian-debian-buster-package:
-  dependencies:
-    - package-deb-with-wlroots
-  extends: .l5-lintian-debian-package
-
+  except:
+    variables:
+      - $PKG_ONLY == "1"

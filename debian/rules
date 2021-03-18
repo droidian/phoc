@@ -2,17 +2,11 @@
 
 export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 
-ifneq ($(filter pkg.phoc.embedwlroots,$(DEB_BUILD_PROFILES)),)
-    MESON_OPTS += -Dembed-wlroots=enabled
-else
-    MESON_OPTS += -Dembed-wlroots=disabled
-endif
-
 %:
 	dh $@
 
 override_dh_auto_configure:
-	dh_auto_configure -- $(MESON_OPTS)
+	dh_auto_configure -- -Dembed-wlroots=disabled
 
 override_dh_auto_install:
 	dh_auto_install --destdir=debian/tmp

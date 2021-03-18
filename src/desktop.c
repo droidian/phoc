@@ -785,11 +785,16 @@ phoc_desktop_set_auto_maximize (PhocDesktop *self, gboolean enable)
   self->maximize = enable;
 
   /* Disabling auto-maximize leaves all views in their current position */
-  if (!enable)
+  if (!enable) {
+    wl_list_for_each (view, &self->views, link)
+      view_appear_activated (view, phoc_input_view_has_focus (phoc_server_get_default()->input, view));
     return;
+  }
 
-  wl_list_for_each (view, &self->views, link)
+  wl_list_for_each (view, &self->views, link) {
     view_auto_maximize (view);
+    view_appear_activated (view, true);
+  }
 }
 
 gboolean

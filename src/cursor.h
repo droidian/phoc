@@ -4,8 +4,9 @@
 #include <wlr/types/wlr_pointer_constraints_v1.h>
 #include "seat.h"
 
-#define PHOC_SHELL_REVEAL_TOUCH_THRESHOLD 0.015
-#define PHOC_SHELL_REVEAL_POINTER_THRESHOLD 0.0
+#define PHOC_SHELL_REVEAL_TOUCH_THRESHOLD 10
+#define PHOC_SHELL_REVEAL_POINTER_THRESHOLD 0
+#define PHOC_EDGE_SNAP_THRESHOLD 20
 
 enum roots_cursor_mode {
 	ROOTS_CURSOR_PASSTHROUGH = 0,

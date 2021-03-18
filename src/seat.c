@@ -763,6 +763,8 @@ static void roots_seat_handle_destroy(struct wl_listener *listener,
 	// TODO: probably more to be freed here
 	wl_list_remove(&seat->destroy.link);
 
+	roots_input_method_relay_destroy(&seat->im_relay);
+
 	struct roots_seat_view *view, *nview;
 	wl_list_for_each_safe(view, nview, &seat->views, link) {
 		seat_view_destroy(view);
@@ -1619,6 +1621,8 @@ void roots_seat_begin_move(struct roots_seat *seat, struct roots_view *view) {
 	cursor->mode = ROOTS_CURSOR_MOVE;
 	cursor->offs_x = cursor->cursor->x;
 	cursor->offs_y = cursor->cursor->y;
+	struct wlr_box geom;
+	view_get_geometry(view, &geom);
 	if (view_is_maximized(view) || view_is_tiled(view)) {
 		// calculate normalized (0..1) position of cursor in maximized window
 		// and make it stay the same after restoring saved size
@@ -1630,8 +1634,8 @@ void roots_seat_begin_move(struct roots_seat *seat, struct roots_view *view) {
 		view->saved.y = cursor->view_y;
 		view_restore(view);
 	} else {
-		cursor->view_x = view->box.x;
-		cursor->view_y = view->box.y;
+		cursor->view_x = view->box.x + geom.x * view->scale;
+		cursor->view_y = view->box.y + geom.y * view->scale;
 	}
 	wlr_seat_pointer_clear_focus(seat->seat);
 
@@ -1647,16 +1651,18 @@ void roots_seat_begin_resize(struct roots_seat *seat, struct roots_view *view,
 	cursor->mode = ROOTS_CURSOR_RESIZE;
 	cursor->offs_x = cursor->cursor->x;
 	cursor->offs_y = cursor->cursor->y;
+	struct wlr_box geom;
+	view_get_geometry(view, &geom);
 	if (view_is_maximized(view) || view_is_tiled(view)) {
-		view->saved.x = view->box.x;
-		view->saved.y = view->box.y;
+		view->saved.x = view->box.x + geom.x * view->scale;
+		view->saved.y = view->box.y + geom.y * view->scale;
 		view->saved.width = view->box.width;
 		view->saved.height = view->box.height;
 		view_restore(view);
 	}
 
-	cursor->view_x = view->box.x;
-	cursor->view_y = view->box.y;
+	cursor->view_x = view->box.x + geom.x * view->scale;
+	cursor->view_y = view->box.y + geom.y * view->scale;
 	struct wlr_box box;
 	view_get_box(view, &box);
 	cursor->view_width = box.width;
