@@ -194,7 +194,7 @@ static void roots_passthrough_cursor(struct roots_cursor *cursor,
 		return;
 	}
 
-	if (cursor->cursor_client != client) {
+	if (cursor->cursor_client != client || !client) {
 		roots_seat_maybe_set_cursor (seat, NULL);
 		cursor->cursor_client = client;
 	}
@@ -485,6 +485,12 @@ void roots_cursor_handle_touch_down(struct roots_cursor *cursor,
 	wlr_cursor_absolute_to_layout_coords(cursor->cursor, event->device,
 		event->x, event->y, &lx, &ly);
 
+	if (seat->touch_id == -1 && cursor->mode == ROOTS_CURSOR_PASSTHROUGH) {
+		seat->touch_id = event->touch_id;
+		seat->touch_x = lx;
+		seat->touch_y = ly;
+	}
+
 	double sx, sy;
 	struct roots_view *view;
 	struct wlr_surface *surface = phoc_desktop_surface_at(
@@ -532,8 +538,18 @@ void roots_cursor_handle_touch_up(struct roots_cursor *cursor,
 		struct wlr_event_touch_up *event) {
 	struct wlr_touch_point *point =
 		wlr_seat_touch_get_point(cursor->seat->seat, event->touch_id);
+
+	if (cursor->seat->touch_id == event->touch_id) {
+		cursor->seat->touch_id = -1;
+	}
+
 	if (!point) {
 		return;
+	}
+
+	if (cursor->mode != ROOTS_CURSOR_PASSTHROUGH) {
+		cursor->mode = ROOTS_CURSOR_PASSTHROUGH;
+		roots_cursor_update_focus(cursor);
 	}
 
 	wlr_seat_touch_notify_up(cursor->seat->seat, event->time_msec,
@@ -622,6 +638,11 @@ void roots_cursor_handle_touch_motion(struct roots_cursor *cursor,
 	if (event->touch_id == cursor->seat->touch_id) {
 		cursor->seat->touch_x = lx;
 		cursor->seat->touch_y = ly;
+
+		if (cursor->mode != ROOTS_CURSOR_PASSTHROUGH) {
+			wlr_cursor_warp(cursor->cursor, NULL, lx, ly);
+			roots_cursor_update_position(cursor, event->time_msec);
+		}
 	}
 }
 

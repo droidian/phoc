@@ -1,3 +1,32 @@
+phoc (0.7.0) byzantium; urgency=medium
+
+  [ Sebastian Krzyszkowiak ]
+  * gitlab-ci: Use "needs" keyword to specify dependencies
+  * debian: Drop pkg.phoc.embedwlroots build profile support
+  * gitlab-ci: Switch to CI job templates for amber-phone and byzantium
+  * gitlab-ci: Exclude non-package jobs when PKG_ONLY variable is set
+  * view: Allow to explicitly set an output when tiling or maximizing
+  * cursor: Implement snap-to-edge behavior for tiling and maximizing
+  * cursor: Define PHOC_SHELL_REVEAL_*_THRESHOLD in layout pixels
+  * Take view geometry into account when dealing with saved state
+  * xdg-shell: Adjust position for updated geometry
+  * Make all views appear activated when automaximizing is enabled
+  * text-input: Don't leave dangling roots_text_input signal listeners
+  * text-input: Use text_input_clear_pending_focused_surface in handle_pending_focused_surface_destroy
+  * text-input: Remove relay's signal listeners when seat is destroyed
+  * text-input: Assert a non-null surface in text_input_set_pending_focused_surface
+  * seat: Update the cursor in roots_seat_end_compositor_grab
+  * roots_passthrough_cursor: Reset the cursor when there's no surface under it
+  * seat: Fix primary touch tracking
+  * cursor: Add preliminary touch support for move and resize
+  * render: Use wlr_presentation_surface_sampled_on_output for fullscreen surfaces
+  * render: Use wlr_output_test to check whether fullscreen scan out is possible
+
+  [ louib ]
+  * Add build-dep command to README
+
+ -- Sebastian Krzyszkowiak <sebastian.krzyszkowiak@puri.sm>  Fri, 19 Mar 2021 03:20:49 +0100
+
 phoc (0.6.0) amber-phone; urgency=medium
 
   [ Clayton Craft ]

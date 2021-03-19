@@ -6,9 +6,20 @@ Phone compositor
 
 Phoc is pronounced like the English word fog.
 
+## Dependencies
+On a Debian based system run:
+
+```sh
+    sudo apt-get -y install build-essential
+    sudo apt-get -y build-dep .
+```
+
+For an explicit list of dependencies check the `Build-Depends` entry in the
+[debian/control][] file.
+
 ## Building
 
-We use the meson (and thereby Ninja) build system for phosh.  The quickest
+We use the meson (and thereby Ninja) build system for phoc. The quickest
 way to get going is to do the following:
 
     meson . _build

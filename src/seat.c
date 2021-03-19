@@ -793,6 +793,8 @@ struct roots_seat *roots_seat_create(PhocInput *input, char *name) {
 
 	seat->input = input;
 
+	seat->touch_id = -1;
+
 	seat->seat = wlr_seat_create(server->wl_display, name);
 	if (!seat->seat) {
 		free(seat);
@@ -1619,6 +1621,9 @@ void roots_seat_begin_move(struct roots_seat *seat, struct roots_view *view) {
 
 	struct roots_cursor *cursor = seat->cursor;
 	cursor->mode = ROOTS_CURSOR_MOVE;
+	if (seat->touch_id != -1) {
+		wlr_cursor_warp(cursor->cursor, NULL, seat->touch_x, seat->touch_y);
+	}
 	cursor->offs_x = cursor->cursor->x;
 	cursor->offs_y = cursor->cursor->y;
 	struct wlr_box geom;
@@ -1649,6 +1654,9 @@ void roots_seat_begin_resize(struct roots_seat *seat, struct roots_view *view,
 
 	struct roots_cursor *cursor = seat->cursor;
 	cursor->mode = ROOTS_CURSOR_RESIZE;
+	if (seat->touch_id != -1) {
+		wlr_cursor_warp(cursor->cursor, NULL, seat->touch_x, seat->touch_y);
+	}
 	cursor->offs_x = cursor->cursor->x;
 	cursor->offs_y = cursor->cursor->y;
 	struct wlr_box geom;
@@ -1696,6 +1704,7 @@ void roots_seat_end_compositor_grab(struct roots_seat *seat) {
 	}
 
 	cursor->mode = ROOTS_CURSOR_PASSTHROUGH;
+	roots_cursor_update_focus(seat->cursor);
 }
 
 struct roots_seat *input_last_active_seat(PhocInput *input) {
