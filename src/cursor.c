@@ -20,14 +20,11 @@
 
 struct roots_cursor *roots_cursor_create(struct roots_seat *seat) {
 	struct roots_cursor *cursor = calloc(1, sizeof(struct roots_cursor));
-	if (!cursor) {
-		return NULL;
-	}
+	g_assert (cursor);
+
 	cursor->cursor = wlr_cursor_create();
-	if (!cursor->cursor) {
-		free(cursor);
-		return NULL;
-	}
+	g_assert (cursor->cursor);
+
 	cursor->default_xcursor = ROOTS_XCURSOR_DEFAULT;
 	return cursor;
 }

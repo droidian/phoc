@@ -527,9 +527,7 @@ void roots_seat_configure_cursor(struct roots_seat *seat) {
 static void roots_seat_init_cursor(struct roots_seat *seat) {
 	PhocServer *server = phoc_server_get_default ();
 	seat->cursor = roots_cursor_create(seat);
-	if (!seat->cursor) {
-		return;
-	}
+
 	seat->cursor->seat = seat;
 	struct wlr_cursor *wlr_cursor = seat->cursor->cursor;
 	PhocDesktop *desktop = server->desktop;
@@ -1492,10 +1490,7 @@ void roots_seat_set_focus(struct roots_seat *seat, struct roots_view *view) {
 			NULL, 0, NULL);
 	}
 
-	if (seat->cursor) {
-		roots_cursor_update_focus(seat->cursor);
-	}
-
+	roots_cursor_update_focus(seat->cursor);
 	roots_input_method_relay_set_focus(&seat->im_relay, view->wlr_surface);
 }
 
@@ -1542,10 +1537,7 @@ void roots_seat_set_focus_layer(struct roots_seat *seat,
 			NULL, 0, NULL);
 	}
 
-	if (seat->cursor) {
-		roots_cursor_update_focus(seat->cursor);
-	}
-
+	roots_cursor_update_focus(seat->cursor);
 	roots_input_method_relay_set_focus(&seat->im_relay, layer->surface);
 }
 

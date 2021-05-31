@@ -26,12 +26,17 @@ typedef struct _PhocTestThumbnail
   guint32 width, height;
 } PhocTestThumbnail;
 
+typedef enum {
+  GRAB_STATUS_FAILED = -1,
+  GRAB_STATUS_UNKNOWN = 0,
+  GRAB_STATUS_OK = 1,
+} PhocTestGrabStatus;
+
 typedef struct _PhocTestKeyboardEvent
 {
   char *title;
   struct phosh_private_keyboard_event *kbevent;
-  gboolean test_grab_successful;
-  gboolean test_grab_unsuccesful;
+  PhocTestGrabStatus grab_status;
 } PhocTestKeyboardEvent;
 
 static void
@@ -196,7 +201,7 @@ keyboard_event_handle_grab_failed (void *data,
   g_assert_nonnull (kbevent);
   g_assert (kbe->kbevent == kbevent);
 
-  kbe->test_grab_unsuccesful = TRUE;
+  kbe->grab_status = GRAB_STATUS_FAILED;
 }
 
 static void
@@ -211,7 +216,7 @@ keyboard_event_handle_grab_success (void *data,
   g_assert (kbe->kbevent == kbevent);
 
   if (action_id > 0)
-    kbe->test_grab_successful = TRUE;
+    kbe->grab_status = GRAB_STATUS_OK;
 }
 
 static const struct phosh_private_keyboard_event_listener keyboard_event_listener = {
@@ -235,47 +240,65 @@ phoc_test_keyboard_event_new (PhocTestClientGlobals *globals,
   return kbe;
 }
 
+#define RAISE_VOL_KEY "XF86AudioRaiseVolume"
+
 static gboolean
 test_client_phosh_kbevent_simple (PhocTestClientGlobals *globals, gpointer unused)
 {
   PhocTestKeyboardEvent *test1;
   PhocTestKeyboardEvent *test2;
-  gchar *test_accelerators[] = {
-    "XF86AudioLowerVolume",
-    "XF86AudioRaiseVolume",
-    "<SHIFT>XF86AudioLowerVolume",
-    "F9",
-  };
 
   test1 = phoc_test_keyboard_event_new (globals, "test-mediakey-grabbing");
   test2 = phoc_test_keyboard_event_new (globals, "test-invalid-grabbing");
 
-  phosh_private_keyboard_event_grab_accelerator_request (test1->kbevent, test_accelerators[0]);
-  phosh_private_keyboard_event_grab_accelerator_request (test2->kbevent, test_accelerators[3]);
+  phosh_private_keyboard_event_grab_accelerator_request (test1->kbevent,
+							 "XF86AudioLowerVolume");
+  /* Not allowed to bind this one: */
+  phosh_private_keyboard_event_grab_accelerator_request (test2->kbevent,
+							 "F9");
   wl_display_dispatch (globals->display);
   wl_display_roundtrip (globals->display);
 
-  g_assert_true (test1->test_grab_successful);
-  g_assert_true (test2->test_grab_unsuccesful);
+  g_assert_cmpint (test1->grab_status, ==, GRAB_STATUS_OK);
+  g_assert_cmpint (test2->grab_status, ==, GRAB_STATUS_FAILED);
 
-  test1->test_grab_successful = FALSE;
-  test2->test_grab_unsuccesful = FALSE;
+  test1->grab_status = GRAB_STATUS_UNKNOWN;
+  test2->grab_status = GRAB_STATUS_UNKNOWN;
 
-  phosh_private_keyboard_event_grab_accelerator_request (test1->kbevent, test_accelerators[1]);
-  phosh_private_keyboard_event_grab_accelerator_request (test2->kbevent, test_accelerators[1]);
+  phosh_private_keyboard_event_grab_accelerator_request (test1->kbevent,
+							 RAISE_VOL_KEY);
+  /* Can't bind same key twice: */
+  phosh_private_keyboard_event_grab_accelerator_request (test2->kbevent,
+							 RAISE_VOL_KEY);
   wl_display_dispatch (globals->display);
   wl_display_roundtrip (globals->display);
 
-  g_assert_true (test1->test_grab_successful);
-  g_assert_true (test2->test_grab_unsuccesful);
+  g_assert_cmpint (test1->grab_status, ==, GRAB_STATUS_OK);
+  g_assert_cmpint (test2->grab_status, ==, GRAB_STATUS_FAILED);
 
-  test1->test_grab_successful = FALSE;
+  test1->grab_status = GRAB_STATUS_UNKNOWN;
+  test2->grab_status = GRAB_STATUS_UNKNOWN;
 
-  phosh_private_keyboard_event_grab_accelerator_request (test1->kbevent, test_accelerators[2]);
+  /* Allowing to bind a already bound key with an additional accelerator is o.k. */
+  phosh_private_keyboard_event_grab_accelerator_request (test1->kbevent,
+							 "<SHIFT>" RAISE_VOL_KEY);
   wl_display_dispatch (globals->display);
   wl_display_roundtrip (globals->display);
 
-  g_assert_true (test1->test_grab_successful);
+  g_assert_cmpint (test1->grab_status, ==, GRAB_STATUS_OK);
+  g_assert_cmpint (test2->grab_status, ==, GRAB_STATUS_UNKNOWN);
+
+  test1->grab_status = GRAB_STATUS_UNKNOWN;
+  test2->grab_status = GRAB_STATUS_UNKNOWN;
+
+  /* Binding non existing key must fail */
+  phosh_private_keyboard_event_grab_accelerator_request (test2->kbevent,
+							 "does-not-exist");
+  wl_display_dispatch (globals->display);
+  wl_display_roundtrip (globals->display);
+
+  g_assert_cmpint (test1->grab_status, ==, GRAB_STATUS_UNKNOWN);
+  g_assert_cmpint (test2->grab_status, ==, GRAB_STATUS_FAILED);
 
   phosh_private_keyboard_event_destroy (test1->kbevent);
   phosh_private_keyboard_event_destroy (test2->kbevent);
