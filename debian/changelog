@@ -1,3 +1,47 @@
+phoc (0.8.0) byzantium; urgency=medium
+
+  [ Guido Günther ]
+  * desktop: Don't create idle-inhibit
+  * settings: Drop device configuration from config file
+  * input: Drop references to config file
+  * input: s/roots/phoc/
+  * settings: Drop cursor handling
+  * Make pointers proper GObjects
+  * input: Remove unused headers
+  * pointer: Handle some touchpad configuration (Closes: #70)
+  * build: Require gsettings-desktop-schemas
+  * pointer: Handle left-right mode on touchpads
+  * pointer: Handle mouse settings
+  * settings: Drop switch configuration
+
+ -- Sebastian Krzyszkowiak <sebastian.krzyszkowiak@puri.sm>  Sat, 10 Jul 2021 02:02:33 +0200
+
+phoc (0.7.1) byzantium; urgency=medium
+
+  * cursor: g_assert on NULL cursor.
+    Don't try to go on without a cursor (which can only happen when calloc
+    fails). wlroots also only returns NULL in case of memory problems. This
+    allows to remove the NULL checks elsewhere
+  * tests/phosh: Use GrabStatus.
+    The current accelerator tests try to encode two boolean values
+    into two variables making it a bit hard to read. Use a single
+    enum instead.
+  * tests/phosh: Make tested keybindins more obvious.
+    Currently one needs to look up what's tested in an array but each most
+    of the keys are only used a single time. So drop that array and use a
+    define for the single key that is used multiple times so it's clear we
+    just add an accelerator.
+  * tests/phosh: Set and check both test vars.
+    Always set and check both keybinding results. This tests that
+    we don't invoke the wrong callback accidentally.
+  * phosh: Don't crash when we failed to parse the accelerator.
+    Passing an invalid keybinding otherwise doesn't end well.
+  * phosh: Allow to bind misc keys.
+    Until we allow to bind all keys let's allow for these as well since
+    this block includes e.g. PrintScreen for screenshots.
+
+ -- Guido Günther <agx@sigxcpu.org>  Sun, 13 Jun 2021 13:05:17 +0200
+
 phoc (0.7.0) byzantium; urgency=medium
 
   [ Sebastian Krzyszkowiak ]

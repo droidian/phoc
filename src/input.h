@@ -25,9 +25,6 @@ struct _PhocInput {
 
   struct wl_listener   new_input;
   struct wl_list       seats; // roots_seat::link */
-
-  /* private */
-  struct roots_config *config;
 };
 
 PhocInput         *phoc_input_new (struct roots_config *config);

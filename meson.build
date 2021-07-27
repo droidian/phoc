@@ -1,5 +1,5 @@
 project('phoc', 'c',
-          version: '0.7.0',
+          version: '0.8.0',
           license: 'GPLv3+',
     meson_version: '>= 0.47.0',
   default_options: [
@@ -29,6 +29,7 @@ glesv2         = dependency('glesv2')
 glib           = dependency('glib-2.0', version: '>=2.50.0')
 gobject        = dependency('gobject-2.0', version: '>=2.50.0')
 gnome_desktop  = dependency('gnome-desktop-3.0', version: '>=3.26')
+gsettings_desktop_schemas_dep = dependency('gsettings-desktop-schemas')
 input          = dependency('libinput')
 drm            = dependency('libdrm')
 pixman         = dependency('pixman-1')

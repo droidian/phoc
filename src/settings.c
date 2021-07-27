@@ -65,65 +65,6 @@ static bool parse_modeline(const char *s, drmModeModeInfo *mode) {
 	return true;
 }
 
-static void add_switch_config(struct wl_list *switches, const char *switch_name,
-		const char *action, const char *command) {
-	struct roots_switch_config *sc =
-		calloc(1, sizeof(struct roots_switch_config));
-
-	if (strcmp(switch_name, "tablet") == 0) {
-		sc->switch_type = WLR_SWITCH_TYPE_TABLET_MODE;
-	} else if (strcmp(switch_name, "lid") == 0) {
-		sc->switch_type = WLR_SWITCH_TYPE_LID;
-	} else {
-		sc->switch_type = -1;
-		sc->name = strdup(switch_name);
-	}
-
-	if (strcmp(action, "on") == 0) {
-		sc->switch_state = WLR_SWITCH_STATE_ON;
-	} else if (strcmp(action, "off") == 0) {
-		sc->switch_state = WLR_SWITCH_STATE_OFF;
-	} else if (strcmp(action, "toggle") == 0) {
-		sc->switch_state = WLR_SWITCH_STATE_TOGGLE;
-	} else {
-		wlr_log(WLR_ERROR, "Invalid switch action %s for switch %s:%s",
-			action, switch_name, action);
-		free(sc);
-		return;
-	}
-
-	sc->command = strdup(command);
-	wl_list_insert(switches, &sc->link);
-}
-
-static void config_handle_cursor(struct roots_config *config,
-		const char *seat_name, const char *name, const char *value) {
-	struct roots_cursor_config *cc;
-	bool found = false;
-	wl_list_for_each(cc, &config->cursors, link) {
-		if (strcmp(cc->seat, seat_name) == 0) {
-			found = true;
-			break;
-		}
-	}
-
-	if (!found) {
-		cc = calloc(1, sizeof(struct roots_cursor_config));
-		cc->seat = strdup(seat_name);
-		wl_list_insert(&config->cursors, &cc->link);
-	}
-
-	if (strcmp(name, "theme") == 0) {
-		free(cc->theme);
-		cc->theme = strdup(value);
-	} else if (strcmp(name, "default-image") == 0) {
-		free(cc->default_image);
-		cc->default_image = strdup(value);
-	} else {
-		wlr_log(WLR_ERROR, "got unknown cursor config: %s", name);
-	}
-}
-
 static const char *output_prefix = "output:";
 static const char *device_prefix = "device:";
 static const char *cursor_prefix = "cursor:";
@@ -232,49 +173,13 @@ static int config_ini_handler(void *user, const char *section, const char *name,
 			}
 		}
 	} else if (strncmp(cursor_prefix, section, strlen(cursor_prefix)) == 0) {
-		const char *seat_name = section + strlen(cursor_prefix);
-		config_handle_cursor(config, seat_name, name, value);
+		g_warning ("Found unused 'cursor:' config section. Please remove");
 	} else if (strcmp(section, "cursor") == 0) {
-		config_handle_cursor(config, ROOTS_CONFIG_DEFAULT_SEAT_NAME, name,
-			value);
+		g_warning ("Found unused 'cursor' config section. Please remove");
 	} else if (strncmp(device_prefix, section, strlen(device_prefix)) == 0) {
-		const char *device_name = section + strlen(device_prefix);
-
-		struct roots_device_config *dc;
-		bool found = false;
-		wl_list_for_each(dc, &config->devices, link) {
-			if (strcmp(dc->name, device_name) == 0) {
-				found = true;
-				break;
-			}
-		}
-
-		if (!found) {
-			dc = calloc(1, sizeof(struct roots_device_config));
-			dc->name = strdup(device_name);
-			dc->seat = strdup(ROOTS_CONFIG_DEFAULT_SEAT_NAME);
-			wl_list_insert(&config->devices, &dc->link);
-		}
-
-		if (strcmp(name, "seat") == 0) {
-			free(dc->seat);
-			dc->seat = strdup(value);
-		} else if (strcmp(name, "tap_enabled") == 0) {
-			if (strcasecmp(value, "true") == 0) {
-				dc->tap_enabled = true;
-			} else if (strcasecmp(value, "false") == 0) {
-				dc->tap_enabled = false;
-			} else {
-				wlr_log(WLR_ERROR,
-					"got unknown tap_enabled value: %s",
-					value);
-			}
-		} else {
-			wlr_log(WLR_ERROR, "got unknown device config: %s", name);
-		}
+		g_warning ("Found unused 'device:' config section. Please remove");
 	} else if (strncmp(switch_prefix, section, strlen(switch_prefix)) == 0) {
-		const char *switch_name = section + strlen(switch_prefix);
-		add_switch_config(&config->switches, switch_name, name, value);
+		g_warning ("Found unused 'switch:' config section. Please remove");
 	} else {
 		wlr_log(WLR_ERROR, "got unknown config section: %s", section);
 	}
@@ -291,9 +196,6 @@ struct roots_config *roots_config_create(const char *config_path) {
 	config->xwayland = true;
 	config->xwayland_lazy = true;
 	wl_list_init(&config->outputs);
-	wl_list_init(&config->devices);
-	wl_list_init(&config->cursors);
-	wl_list_init(&config->switches);
 
 	config->config_path = g_strdup(config_path);
 
@@ -341,21 +243,6 @@ void roots_config_destroy(struct roots_config *config) {
 		free(oc);
 	}
 
-	struct roots_device_config *dc, *dtmp = NULL;
-	wl_list_for_each_safe(dc, dtmp, &config->devices, link) {
-		free(dc->name);
-		free(dc->seat);
-		free(dc);
-	}
-
-	struct roots_cursor_config *cc, *ctmp = NULL;
-	wl_list_for_each_safe(cc, ctmp, &config->cursors, link) {
-		free(cc->seat);
-		free(cc->theme);
-		free(cc->default_image);
-		free(cc);
-	}
-
 	g_object_unref (config->keybindings);
 
 	free(config->config_path);
@@ -373,34 +260,6 @@ struct roots_output_config *roots_config_get_output(struct roots_config *config,
 		if (strcmp(oc->name, output->name) == 0 ||
 				strcmp(oc->name, name) == 0) {
 			return oc;
-		}
-	}
-
-	return NULL;
-}
-
-struct roots_device_config *roots_config_get_device(struct roots_config *config,
-		struct wlr_input_device *device) {
-	struct roots_device_config *d_config;
-	wl_list_for_each(d_config, &config->devices, link) {
-		if (strcmp(d_config->name, device->name) == 0) {
-			return d_config;
-		}
-	}
-
-	return NULL;
-}
-
-struct roots_cursor_config *roots_config_get_cursor(struct roots_config *config,
-		const char *seat_name) {
-	if (seat_name == NULL) {
-		seat_name = ROOTS_CONFIG_DEFAULT_SEAT_NAME;
-	}
-
-	struct roots_cursor_config *cc;
-	wl_list_for_each(cc, &config->cursors, link) {
-		if (strcmp(cc->seat, seat_name) == 0) {
-			return cc;
 		}
 	}
 

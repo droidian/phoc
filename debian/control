@@ -4,6 +4,7 @@ Maintainer: Guido Günther <agx@sigxcpu.org>
 Uploaders: Sebastian Krzyszkowiak <sebastian.krzyszkowiak@puri.sm>
 Build-Depends:
  debhelper (>= 12),
+ gsettings-desktop-schemas,
  libglib2.0-dev,
  libgnome-desktop-3-dev,
  libinput-dev,
@@ -16,7 +17,6 @@ Build-Depends:
  libxcb1-dev,
  libwlroots-dev (>= 0.10.0),
 # to run the tests
- gsettings-desktop-schemas <!nocheck>,
  mutter-common <!nocheck>,
  xvfb <!nocheck>,
  xauth <!nocheck>,

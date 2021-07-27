@@ -9,7 +9,6 @@
 #include <wlr/types/wlr_foreign_toplevel_management_v1.h>
 #include <wlr/types/wlr_gamma_control_v1.h>
 #include <wlr/types/wlr_gtk_primary_selection.h>
-#include <wlr/types/wlr_idle_inhibit_v1.h>
 #include <wlr/types/wlr_idle.h>
 #include <wlr/types/wlr_input_inhibitor.h>
 #include <wlr/types/wlr_input_method_v2.h>
@@ -71,7 +70,6 @@ struct _PhocDesktop {
 	struct wlr_xdg_decoration_manager_v1 *xdg_decoration_manager;
 	struct wlr_gtk_primary_selection_device_manager *primary_selection_device_manager;
 	struct wlr_idle *idle;
-	struct wlr_idle_inhibit_manager_v1 *idle_inhibit;
 	struct wlr_input_inhibit_manager *input_inhibit;
 	struct wlr_layer_shell_v1 *layer_shell;
 	struct wlr_input_method_manager_v2 *input_method;

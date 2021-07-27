@@ -22,6 +22,7 @@
 #include <wlr/version.h>
 #include "cursor.h"
 #include "keyboard.h"
+#include "pointer.h"
 #include "seat.h"
 #include "text_input.h"
 #include "touch.h"
@@ -484,7 +485,7 @@ void roots_seat_configure_cursor(struct roots_seat *seat) {
 	PhocDesktop *desktop = server->desktop;
 	struct wlr_cursor *cursor = seat->cursor->cursor;
 
-	struct roots_pointer *pointer;
+	PhocPointer *pointer;
 	PhocTouch *touch;
 	struct roots_tablet *tablet;
 	PhocOutput *output;
@@ -877,29 +878,21 @@ static void seat_add_keyboard(struct roots_seat *seat,
 }
 
 static void handle_pointer_destroy(struct wl_listener *listener, void *data) {
-	struct roots_pointer *pointer =
-		wl_container_of(listener, pointer, device_destroy);
+	PhocPointer *pointer = wl_container_of(listener, pointer, device_destroy);
 	struct roots_seat *seat = pointer->seat;
 
 	wl_list_remove(&pointer->link);
 	wlr_cursor_detach_input_device(seat->cursor->cursor, pointer->device);
 	wl_list_remove(&pointer->device_destroy.link);
-	free(pointer);
+	g_object_unref (pointer);
 
 	seat_update_capabilities(seat);
 }
 
 static void seat_add_pointer(struct roots_seat *seat,
 		struct wlr_input_device *device) {
-	struct roots_pointer *pointer = calloc(1, sizeof(struct roots_pointer));
-	if (!pointer) {
-		wlr_log(WLR_ERROR, "could not allocate pointer for seat");
-		return;
-	}
+	PhocPointer *pointer = phoc_pointer_new (device, seat);
 
-	device->data = pointer;
-	pointer->device = device;
-	pointer->seat = seat;
 	wl_list_insert(&seat->pointers, &pointer->link);
 
 	pointer->device_destroy.notify = handle_pointer_destroy;
@@ -1209,21 +1202,12 @@ void roots_seat_add_device(struct roots_seat *seat,
 void roots_seat_configure_xcursor(struct roots_seat *seat) {
 	PhocServer *server = phoc_server_get_default ();
 	const char *cursor_theme = NULL;
-	struct roots_cursor_config *cc =
-		roots_config_get_cursor(seat->input->config, seat->seat->name);
-	if (cc != NULL) {
-		cursor_theme = cc->theme;
-		if (cc->default_image != NULL) {
-			seat->cursor->default_xcursor = cc->default_image;
-		}
-	}
 
 	if (!seat->cursor->xcursor_manager) {
 		seat->cursor->xcursor_manager =
 			wlr_xcursor_manager_create(cursor_theme, ROOTS_XCURSOR_SIZE);
 		if (seat->cursor->xcursor_manager == NULL) {
-			wlr_log(WLR_ERROR, "Cannot create XCursor manager for theme %s",
-					cursor_theme);
+			wlr_log(WLR_ERROR, "Cannot create XCursor manager for theme");
 			return;
 		}
 	}

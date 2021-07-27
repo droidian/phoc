@@ -8,19 +8,8 @@
 
 void roots_switch_handle_toggle(struct roots_switch *switch_device,
 		struct wlr_event_switch_toggle *event) {
-	PhocServer *server = phoc_server_get_default ();
-	struct wl_list *bound_switches =
-		&server->config->switches;
-	struct roots_switch_config *sc;
-	wl_list_for_each(sc, bound_switches, link) {
-		if ((sc->name != NULL && strcmp(event->device->name, sc->name) != 0) &&
-				(sc->name == NULL && event->switch_type != sc->switch_type)) {
-			continue;
-		}
-		if (sc->switch_state != WLR_SWITCH_STATE_TOGGLE &&
-				event->switch_state != sc->switch_state) {
-			continue;
-		}
-		g_warning ("Unhandled switch event %s", sc->name);
-	}
+	g_debug ("Switch %s, type: %d, state: %d",
+		 event->device->name,
+		 event->switch_type,
+		 event->switch_state);
 }
