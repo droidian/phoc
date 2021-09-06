@@ -28,5 +28,12 @@
         that are larger than the screen they're on.
       </description>
     </key>
+    <key name="send-activate" type="b">
+      <default>false</default>
+      <summary>Always send activate signal</summary>
+      <description>
+        Whether to send the surface activate signal.
+      </description>
+    </key>
   </schema>
 </schemalist>

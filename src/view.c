@@ -25,6 +25,8 @@ void view_init(struct roots_view *view, const struct roots_view_interface *impl,
 	view->scale = 1.0f;
 	view->title = NULL;
 	view->app_id = NULL;
+	view->scaling_enabled = FALSE;
+	view->send_activate = FALSE;
 	wl_signal_init(&view->events.unmap);
 	wl_signal_init(&view->events.destroy);
 	wl_list_init(&view->child_surfaces);
@@ -233,7 +235,7 @@ view_appear_activated (struct roots_view *view, bool activated)
 }
 
 void view_activate(struct roots_view *view, bool activate) {
-	if (!view->desktop->maximize) {
+	if (view->send_activate || !view->desktop->maximize) {
 		view_appear_activated(view, activate);
 	}
 
@@ -759,16 +761,7 @@ static void view_update_scale(struct roots_view *view) {
 		return;
 	}
 
-	bool scaling_enabled = false;
-
-	if (view->app_id) {
-		g_autofree gchar *munged_app_id = munge_app_id (view->app_id);
-		g_autofree gchar *path = g_strconcat ("/sm/puri/phoc/application/", munged_app_id, "/", NULL);
-		g_autoptr (GSettings) setting =  g_settings_new_with_path ("sm.puri.phoc.application", path);
-		scaling_enabled = g_settings_get_boolean (setting, "scale-to-fit");
-	}
-
-	if (!scaling_enabled && !phoc_desktop_get_scale_to_fit (server->desktop)) {
+	if (!view->scaling_enabled && !phoc_desktop_get_scale_to_fit (server->desktop)) {
 		return;
 	}
 
@@ -895,6 +888,14 @@ void view_initial_focus(struct roots_view *view) {
 void view_setup(struct roots_view *view) {
 	view_create_foreign_toplevel_handle(view);
 	view_initial_focus(view);
+
+	if (view->app_id) {
+		g_autofree gchar *munged_app_id = munge_app_id (view->app_id);
+		g_autofree gchar *path = g_strconcat ("/sm/puri/phoc/application/", munged_app_id, "/", NULL);
+		g_autoptr (GSettings) setting =  g_settings_new_with_path ("sm.puri.phoc.application", path);
+		view->scaling_enabled = g_settings_get_boolean (setting, "scale-to-fit");
+		view->send_activate = g_settings_get_boolean (setting, "send-activate");
+	}
 
 	if (view->fullscreen_output == NULL && !view_is_maximized(view)) {
 		view_center(view);
