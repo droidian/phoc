@@ -233,7 +233,9 @@ view_appear_activated (struct roots_view *view, bool activated)
 }
 
 void view_activate(struct roots_view *view, bool activate) {
-	if (!view->desktop->maximize) {
+	/* UGLY: waydroid windows always need the activate signal */
+	if ((view->app_id && g_str_has_prefix (view->app_id, "waydroid.")) ||
+		!view->desktop->maximize) {
 		view_appear_activated(view, activate);
 	}
 
