@@ -894,7 +894,8 @@ void view_setup(struct roots_view *view) {
 		g_autofree gchar *path = g_strconcat ("/sm/puri/phoc/application/", munged_app_id, "/", NULL);
 		g_autoptr (GSettings) setting =  g_settings_new_with_path ("sm.puri.phoc.application", path);
 		view->scaling_enabled = g_settings_get_boolean (setting, "scale-to-fit");
-		view->send_activate = g_settings_get_boolean (setting, "send-activate");
+		view->send_activate = g_str_has_prefix (munged_app_id, "waydroid.") || /* UGLY: waydroid windows REQUIRE this */
+			g_settings_get_boolean (setting, "send-activate");
 	}
 
 	if (view->fullscreen_output == NULL && !view_is_maximized(view)) {
