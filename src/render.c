@@ -45,6 +45,20 @@ struct touch_point_data {
   double y;
 };
 
+static void set_scale_filter(struct wlr_output *wlr_output,
+		struct wlr_texture *texture) {
+	if (!wlr_texture_is_gles2(texture)) {
+		return;
+	}
+
+	struct wlr_gles2_texture_attribs attribs;
+	wlr_gles2_texture_get_attribs(texture, &attribs);
+
+	glBindTexture(attribs.target, attribs.tex);
+
+	glTexParameteri(attribs.target, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+}
+
 static void scissor_output(struct wlr_output *wlr_output,
 		pixman_box32_t *rect) {
 	struct wlr_renderer *renderer =
@@ -93,6 +107,7 @@ static void render_texture(struct wlr_output *wlr_output,
 	pixman_box32_t *rects = pixman_region32_rectangles(&damage, &nrects);
 	for (int i = 0; i < nrects; ++i) {
 		scissor_output(wlr_output, &rects[i]);
+		set_scale_filter(wlr_output, texture);
 		wlr_render_texture_with_matrix(renderer, texture, matrix, alpha);
 	}
 
