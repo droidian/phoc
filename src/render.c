@@ -37,6 +37,7 @@
 struct render_data {
 	pixman_region32_t *damage;
 	float alpha;
+	float scale_override;
 };
 
 struct touch_point_data {
@@ -136,8 +137,10 @@ static void render_surface_iterator(PhocOutput *output,
 	}
 
 	struct wlr_box box = *_box;
-	phoc_output_scale_box(wlr_output->data, &box, scale);
-	phoc_output_scale_box(wlr_output->data, &box, wlr_output->scale);
+	if (data->scale_override != 1.0) {
+		phoc_output_scale_box(wlr_output->data, &box, data->scale_override > 0 ? data->scale_override : scale);
+		phoc_output_scale_box(wlr_output->data, &box, data->scale_override > 0 ? data->scale_override : wlr_output->scale);
+	}
 
 	float matrix[9];
 	enum wl_output_transform transform =
@@ -151,7 +154,7 @@ static void render_surface_iterator(PhocOutput *output,
 	wlr_presentation_surface_sampled_on_output(output->desktop->presentation,
 		surface, wlr_output);
 
-	collect_touch_points(output, surface, box, scale);
+	collect_touch_points(output, surface, box, data->scale_override > 0 ? data->scale_override : scale);
 }
 
 static void render_decorations(PhocOutput *output,
@@ -213,6 +216,7 @@ static void render_layer(PhocOutput *output,
 	struct render_data data = {
 		.damage = damage,
 		.alpha = 1.0f,
+		.scale_override = 0,
 	};
 	phoc_output_layer_for_each_surface(output, layer_surfaces,
 		render_surface_iterator, &data);
@@ -303,6 +307,7 @@ static void render_drag_icons(PhocOutput *output,
 	struct render_data data = {
 		.damage = damage,
 		.alpha = 1.0f,
+		.scale_override = 0,
 	};
 	phoc_output_drag_icons_for_each_surface(output, input,
 		render_surface_iterator, &data);
@@ -557,6 +562,7 @@ void output_render(PhocOutput *output) {
 	struct render_data data = {
 		.damage = &buffer_damage,
 		.alpha = 1.0,
+		.scale_override = 0,
 	};
 
 	enum wl_output_transform transform =
@@ -604,6 +610,8 @@ void output_render(PhocOutput *output) {
 		if (view->type == ROOTS_XWAYLAND_VIEW) {
 			struct roots_xwayland_surface *xwayland_surface =
 				roots_xwayland_surface_from_view(view);
+			// Hack
+			data.scale_override = 1.0;
 			phoc_output_xwayland_children_for_each_surface(output,
 				xwayland_surface->xwayland_surface,
 				render_surface_iterator, &data);
