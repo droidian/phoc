@@ -6,6 +6,7 @@
 #include "server.h"
 
 #include <glib.h>
+#include "gtk-shell-client-protocol.h"
 #include "xdg-shell-client-protocol.h"
 #include "wlr-foreign-toplevel-management-unstable-v1-client-protocol.h"
 #include "wlr-layer-shell-unstable-v1-client-protocol.h"
@@ -48,6 +49,7 @@ typedef struct _PhocTestWlGlobals {
   struct zwlr_foreign_toplevel_manager_v1 *foreign_toplevel_manager;
   GSList *foreign_toplevels;
   struct phosh_private *phosh;
+  struct gtk_shell1 *gtk_shell1;
   /* TODO: handle multiple outputs */
   PhocTestOutput output;
 

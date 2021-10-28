@@ -10,6 +10,7 @@
 #include "input.h"
 #include "keyboard.h"
 #include "seat.h"
+#include "server.h"
 
 G_DEFINE_TYPE (PhocInput, phoc_input, G_TYPE_OBJECT);
 
@@ -34,10 +35,10 @@ phoc_input_get_device_type (enum wlr_input_device_type type)
   }
 }
 
-struct roots_seat *
+PhocSeat *
 phoc_input_get_seat (PhocInput *self, char *name)
 {
-  struct roots_seat *seat = NULL;
+  PhocSeat *seat = NULL;
 
   wl_list_for_each (seat, &self->seats, link) {
     if (strcmp (seat->seat->name, name) == 0) {
@@ -45,7 +46,7 @@ phoc_input_get_seat (PhocInput *self, char *name)
     }
   }
 
-  seat = roots_seat_create (self, name);
+  seat = phoc_seat_create (self, name);
   return seat;
 }
 
@@ -56,7 +57,7 @@ handle_new_input (struct wl_listener *listener, void *data)
   PhocInput *input = wl_container_of (listener, input, new_input);
 
   char *seat_name = ROOTS_CONFIG_DEFAULT_SEAT_NAME;
-  struct roots_seat *seat = phoc_input_get_seat (input, seat_name);
+  PhocSeat *seat = phoc_input_get_seat (input, seat_name);
 
   if (!seat) {
     g_warning ("could not create roots seat");
@@ -67,7 +68,7 @@ handle_new_input (struct wl_listener *listener, void *data)
            device->vendor, device->product,
            phoc_input_get_device_type (device->type), seat_name);
 
-  roots_seat_add_device (seat, device);
+  phoc_seat_add_device (seat, device);
 }
 
 static void
@@ -76,7 +77,7 @@ phoc_input_init (PhocInput *self)
 }
 
 PhocInput *
-phoc_input_new (struct roots_config *config)
+phoc_input_new (void)
 {
   return g_object_new (PHOC_TYPE_INPUT, NULL);
 }
@@ -117,11 +118,11 @@ phoc_input_class_init (PhocInputClass *klass)
   object_class->finalize = phoc_input_finalize;
 }
 
-struct roots_seat *
+PhocSeat *
 phoc_input_seat_from_wlr_seat (PhocInput       *self,
                                struct wlr_seat *wlr_seat)
 {
-  struct roots_seat *seat = NULL;
+  PhocSeat *seat = NULL;
 
   wl_list_for_each (seat, &self->seats, link) {
     if (seat->seat == wlr_seat) {
@@ -137,10 +138,10 @@ phoc_input_view_has_focus (PhocInput *self, struct roots_view *view)
   if (!view) {
     return false;
   }
-  struct roots_seat *seat;
+  PhocSeat *seat;
 
   wl_list_for_each (seat, &self->seats, link) {
-    if (view == roots_seat_get_focus (seat)) {
+    if (view == phoc_seat_get_focus (seat)) {
       return true;
     }
   }
@@ -162,10 +163,10 @@ phoc_input_update_cursor_focus (PhocInput *self)
   clock_gettime (CLOCK_MONOTONIC, &now);
   g_assert_nonnull (self);
 
-  struct roots_seat *seat;
+  PhocSeat *seat;
 
   wl_list_for_each (seat, &self->seats, link) {
-    roots_cursor_update_position (roots_seat_get_cursor (seat),
-                                  timespec_to_msec (&now));
+    phoc_cursor_update_position (phoc_seat_get_cursor (seat),
+				 timespec_to_msec (&now));
   }
 }

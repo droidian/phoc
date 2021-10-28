@@ -4,7 +4,7 @@
 #include "input.h"
 
 struct roots_switch {
-	struct roots_seat *seat;
+	PhocSeat *seat;
 	struct wlr_input_device *device;
 	struct wl_listener device_destroy;
 

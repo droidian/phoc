@@ -28,16 +28,17 @@ tests = [
   'client',
   'layer-shell',
   'xdg-shell',
-  'phosh'
+  'phosh-private'
 ]
 
 phoctest_sources = [
   'testlib.c',
 ]
 
-phoctest_lib = static_library('phoctest', phoctest_sources,
+phoctest_lib = static_library('phoctest', phoctest_sources, client_protos_headers,
   c_args: test_cflags,
-  dependencies: [phoc_dep, client_protos])
+  dependencies: [libphoc_dep, wayland_client])
+
 phoctest_dep = declare_dependency(
   include_directories: include_directories('.'),
   link_with: phoctest_lib)
@@ -49,7 +50,7 @@ foreach test : tests
                  c_args: test_cflags,
                  pie: true,
                  link_args: test_link_args,
-                 dependencies: [phoctest_dep, phoc_dep, client_protos])
+                 dependencies: [phoctest_dep, libphoc_dep])
   test(test, t, env: test_env)
 endforeach
 

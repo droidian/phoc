@@ -318,7 +318,9 @@ static void registry_handle_global(void *data, struct wl_registry *registry,
     zwlr_foreign_toplevel_manager_v1_add_listener (globals->foreign_toplevel_manager,
 						   &foreign_toplevel_manager_listener, globals);
   } else if (!g_strcmp0 (interface, phosh_private_interface.name)) {
-    globals->phosh = wl_registry_bind (registry, name, &phosh_private_interface, 5);
+    globals->phosh = wl_registry_bind (registry, name, &phosh_private_interface, 6);
+  } else if (!g_strcmp0 (interface, gtk_shell1_interface.name)) {
+    globals->gtk_shell1 = wl_registry_bind (registry, name, &gtk_shell1_interface, 3);
   }
 }
 
@@ -351,6 +353,7 @@ wl_client_run (GTask *task, gpointer source,
   g_assert_nonnull (globals.layer_shell);
   g_assert_nonnull (globals.shm);
   g_assert_nonnull (globals.xdg_shell);
+  g_assert_nonnull (globals.gtk_shell1);
 
   g_assert (globals.formats & (1 << WL_SHM_FORMAT_XRGB8888));
 
@@ -410,6 +413,7 @@ phoc_test_client_run (gint timeout, PhocTestClientIface *iface, gpointer data)
 
   g_assert_true (PHOC_IS_SERVER (server));
   g_assert_true (phoc_server_setup(server, TEST_PHOC_INI, NULL, loop,
+                                   PHOC_SERVER_FLAG_NONE,
 				   PHOC_SERVER_DEBUG_FLAG_NONE));
   if (iface && iface->server_prepare)
     g_assert_true (iface->server_prepare(server, data));

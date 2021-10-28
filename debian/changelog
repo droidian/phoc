@@ -1,3 +1,103 @@
+phoc (0.9.0) byzantium; urgency=medium
+
+  [ Guido Günther ]
+  * ci: Drop unneeded tags
+  * ci: Drop support for bullseye and amber
+  * ci: Add the arm64 job explicitly
+  * server: Don't assert when we fail to initialize the backend
+  * cursor: Rename to PhocCursor and reindent
+  * Make PhocCursor a GObject
+  * seat: Unref cursor
+  * cursor: Use g_debug() instead of wlr_debug()
+  * seat: No need to poke cursor directly
+  * seat: Rename structs to Phoc* and reindent
+  * wlroots: Update to 0.12.x
+  * gitignore: Ignore more package build files
+  * Add dir-locals.el
+  * Rename phosh to phosh-private to match protocol name
+  * phosh-private: Rename test as well
+  * phosh-private: Make a GObject
+  * phosh-private: Make screencopy frame private
+  * phosh-private: Use g_new0
+  * phosh-private: Remove unused define
+  * phosh-private: Remove panel tracking
+  * phosh-private: Make phoc_phosh_private_from_resource static
+  * phosh-private: Mark unused interfaces and requests
+  * testlib: Wire up gtk_shell1 protocol
+  * phosh-private: Allow clients to be informed about application startup
+  * protocols: Update toplevel management
+  * protocols: Update layer-shell
+  * seat: Ignore docs for internal comments
+  * seat: Fix doc strings
+  * utils: Fix doc strings
+  * settings: Remove unused declarations
+  * settings: Move doc comments to c file
+  * keyboard: Ignore docs for inline function
+  * build: Use shared wlroots
+  * desktop: Add doc header
+  * build: Add headers to list of sources
+  * build: Rename phoc_dep to libphoc_dep
+  * d/control: Add deps for doc build
+  * build: Add gi-docgen
+  * build: Forbid doc generation with embedded wlroots build
+  * build: Add doc generation via introspection data
+  * protocols: Use custom_target instead of generate
+  * gitlab-ci: Update and publish docs
+  * Update screencopy-unstable protocol
+  * wlroots: Update submodule
+  * xwayland: Forward startup-ids as well
+  * desktop: Handle xwayland startup-id removal
+  * Adjust section headers for gi-docgen
+  * desktop: Cleanup headers
+  * server.c: Add doc string
+  * output: Use correct base class for signal
+  * touch: Remove unused headers
+  * touch: Use correct base class for signal
+  * gitlab-ci: Use bookworm
+  * Bump minimum wlroots version to 0.12.0
+  * build: Generate enum types
+  * server: Set name for wayland source
+  * input: Drop nowadays unused config argument
+  * output: Handle desktop prop as GObject
+  * phosh-private: Remove 'desktop' property
+  * Make renderer a GObject
+  * gitlab-ci: Fix branch name for publishing
+  * README: link to API docs
+  * utils: Add ease in/out helpers
+  * phosh-private: Add shell state protocol and property
+  * server: Allow to pass mode flags
+  * main: Add shell mode command line option
+  * renderer: Emit signals at start and end of rendering loop
+  * server: Render shield until shell is attached
+
+  [ Sebastian Krzyszkowiak ]
+  * seat: Trigger layer arrangement when unsetting layer focus
+  * xwayland: Guard set_startup_id listener removal with PHOC_HAVE_WLR_SET_STARTUP_ID
+  * seat: Don't allow to start resizing a fullscreen window
+  * cursor, seat: Allow to move fullscreen windows between outputs
+  * view: Don't center tiled views in view_setup
+  * view: Turn roots_view::saved into wlr_box
+  * view: Guard roots_view::saved usage by wlr_box_empty checks
+  * view: Center the surface when resizing after (0, 0) configure
+  * view: Move view_update_output to update_position/size
+  * view: Fix updating surface's fullscreen state when exiting fullscreen
+  * view: Rename PHOC_VIEW_STATE_NORMAL to FLOATING and explicitly initialize
+  * view: Revamp view_is_[state] functions
+  * output: Turn damage_whole_decoration into damage_whole_view
+  * view: Don't recreate GSettings object on every window resize
+  * gtk-shell/xdg-shell: Use app_id from gtk_surface::set_dbus_properties
+  * phosh-private: Fix zwlr_screencopy_frame_v1_flags handling
+  * view: Don't allow unfocused surfaces to make themselves fullscreen
+  * view: Implement fullscreen view handling in view_move_to_next_output
+  * view: Allow to pass output to center the view on to view_center
+  * view: Check whether the view is floating before attempting to center
+  * view: Center the view in view_move_to_next_output
+
+  [ Evangelos Ribeiro Tzaras ]
+  * server: Stop using deprecated g_spawn_check_exit_status()
+
+ -- Sebastian Krzyszkowiak <sebastian.krzyszkowiak@puri.sm>  Wed, 27 Oct 2021 16:56:10 +0200
+
 phoc (0.8.0) byzantium; urgency=medium
 
   [ Guido Günther ]

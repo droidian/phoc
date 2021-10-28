@@ -3,18 +3,10 @@
 #include "config.h"
 
 #define _POSIX_C_SOURCE 200112L
-#include <assert.h>
 #include <stdlib.h>
 #include <time.h>
-#include <wayland-server-core.h>
 #include <wlr/backend/libinput.h>
-#include <wlr/config.h>
-#include <wlr/types/wlr_cursor.h>
-#include <wlr/util/log.h>
-#include <wlr/xcursor.h>
-#ifdef PHOC_XWAYLAND
-#include <wlr/xwayland.h>
-#endif
+
 #include "touch.h"
 #include "seat.h"
 
@@ -85,7 +77,7 @@ phoc_touch_init (PhocTouch *self)
 }
 
 PhocTouch *
-phoc_touch_new (struct wlr_input_device *device, struct roots_seat *seat)
+phoc_touch_new (struct wlr_input_device *device, PhocSeat *seat)
 {
   return g_object_new (PHOC_TYPE_TOUCH,
                        "device", device,
@@ -155,7 +147,7 @@ phoc_touch_class_init (PhocTouchClass *klass)
   g_object_class_install_properties (object_class, PROP_LAST_PROP, props);
 
   signals[TOUCH_DESTROY] = g_signal_new ("touch-destroyed",
-                                         G_TYPE_OBJECT,
+                                         G_TYPE_FROM_CLASS (klass),
                                          G_SIGNAL_RUN_LAST,
                                          0, NULL, NULL, NULL, G_TYPE_NONE, 0);
 

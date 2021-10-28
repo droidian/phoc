@@ -106,7 +106,7 @@ phoc_output_set_property (GObject      *object,
 
   switch (property_id) {
   case PROP_DESKTOP:
-    self->desktop = g_value_get_pointer (value);
+    self->desktop = g_value_dup_object (value);
     g_object_notify_by_pspec (G_OBJECT (self), props[PROP_DESKTOP]);
     break;
   case PROP_WLR_OUTPUT:
@@ -129,7 +129,7 @@ phoc_output_get_property (GObject    *object,
 
   switch (property_id) {
   case PROP_DESKTOP:
-    g_value_set_pointer (value, self->desktop);
+    g_value_set_object (value, self->desktop);
     break;
   case PROP_WLR_OUTPUT:
     g_value_set_pointer (value, self->wlr_output);
@@ -347,11 +347,10 @@ phoc_output_constructed (GObject *object)
   }
   wlr_output_commit (self->wlr_output);
 
-  struct roots_seat *seat;
-
+  PhocSeat *seat;
   wl_list_for_each (seat, &input->seats, link) {
-    roots_seat_configure_cursor (seat);
-    roots_seat_configure_xcursor (seat);
+    phoc_seat_configure_cursor (seat);
+    phoc_seat_configure_xcursor (seat);
   }
 
   arrange_layers (self);
@@ -382,13 +381,9 @@ phoc_output_finalize (GObject *object)
     wl_list_remove (&self->layers[i]);
   }
 
-  G_OBJECT_CLASS (phoc_output_parent_class)->finalize (object);
-}
+  g_clear_object (&self->desktop);
 
-static void
-phoc_output_dispose (GObject *object)
-{
-  G_OBJECT_CLASS (phoc_output_parent_class)->dispose (object);
+  G_OBJECT_CLASS (phoc_output_parent_class)->finalize (object);
 }
 
 static void
@@ -400,14 +395,14 @@ phoc_output_class_init (PhocOutputClass *klass)
   object_class->get_property = phoc_output_get_property;
 
   object_class->constructed = phoc_output_constructed;
-  object_class->dispose = phoc_output_dispose;
   object_class->finalize = phoc_output_finalize;
 
   props[PROP_DESKTOP] =
-    g_param_spec_pointer (
+    g_param_spec_object (
       "desktop",
       "Desktop",
       "The desktop object",
+      PHOC_TYPE_DESKTOP,
       G_PARAM_CONSTRUCT_ONLY | G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS | G_PARAM_EXPLICIT_NOTIFY);
   props[PROP_WLR_OUTPUT] =
     g_param_spec_pointer (
@@ -418,7 +413,7 @@ phoc_output_class_init (PhocOutputClass *klass)
   g_object_class_install_properties (object_class, PROP_LAST_PROP, props);
 
   signals[OUTPUT_DESTROY] = g_signal_new ("output-destroyed",
-                                          G_TYPE_OBJECT,
+                                          G_TYPE_FROM_CLASS (klass),
                                           G_SIGNAL_RUN_LAST,
                                           0, NULL, NULL, NULL, G_TYPE_NONE, 0);
 
@@ -607,10 +602,9 @@ phoc_output_drag_icons_for_each_surface (PhocOutput *self, PhocInput *input,
     return;
   }
 
-  struct roots_seat *seat;
-
+  PhocSeat *seat;
   wl_list_for_each (seat, &input->seats, link) {
-    struct roots_drag_icon *drag_icon = seat->drag_icon;
+    PhocDragIcon *drag_icon = seat->drag_icon;
     if (!drag_icon || !drag_icon->wlr_drag_icon->mapped) {
       continue;
     }
@@ -791,9 +785,9 @@ phoc_output_damage_whole_local_surface (PhocOutput *self, struct wlr_surface *su
 }
 
 static void
-damage_whole_decoration (PhocOutput *self, struct roots_view   *view)
+damage_whole_view (PhocOutput *self, struct roots_view   *view)
 {
-  if (!view->decorated || view->wlr_surface == NULL) {
+  if (view->wlr_surface == NULL) {
     return;
   }
 
@@ -811,7 +805,7 @@ phoc_output_damage_whole_view (PhocOutput *self, struct roots_view   *view)
     return;
   }
 
-  damage_whole_decoration (self, view);
+  damage_whole_view (self, view);
 
   bool whole = true;
 
@@ -833,8 +827,7 @@ phoc_output_damage_from_view (PhocOutput *self, struct roots_view *view)
 }
 
 void
-phoc_output_damage_whole_drag_icon (PhocOutput *self, struct roots_drag_icon
-                                    *icon)
+phoc_output_damage_whole_drag_icon (PhocOutput *self, PhocDragIcon *icon)
 {
   bool whole = true;
 

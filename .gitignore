@@ -5,6 +5,8 @@ On branch master
 debian/.debhelper/
 debian/debhelper-build-stamp
 debian/files
-debian/*.substvars
 debian/phoc/
+debian/tmp
+debian/*.debhelper.log
+debian/*.substvars
 obj-*/

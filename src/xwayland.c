@@ -170,6 +170,9 @@ static void destroy(struct roots_view *view) {
 	wl_list_remove(&roots_surface->request_maximize.link);
 	wl_list_remove(&roots_surface->set_title.link);
 	wl_list_remove(&roots_surface->set_class.link);
+#ifdef PHOC_HAVE_WLR_SET_STARTUP_ID
+	wl_list_remove(&roots_surface->set_startup_id.link);
+#endif
 	wl_list_remove(&roots_surface->map.link);
 	wl_list_remove(&roots_surface->unmap.link);
 	free(roots_surface);
@@ -207,12 +210,12 @@ static void handle_request_configure(struct wl_listener *listener, void *data) {
 		event->width, event->height);
 }
 
-static struct roots_seat *guess_seat_for_view(struct roots_view *view) {
+static PhocSeat *guess_seat_for_view(struct roots_view *view) {
 	// the best we can do is to pick the first seat that has the surface focused
 	// for the pointer
 	PhocServer *server = phoc_server_get_default ();
 	PhocInput *input = server->input;
-	struct roots_seat *seat;
+	PhocSeat *seat;
 	wl_list_for_each(seat, &input->seats, link) {
 		if (seat->seat->pointer_state.focused_surface == view->wlr_surface) {
 			return seat;
@@ -225,26 +228,26 @@ static void handle_request_move(struct wl_listener *listener, void *data) {
 	struct roots_xwayland_surface *roots_surface =
 		wl_container_of(listener, roots_surface, request_move);
 	struct roots_view *view = &roots_surface->view;
-	struct roots_seat *seat = guess_seat_for_view(view);
+	PhocSeat *seat = guess_seat_for_view(view);
 
-	if (!seat || roots_seat_get_cursor(seat)->mode != ROOTS_CURSOR_PASSTHROUGH) {
+	if (!seat || phoc_seat_get_cursor(seat)->mode != PHOC_CURSOR_PASSTHROUGH) {
 		return;
 	}
 
-	roots_seat_begin_move(seat, view);
+	phoc_seat_begin_move(seat, view);
 }
 
 static void handle_request_resize(struct wl_listener *listener, void *data) {
 	struct roots_xwayland_surface *roots_surface =
 		wl_container_of(listener, roots_surface, request_resize);
 	struct roots_view *view = &roots_surface->view;
-	struct roots_seat *seat = guess_seat_for_view(view);
+	PhocSeat *seat = guess_seat_for_view(view);
 	struct wlr_xwayland_resize_event *e = data;
 
-	if (!seat || roots_seat_get_cursor(seat)->mode != ROOTS_CURSOR_PASSTHROUGH) {
+	if (!seat || phoc_seat_get_cursor(seat)->mode != PHOC_CURSOR_PASSTHROUGH) {
 		return;
 	}
-	roots_seat_begin_resize(seat, view, e->edges);
+	phoc_seat_begin_resize(seat, view, e->edges);
 }
 
 static void handle_request_maximize(struct wl_listener *listener, void *data) {
@@ -289,6 +292,20 @@ static void handle_set_class(struct wl_listener *listener, void *data) {
 	view_set_app_id(&roots_surface->view,
 		roots_surface->xwayland_surface->class);
 }
+
+#ifdef PHOC_HAVE_WLR_SET_STARTUP_ID
+static void handle_set_startup_id(struct wl_listener *listener, void *data) {
+	PhocServer *server = phoc_server_get_default ();
+
+	struct roots_xwayland_surface *roots_surface =
+		wl_container_of(listener, roots_surface, set_startup_id);
+
+	g_debug ("Got startup-id %s", roots_surface->xwayland_surface->startup_id);
+	phoc_phosh_private_notify_startup_id (server->desktop->phosh,
+                                              roots_surface->xwayland_surface->startup_id,
+                                              PHOSH_PRIVATE_STARTUP_TRACKER_PROTOCOL_X11);
+}
+#endif /* PHOC_HAVE_WLR_SET_STARTUP_ID */
 
 static void handle_surface_commit(struct wl_listener *listener, void *data) {
 	struct roots_xwayland_surface *roots_surface =
@@ -411,6 +428,11 @@ void handle_xwayland_surface(struct wl_listener *listener, void *data) {
 	roots_surface->set_class.notify = handle_set_class;
 	wl_signal_add(&surface->events.set_class,
 			&roots_surface->set_class);
+#ifdef PHOC_HAVE_WLR_SET_STARTUP_ID
+	roots_surface->set_startup_id.notify = handle_set_startup_id;
+	wl_signal_add(&surface->events.set_startup_id,
+			&roots_surface->set_startup_id);
+#endif
 }
 
 struct roots_xwayland_surface *roots_xwayland_surface_from_view(

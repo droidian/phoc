@@ -5,6 +5,7 @@
  */
 
 #include "testlib.h"
+#include "gtk-shell-client-protocol.h"
 
 typedef struct _PhocTestXdgToplevelSurface
 {
@@ -161,14 +162,14 @@ phoc_test_thumbnail_free (PhocTestScreencopyFrame *frame)
 }
 
 static gboolean
-test_client_phosh_thumbnail_simple (PhocTestClientGlobals *globals, gpointer data)
+test_client_phosh_private_thumbnail_simple (PhocTestClientGlobals *globals, gpointer data)
 {
   PhocTestXdgToplevelSurface *toplevel_green;
   PhocTestScreencopyFrame *green_thumbnail;
 
   toplevel_green = phoc_test_xdg_surface_new (globals, WIDTH, HEIGHT, "green", 0xFF00FF00);
   g_assert_nonnull (toplevel_green);
-  phoc_assert_screenshot (globals, "test-phosh-thumbnail-simple-1.png");
+  phoc_assert_screenshot (globals, "test-phosh-private-thumbnail-simple-1.png");
 
   green_thumbnail = phoc_test_get_thumbnail (globals, toplevel_green->width, toplevel_green->height, toplevel_green->foreign_toplevel);
   phoc_assert_buffer_equal (&toplevel_green->buffer, &green_thumbnail->buffer);
@@ -181,10 +182,10 @@ test_client_phosh_thumbnail_simple (PhocTestClientGlobals *globals, gpointer dat
 }
 
 static void
-test_phosh_thumbnail_simple (void)
+test_phosh_private_thumbnail_simple (void)
 {
   PhocTestClientIface iface = {
-   .client_run = test_client_phosh_thumbnail_simple,
+   .client_run = test_client_phosh_private_thumbnail_simple,
   };
 
   phoc_test_client_run (3, &iface, GINT_TO_POINTER (FALSE));
@@ -243,7 +244,7 @@ phoc_test_keyboard_event_new (PhocTestClientGlobals *globals,
 #define RAISE_VOL_KEY "XF86AudioRaiseVolume"
 
 static gboolean
-test_client_phosh_kbevent_simple (PhocTestClientGlobals *globals, gpointer unused)
+test_client_phosh_private_kbevent_simple (PhocTestClientGlobals *globals, gpointer unused)
 {
   PhocTestKeyboardEvent *test1;
   PhocTestKeyboardEvent *test2;
@@ -306,10 +307,84 @@ test_client_phosh_kbevent_simple (PhocTestClientGlobals *globals, gpointer unuse
 }
 
 static void
-test_phosh_kbevents_simple (void)
+test_phosh_private_kbevents_simple (void)
 {
   PhocTestClientIface iface = {
-   .client_run = test_client_phosh_kbevent_simple,
+   .client_run = test_client_phosh_private_kbevent_simple,
+  };
+
+  phoc_test_client_run (3, &iface, NULL);
+}
+
+static void
+startup_tracker_handle_launched (void                                 *data,
+                                 struct phosh_private_startup_tracker *startup_tracker,
+                                 const char                           *startup_id,
+                                 unsigned int                          protocol,
+                                 unsigned int                          flags)
+{
+  int *counter = data;
+
+  (*counter)++;
+  g_assert_cmpint (flags, ==, 0);
+  g_assert_cmpint(protocol, ==, PHOSH_PRIVATE_STARTUP_TRACKER_PROTOCOL_GTK_SHELL);
+}
+
+
+static void
+startup_tracker_handle_startup_id (void                                 *data,
+                                   struct phosh_private_startup_tracker *startup_tracker,
+                                   const char                           *startup_id,
+                                   unsigned int                          protocol,
+                                   unsigned int                          flags)
+
+{
+  int *counter = data;
+
+  (*counter)++;
+  g_assert_cmpint (flags, ==, 0);
+  g_assert_cmpint(protocol, ==, PHOSH_PRIVATE_STARTUP_TRACKER_PROTOCOL_GTK_SHELL);
+}
+
+static const struct phosh_private_startup_tracker_listener startup_tracker_listener = {
+  .startup_id = startup_tracker_handle_startup_id,
+  .launched = startup_tracker_handle_launched,
+};
+
+static gboolean
+test_client_phosh_private_startup_tracker_simple (PhocTestClientGlobals *globals, gpointer unused)
+{
+  struct phosh_private_startup_tracker *tracker;
+  int counter = 0;
+
+  tracker = phosh_private_get_startup_tracker (globals->phosh);
+  g_assert_cmpint (phosh_private_get_version (globals->phosh), >=, 6);
+  g_assert_cmpint (gtk_shell1_get_version (globals->gtk_shell1), >=, 3);
+  phosh_private_startup_tracker_add_listener (tracker, &startup_tracker_listener, &counter);
+  gtk_shell1_set_startup_id (globals->gtk_shell1, "startup_id1");
+
+  wl_display_dispatch (globals->display);
+  wl_display_roundtrip (globals->display);
+
+  g_assert_cmpint (counter, ==, 1);
+
+  gtk_shell1_notify_launch (globals->gtk_shell1, "startup_id1");
+
+  wl_display_dispatch (globals->display);
+  wl_display_roundtrip (globals->display);
+
+  phosh_private_startup_tracker_destroy (tracker);
+
+  g_assert_cmpint (counter, ==, 2);
+
+  return TRUE;
+}
+
+static void
+test_phosh_private_startup_tracker_simple (void)
+{
+  PhocTestClientIface iface = {
+   .client_run = test_client_phosh_private_startup_tracker_simple,
   };
 
   phoc_test_client_run (3, &iface, NULL);
@@ -320,7 +395,8 @@ main (gint argc, gchar *argv[])
 {
   g_test_init (&argc, &argv, NULL);
 
-  g_test_add_func ("/phoc/phosh/thumbnail/simple", test_phosh_thumbnail_simple);
-  g_test_add_func ("/phoc/phosh/kbevents/simple", test_phosh_kbevents_simple);
+  g_test_add_func ("/phoc/phosh/thumbnail/simple", test_phosh_private_thumbnail_simple);
+  g_test_add_func ("/phoc/phosh/kbevents/simple", test_phosh_private_kbevents_simple);
+  g_test_add_func ("/phoc/phosh/startup-tracker/simple", test_phosh_private_startup_tracker_simple);
   return g_test_run ();
 }

@@ -1,31 +1,8 @@
+fs = import('fs')
+
 wl_protocol_dir = wayland_protos.get_pkgconfig_variable('pkgdatadir')
 
 wayland_scanner = find_program('wayland-scanner')
-
-# should check wayland_scanner's version, but it is hard to get
-if wayland_server.version().version_compare('>=1.14.91')
-	code_type = 'private-code'
-else
-	code_type = 'code'
-endif
-
-wayland_scanner_code = generator(
-	wayland_scanner,
-	output: '@BASENAME@-protocol.c',
-	arguments: [code_type, '@INPUT@', '@OUTPUT@'],
-)
-
-wayland_scanner_server = generator(
-	wayland_scanner,
-	output: '@BASENAME@-protocol.h',
-	arguments: ['server-header', '@INPUT@', '@OUTPUT@'],
-)
-
-wayland_scanner_client = generator(
-	wayland_scanner,
-	output: '@BASENAME@-client-protocol.h',
-	arguments: ['client-header', '@INPUT@', '@OUTPUT@'],
-)
 
 server_protocols = [
 	[wl_protocol_dir, 'stable/xdg-shell/xdg-shell.xml'],
@@ -39,53 +16,40 @@ server_protocols = [
 	['wlr-screencopy-unstable-v1.xml']
 ]
 
-server_protos_src = []
+server_protos_sources = []
 server_protos_headers = []
-
-foreach p : server_protocols
-	xml = join_paths(p)
-	server_protos_src += wayland_scanner_code.process(xml)
-	server_protos_headers += wayland_scanner_server.process(xml)
-endforeach
-
-
-lib_server_protos = static_library(
-	'server_protos',
-	server_protos_src + server_protos_headers,
-	dependencies: [wayland_client]
-) # for the include directory
-
-server_protos = declare_dependency(
-	link_with: lib_server_protos,
-	sources: server_protos_headers,
-)
-
-client_protocols = [
-  [wl_protocol_dir, 'stable/xdg-shell/xdg-shell.xml'],
-  ['wlr-foreign-toplevel-management-unstable-v1.xml'],
-  ['wlr-layer-shell-unstable-v1.xml'],
-  ['wlr-output-power-management-unstable-v1.xml'],
-  ['wlr-screencopy-unstable-v1.xml'],
-  ['phosh-private.xml']
-]
-
-client_protos_src = []
 client_protos_headers = []
 
-foreach p : client_protocols
-	xml = join_paths(p)
-	client_protos_src += wayland_scanner_code.process(xml)
-	client_protos_headers += wayland_scanner_client.process(xml)
+foreach p : server_protocols
+  xml = join_paths(p)
+
+  base = fs.name(xml)
+  proto = fs.stem(base)
+
+  server_protos_sources += custom_target('@0@ source'.format(proto),
+					 input: xml,
+					 output: '@0@-protocol.c'.format(proto),
+					 command: [wayland_scanner,
+						   'private-code',
+						   '@INPUT@',
+						   '@OUTPUT@']
+					)
+
+  server_protos_headers += custom_target('@0@ server header'.format(proto),
+					 input: xml,
+					 output: '@0@-protocol.h'.format(proto),
+					 command: [wayland_scanner,
+						   'server-header',
+						   '@INPUT@',
+						   '@OUTPUT@']
+					)
+
+  client_protos_headers += custom_target('@0@ client header'.format(proto),
+					 input: xml,
+					 output: '@0@-client-protocol.h'.format(proto),
+					 command: [wayland_scanner,
+						   'client-header',
+						   '@INPUT@',
+						   '@OUTPUT@']
+					)
 endforeach
-
-
-lib_client_protos = static_library(
-	'client_protos',
-	client_protos_src + client_protos_headers,
-	dependencies: [wayland_client]
-) # for the include directory
-
-client_protos = declare_dependency(
-	link_with: lib_client_protos,
-	sources: client_protos_headers,
-)

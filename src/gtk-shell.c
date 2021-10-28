@@ -11,12 +11,13 @@
 #include <gtk-shell-protocol.h>
 #include "server.h"
 #include "desktop.h"
+#include "phosh-private.h"
 #include "gtk-shell.h"
 
 /**
- * SECTION:phoc-gtk-shell
- * @short_description: A minimal implementeation of gtk_shell1 protocol
- * @Title: PhocGtkShell
+ * PhocGtkShell:
+ *
+ * A minimal implementeation of gtk_shell1 protocol
  *
  * Implement just enough to raise windows for GTK based applications
  * until there's an agreed on upstream protocol.
@@ -32,7 +33,19 @@ handle_set_dbus_properties(struct wl_client *client,
                            const char *application_object_path,
                            const char *unique_bus_name)
 {
-  g_debug ("%s not implemented for %s", __func__, application_id);
+  PhocGtkSurface *gtk_surface = gtk_surface_from_resource (resource);
+  struct roots_view *view;
+
+  g_debug ("Setting app-id %s for surface %p (res %p)", application_id, gtk_surface->wlr_surface, resource);
+  if (!gtk_surface->wlr_surface)
+    return;
+
+  g_free (gtk_surface->app_id);
+  gtk_surface->app_id = g_strdup (application_id);
+
+  view = roots_view_from_wlr_surface (gtk_surface->wlr_surface);
+  if (view)
+    view_set_app_id (view, application_id);
 }
 
 static void
@@ -66,7 +79,7 @@ handle_request_focus(struct wl_client *client,
     gtk_surface_from_resource (resource);
   PhocServer *server = phoc_server_get_default ();
   PhocInput *input = server->input;
-  struct roots_seat *seat = input_last_active_seat(input);
+  PhocSeat *seat = input_last_active_seat(input);
   struct roots_view *view;
 
   g_debug ("Requesting focus for surface %p (res %p)", gtk_surface->wlr_surface, resource);
@@ -75,7 +88,7 @@ handle_request_focus(struct wl_client *client,
 
   view = roots_view_from_wlr_surface (gtk_surface->wlr_surface);
   if (view)
-    roots_seat_set_focus(seat, view);
+    phoc_seat_set_focus(seat, view);
 }
 
 static const struct gtk_surface1_interface gtk_surface1_impl = {
@@ -98,6 +111,9 @@ gtk_surface_handle_resource_destroy(struct wl_resource *resource)
     wl_list_remove(&gtk_surface->wlr_surface_handle_destroy.link);
     gtk_surface->wlr_surface = NULL;
   }
+  gtk_surface->gtk_shell->surfaces = g_slist_remove (gtk_surface->gtk_shell->surfaces,
+                                                     gtk_surface);
+  g_free (gtk_surface->app_id);
   g_free (gtk_surface);
 }
 
@@ -128,6 +144,7 @@ handle_get_gtk_surface(struct wl_client *client,
   }
 
   int version = wl_resource_get_version(gtk_shell_resource);
+  gtk_surface->gtk_shell = phoc_gtk_shell_from_resource (gtk_shell_resource);
   gtk_surface->resource = wl_resource_create(client,
                                              &gtk_surface1_interface, version, id);
   if (gtk_surface->resource == NULL) {
@@ -150,7 +167,16 @@ handle_get_gtk_surface(struct wl_client *client,
   wl_signal_add(&wlr_surface->events.destroy,
                 &gtk_surface->wlr_surface_handle_destroy);
 
+  /* Send empty configure */
+  struct wl_array states;
+  wl_array_init (&states);
+  gtk_surface1_send_configure (gtk_surface->resource, &states);
+  wl_array_release (&states);
+
   wl_signal_init(&gtk_surface->events.destroy);
+
+  gtk_surface->gtk_shell->surfaces = g_slist_prepend (gtk_surface->gtk_shell->surfaces,
+                                                      gtk_surface);
 }
 
 static void
@@ -158,7 +184,14 @@ handle_set_startup_id(struct wl_client *client,
                       struct wl_resource *resource,
                       const char *startup_id)
 {
-  g_debug ("%s not implemented", __func__);
+  PhocServer *server = phoc_server_get_default ();
+  g_debug ("%s: %s", __func__, startup_id);
+
+  if (startup_id) {
+    phoc_phosh_private_notify_startup_id (server->desktop->phosh,
+                                          startup_id,
+                                          PHOSH_PRIVATE_STARTUP_TRACKER_PROTOCOL_GTK_SHELL);
+  }
 }
 
 static void
@@ -174,7 +207,13 @@ handle_notify_launch(struct wl_client *client,
                      struct wl_resource *resource,
                      const char *startup_id)
 {
-  g_debug ("%s not implemented", __func__);
+  PhocServer *server = phoc_server_get_default ();
+
+  g_debug ("%s: %s", __func__, startup_id);
+  if (startup_id)
+    phoc_phosh_private_notify_launch (server->desktop->phosh,
+                                      startup_id,
+                                      PHOSH_PRIVATE_STARTUP_TRACKER_PROTOCOL_GTK_SHELL);
 }
 
 static void
@@ -232,8 +271,22 @@ void
 phoc_gtk_shell_destroy (PhocGtkShell *gtk_shell)
 {
   g_clear_pointer (&gtk_shell->resources, g_slist_free);
+  g_clear_pointer (&gtk_shell->surfaces, g_slist_free);
   wl_global_destroy(gtk_shell->global);
   g_free (gtk_shell);
+}
+
+PhocGtkSurface *
+phoc_gtk_shell_get_gtk_surface_from_wlr_surface (PhocGtkShell *self, struct wlr_surface *wlr_surface)
+{
+  GSList *item = self->surfaces;
+  while (item) {
+    PhocGtkSurface *surface = item->data;
+    if (surface->wlr_surface == wlr_surface)
+      return surface;
+    item = item->next;
+  }
+  return NULL;
 }
 
 PhocGtkShell *

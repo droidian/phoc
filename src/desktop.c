@@ -9,7 +9,6 @@
 #include <time.h>
 #include <wlr/config.h>
 #include <wlr/types/wlr_box.h>
-#include <wlr/types/wlr_compositor.h>
 #include <wlr/types/wlr_cursor.h>
 #include <wlr/types/wlr_data_control_v1.h>
 #include <wlr/types/wlr_export_dmabuf_v1.h>
@@ -38,6 +37,12 @@
 #include "virtual.h"
 #include "xcursor.h"
 #include "wlr-layer-shell-unstable-v1-protocol.h"
+
+/**
+ * PhocDesktop:
+ *
+ * Desktop singleton
+ */
 
 enum {
   PROP_0,
@@ -332,11 +337,11 @@ handle_layout_change (struct wl_listener *listener, void *data)
 static void input_inhibit_activate(struct wl_listener *listener, void *data) {
 	PhocDesktop *desktop = wl_container_of(
 			listener, desktop, input_inhibit_activate);
-	struct roots_seat *seat;
+	PhocSeat *seat;
 	PhocServer *server = phoc_server_get_default ();
 
 	wl_list_for_each(seat, &server->input->seats, link) {
-		roots_seat_set_exclusive_client(seat,
+		phoc_seat_set_exclusive_client(seat,
 				desktop->input_inhibit->active_client);
 	}
 }
@@ -344,21 +349,21 @@ static void input_inhibit_activate(struct wl_listener *listener, void *data) {
 static void input_inhibit_deactivate(struct wl_listener *listener, void *data) {
 	PhocDesktop *desktop = wl_container_of(
 			listener, desktop, input_inhibit_deactivate);
-	struct roots_seat *seat;
+	PhocSeat *seat;
 	PhocServer *server = phoc_server_get_default ();
 
 	wl_list_for_each(seat, &server->input->seats, link) {
-		roots_seat_set_exclusive_client(seat, NULL);
+		phoc_seat_set_exclusive_client(seat, NULL);
 	}
 }
 
 static void handle_constraint_destroy(struct wl_listener *listener,
 		void *data) {
-	struct roots_pointer_constraint *constraint =
+	PhocPointerConstraint *constraint =
 		wl_container_of(listener, constraint, destroy);
 	struct wlr_pointer_constraint_v1 *wlr_constraint = data;
-	struct roots_seat *seat = wlr_constraint->seat->data;
-	struct roots_cursor *cursor = roots_seat_get_cursor (seat);
+	PhocSeat *seat = wlr_constraint->seat->data;
+	PhocCursor *cursor = phoc_seat_get_cursor (seat);
 
 	wl_list_remove(&constraint->destroy.link);
 
@@ -385,11 +390,11 @@ static void handle_pointer_constraint(struct wl_listener *listener,
 		void *data) {
 	PhocServer *server = phoc_server_get_default ();
 	struct wlr_pointer_constraint_v1 *wlr_constraint = data;
-	struct roots_seat *seat = wlr_constraint->seat->data;
-	struct roots_cursor *cursor = roots_seat_get_cursor (seat);
+	PhocSeat *seat = wlr_constraint->seat->data;
+	PhocCursor *cursor = phoc_seat_get_cursor (seat);
 
-	struct roots_pointer_constraint *constraint =
-		calloc(1, sizeof(struct roots_pointer_constraint));
+	PhocPointerConstraint *constraint =
+		calloc(1, sizeof(PhocPointerConstraint));
 	constraint->constraint = wlr_constraint;
 
 	constraint->destroy.notify = handle_constraint_destroy;
@@ -402,7 +407,7 @@ static void handle_pointer_constraint(struct wl_listener *listener,
 
 	if (surface == wlr_constraint->surface) {
 		assert(!cursor->active_constraint);
-		roots_cursor_constrain(cursor, wlr_constraint, sx, sy);
+		phoc_cursor_constrain(cursor, wlr_constraint, sx, sy);
 	}
 }
 
@@ -473,7 +478,23 @@ void handle_xwayland_ready(struct wl_listener *listener, void *data) {
 
   xcb_disconnect (xcb_conn);
 }
-#endif
+
+#ifdef PHOC_HAVE_WLR_REMOVE_STARTUP_INFO
+static
+void handle_xwayland_remove_startup_id(struct wl_listener *listener, void *data) {
+  PhocDesktop *desktop = wl_container_of (
+        listener, desktop, xwayland_remove_startup_id);
+  struct wlr_xwayland_remove_startup_info_event *ev = data;
+
+  g_assert (PHOC_IS_DESKTOP (desktop));
+  g_assert (ev->id);
+
+  phoc_phosh_private_notify_startup_id (desktop->phosh,
+                                        ev->id,
+                                        PHOSH_PRIVATE_STARTUP_TRACKER_PROTOCOL_X11);
+}
+#endif /* PHOC_HAVE_WLR_REMOVE_STARTUP_INFO */
+#endif /* PHOC_XWAYLAND */
 
 static void
 handle_output_destroy (PhocOutput *destroyed_output)
@@ -527,9 +548,6 @@ phoc_desktop_constructed (GObject *object)
   self->layout_change.notify = handle_layout_change;
   wl_signal_add(&self->layout->events.change, &self->layout_change);
 
-  self->compositor = wlr_compositor_create(server->wl_display,
-					   server->renderer);
-
   self->xdg_shell = wlr_xdg_shell_create(server->wl_display);
   wl_signal_add(&self->xdg_shell->events.new_surface,
 		&self->xdg_shell_surface);
@@ -562,7 +580,7 @@ phoc_desktop_constructed (GObject *object)
 
   if (config->xwayland) {
     self->xwayland = wlr_xwayland_create(server->wl_display,
-					 self->compositor, config->xwayland_lazy);
+					 server->compositor, config->xwayland_lazy);
     wl_signal_add(&self->xwayland->events.new_surface,
 		  &self->xwayland_surface);
     self->xwayland_surface.notify = handle_xwayland_surface;
@@ -571,13 +589,15 @@ phoc_desktop_constructed (GObject *object)
 		  &self->xwayland_ready);
     self->xwayland_ready.notify = handle_xwayland_ready;
 
+#ifdef PHOC_HAVE_WLR_REMOVE_STARTUP_INFO
+    wl_signal_add(&self->xwayland->events.remove_startup_info,
+		  &self->xwayland_remove_startup_id);
+    self->xwayland_remove_startup_id.notify = handle_xwayland_remove_startup_id;
+#endif
+
     setenv("DISPLAY", self->xwayland->display_name, true);
 
-#if (WLR_VERSION_MAJOR > 0 || WLR_VERSION_MINOR > 10)
     if (!wlr_xcursor_manager_load(self->xcursor_manager, 1)) {
-#else
-    if (wlr_xcursor_manager_load(self->xcursor_manager, 1)) {
-#endif
       wlr_log(WLR_ERROR, "Cannot load XWayland XCursor theme");
     }
     struct wlr_xcursor *xcursor = wlr_xcursor_manager_get_xcursor(
@@ -616,7 +636,7 @@ phoc_desktop_constructed (GObject *object)
   self->text_input = wlr_text_input_manager_v3_create(server->wl_display);
 
   self->gtk_shell = phoc_gtk_shell_create(self, server->wl_display);
-  self->phosh = phosh_create(self, server->wl_display);
+  self->phosh = phoc_phosh_private_new ();
   self->virtual_keyboard = wlr_virtual_keyboard_manager_v1_create(
 								  server->wl_display);
   wl_signal_add(&self->virtual_keyboard->events.new_virtual_keyboard,
@@ -690,7 +710,7 @@ phoc_desktop_finalize (GObject *object)
   g_clear_pointer (&self->xwayland, wlr_xwayland_destroy);
 #endif
 
-  g_clear_pointer (&self->phosh, phosh_destroy);
+  g_clear_object (&self->phosh);
   g_clear_pointer (&self->gtk_shell, phoc_gtk_shell_destroy);
 
   g_hash_table_remove_all (self->input_output_map);

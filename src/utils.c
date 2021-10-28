@@ -1,3 +1,13 @@
+/*
+ * Copyright (C) 2020,2021 Purism SPC
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * Authors: Arnaud Ferraris <arnaud.ferraris@collabora.com>
+ *          Clayton Craft <clayton@craftyguy.net>
+ *          Guido Günther <agx@sigxcpu.org>
+ */
+
 #define G_LOG_DOMAIN "phoc-utils"
 
 #include <wlr/version.h>
@@ -12,7 +22,6 @@ phoc_utils_fix_transform (enum wl_output_transform *transform)
    * In order to maintain the same behavior, we need to modify the transform
    * before applying it
    */
-#if (WLR_VERSION_MAJOR > 0 || WLR_VERSION_MINOR > 10)
   switch (*transform) {
   case WL_OUTPUT_TRANSFORM_90:
     *transform = WL_OUTPUT_TRANSFORM_270;
@@ -30,10 +39,11 @@ phoc_utils_fix_transform (enum wl_output_transform *transform)
     /* Nothing to be done */
     break;
   }
-#endif
 }
 
 /**
+ * phoc_utils_rotate_child_position:
+ *
  * Rotate a child's position relative to a parent. The parent size is (pw, ph),
  * the child position is (*sx, *sy) and its size is (sw, sh).
  */
@@ -54,4 +64,32 @@ phoc_utils_rotate_child_position (double *sx, double *sy, double sw, double sh,
 
   *sx = rx + pw/2 - sw/2;
   *sy = ry + ph/2 - sh/2;
+}
+
+
+/**
+ * phoc_ease_in_cubic:
+ * @t: The term
+ *
+ * Ease in using cubic interpolation.
+ */
+double
+phoc_ease_in_cubic (double t)
+{
+  double p = t;
+  return p * p * p;
+}
+
+
+/**
+ * phoc_ease_out_cubic:
+ * @t: The term
+ *
+ * Ease out using cubic interpolation
+ */
+double
+phoc_ease_out_cubic (double t)
+{
+  double p = t - 1;
+  return p * p * p + 1;
 }

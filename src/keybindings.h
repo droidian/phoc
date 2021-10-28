@@ -30,11 +30,11 @@ typedef struct
   xkb_keysym_t keysym;
 } PhocKeyCombo;
 
-struct roots_seat;
+typedef struct _PhocSeat PhocSeat;
 gboolean         phoc_keybindings_handle_pressed (PhocKeybindings *self,
 						  guint32 modifiers,
 						  xkb_keysym_t *pressed_keysyms,
 						  guint32 length,
-						  struct roots_seat *seat);
+						  PhocSeat *seat);
 PhocKeyCombo *parse_accelerator (const gchar * accelerator);
 G_END_DECLS

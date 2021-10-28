@@ -287,7 +287,7 @@ phoc_pointer_init (PhocPointer *self)
 }
 
 PhocPointer *
-phoc_pointer_new (struct wlr_input_device *device, struct roots_seat *seat)
+phoc_pointer_new (struct wlr_input_device *device, PhocSeat *seat)
 {
   return g_object_new (PHOC_TYPE_POINTER,
                        "device", device,

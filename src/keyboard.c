@@ -1,6 +1,7 @@
 #define G_LOG_DOMAIN "phoc-keyboard"
 
 #include "config.h"
+#include "server.h"
 
 #include <assert.h>
 #include <stdbool.h>
@@ -14,7 +15,7 @@
 #include <wlr/util/log.h>
 #include <xkbcommon/xkbcommon.h>
 #include "keyboard.h"
-#include "phosh.h"
+#include "phosh-private.h"
 #include "seat.h"
 
 #include <glib.h>
@@ -160,7 +161,7 @@ pressed_keysyms_update(xkb_keysym_t *pressed_keysyms,
   }
 }
 
-/**
+/*
  * Execute a built-in, hardcoded compositor binding. These are triggered from a
  * single keysym.
  *
@@ -194,13 +195,13 @@ keyboard_execute_compositor_binding(PhocKeyboard *self,
   if (keysym == XKB_KEY_Escape) {
     wlr_seat_pointer_end_grab(self->seat->seat);
     wlr_seat_keyboard_end_grab(self->seat->seat);
-    roots_seat_end_compositor_grab(self->seat);
+    phoc_seat_end_compositor_grab(self->seat);
   }
 
   return false;
 }
 
-/**
+/*
  * Execute keyboard bindings. These include compositor bindings and user-defined
  * bindings.
  *
@@ -233,7 +234,7 @@ keyboard_execute_binding(PhocKeyboard *self,
 }
 
 
-/**
+/*
  * Forward keyboard bindings.
  *
  * Returns true if the keysym was handled by forwarding and false if the event
@@ -249,8 +250,7 @@ keyboard_execute_subscribed_binding(PhocKeyboard *self,
   for (size_t i = 0; i < keysyms_len; ++i) {
     PhocKeyCombo combo = { modifiers, keysyms[i] };
     handled = handled |
-      phosh_forward_keysym (&combo,
-                            time);
+      phoc_phosh_private_forward_keysym (&combo, time);
   }
   return handled;
 }
@@ -596,7 +596,7 @@ phoc_keyboard_init (PhocKeyboard *self)
 }
 
 PhocKeyboard *
-phoc_keyboard_new (struct wlr_input_device *device, struct roots_seat *seat)
+phoc_keyboard_new (struct wlr_input_device *device, PhocSeat *seat)
 {
   return g_object_new (PHOC_TYPE_KEYBOARD,
                        "device", device,

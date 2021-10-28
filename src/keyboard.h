@@ -29,7 +29,7 @@ struct _PhocKeyboard {
   uint32_t meta_key;
   GnomeXkbInfo *xkbinfo;
 
-  struct roots_seat *seat;
+  PhocSeat *seat;
   struct wlr_input_device *device;
 
   xkb_keysym_t pressed_keysyms_translated[PHOC_KEYBOARD_PRESSED_KEYSYMS_CAP];
@@ -37,7 +37,7 @@ struct _PhocKeyboard {
 };
 
 PhocKeyboard *phoc_keyboard_new (struct wlr_input_device *device,
-                                 struct roots_seat *seat);
+                                 PhocSeat *seat);
 void          phoc_keyboard_handle_key(PhocKeyboard *self,
                                        struct wlr_event_keyboard_key *event);
 void          phoc_keyboard_handle_modifiers(PhocKeyboard *self);

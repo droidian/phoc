@@ -45,7 +45,7 @@ typedef enum {
 } PhocViewTileDirection;
 
 typedef enum {
-  PHOC_VIEW_STATE_NORMAL,
+  PHOC_VIEW_STATE_FLOATING,
   PHOC_VIEW_STATE_MAXIMIZED,
   PHOC_VIEW_STATE_TILED,
 } PhocViewState;
@@ -68,19 +68,19 @@ struct roots_view {
 	char *title;
 	char *app_id;
 
+	GSettings *settings;
+
 	PhocViewState state;
 	PhocViewTileDirection tile_direction;
 	PhocOutput *fullscreen_output;
-	struct {
-		double x, y;
-		uint32_t width, height;
-	} saved;
+	struct wlr_box saved;
 
 	struct {
 		bool update_x, update_y;
 		double x, y;
 		uint32_t width, height;
 	} pending_move_resize;
+	bool pending_centering;
 
 	struct roots_view *parent;
 	struct wl_list stack; // roots_view::link
@@ -146,6 +146,7 @@ struct roots_xwayland_surface {
 	struct wl_listener unmap;
 	struct wl_listener set_title;
 	struct wl_listener set_class;
+	struct wl_listener set_startup_id;
 
 	struct wl_listener surface_commit;
 };
@@ -199,8 +200,10 @@ void view_appear_activated(struct roots_view *view, bool activated);
 void view_activate(struct roots_view *view, bool activate);
 void view_apply_damage(struct roots_view *view);
 void view_damage_whole(struct roots_view *view);
+gboolean view_is_floating(const struct roots_view *view);
 gboolean view_is_maximized(const struct roots_view *view);
 gboolean view_is_tiled(const struct roots_view *view);
+gboolean view_is_fullscreen(const struct roots_view *view);
 void view_update_position(struct roots_view *view, int x, int y);
 void view_update_size(struct roots_view *view, int width, int height);
 void view_update_decorated(struct roots_view *view, bool decorated);
@@ -223,7 +226,7 @@ void view_restore(struct roots_view *view);
 void view_set_fullscreen(struct roots_view *view, bool fullscreen,
 	struct wlr_output *output);
 void view_close(struct roots_view *view);
-bool view_center(struct roots_view *view);
+bool view_center(struct roots_view *view, struct wlr_output *output);
 void view_setup(struct roots_view *view);
 void view_teardown(struct roots_view *view);
 void view_set_title(struct roots_view *view, const char *title);

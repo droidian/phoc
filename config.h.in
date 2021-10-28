@@ -7,3 +7,5 @@
 
 #mesondefine PHOC_VERSION
 #mesondefine PHOC_XWAYLAND
+#mesondefine PHOC_HAVE_WLR_SET_STARTUP_ID
+#mesondefine PHOC_HAVE_WLR_REMOVE_STARTUP_INFO

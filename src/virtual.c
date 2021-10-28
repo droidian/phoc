@@ -7,6 +7,8 @@
 #include <wlr/version.h>
 #include "virtual.h"
 #include "seat.h"
+#include "server.h"
+
 
 void
 phoc_handle_virtual_keyboard (struct wl_listener *listener, void *data)
@@ -16,11 +18,11 @@ phoc_handle_virtual_keyboard (struct wl_listener *listener, void *data)
     wl_container_of (listener, desktop, virtual_keyboard_new);
   struct wlr_virtual_keyboard_v1 *keyboard = data;
 
-  struct roots_seat *seat = phoc_input_seat_from_wlr_seat (server->input,
+  PhocSeat*seat = phoc_input_seat_from_wlr_seat (server->input,
 						      keyboard->seat);
   g_return_if_fail (seat);
 
-  roots_seat_add_device (seat, &keyboard->input_device);
+  phoc_seat_add_device (seat, &keyboard->input_device);
 }
 
 void
@@ -33,7 +35,7 @@ phoc_handle_virtual_pointer(struct wl_listener *listener, void *data)
   struct wlr_input_device *device = &pointer->input_device;
   char *seat_name = ROOTS_CONFIG_DEFAULT_SEAT_NAME;
   PhocServer *server = phoc_server_get_default ();
-  struct roots_seat *seat;
+  PhocSeat*seat;
 
   g_return_if_fail (PHOC_IS_DESKTOP (desktop));
   g_return_if_fail (PHOC_IS_SERVER (server));
@@ -44,12 +46,10 @@ phoc_handle_virtual_pointer(struct wl_listener *listener, void *data)
 	   device->vendor, device->product,
 	   phoc_input_get_device_type(device->type), seat_name);
 
-  roots_seat_add_device (seat, device);
+  phoc_seat_add_device (seat, device);
 
-#if WLR_VERSION_MAJOR > 0 || WLR_VERSION_MINOR >= 11
   if (event->suggested_output) {
     wlr_cursor_map_input_to_output(seat->cursor->cursor, device,
 				   event->suggested_output);
   }
-#endif
 }

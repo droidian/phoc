@@ -15,7 +15,6 @@ G_DECLARE_FINAL_TYPE (PhocInput, phoc_input, PHOC, INPUT, GObject);
  * their members are non-public. */
 #include "output.h"
 #include "cursor.h"
-#include "server.h"
 #include "view.h"
 
 /* TODO: we keep the struct public due to the list links and
@@ -27,12 +26,13 @@ struct _PhocInput {
   struct wl_list       seats; // roots_seat::link */
 };
 
-PhocInput         *phoc_input_new (struct roots_config *config);
+PhocInput         *phoc_input_new (void);
 bool               phoc_input_view_has_focus (PhocInput         *self,
                                               struct roots_view *view);
 const char        *phoc_input_get_device_type (enum wlr_input_device_type type);
-struct roots_seat *phoc_input_get_seat (PhocInput *self, char *name);
-struct roots_seat *phoc_input_last_active_seat (PhocInput *self);
+typedef struct _PhocSeat PhocSeat;
+PhocSeat          *phoc_input_get_seat (PhocInput *self, char *name);
+PhocSeat          *phoc_input_last_active_seat (PhocInput *self);
 void               phoc_input_update_cursor_focus (PhocInput *self);
-struct roots_seat *phoc_input_seat_from_wlr_seat (PhocInput       *self,
+PhocSeat          *phoc_input_seat_from_wlr_seat (PhocInput       *self,
                                                   struct wlr_seat *seat);

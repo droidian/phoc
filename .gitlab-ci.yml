@@ -1,13 +1,12 @@
 include:
  - 'https://source.puri.sm/Librem5/librem5-ci/raw/master/librem5-pipeline-definitions.yml'
- - 'https://source.puri.sm/Librem5/librem5-ci/raw/master/librem5-pipeline-amber-jobs.yml'
- - 'https://source.puri.sm/Librem5/librem5-ci/raw/master/librem5-pipeline-byzantium-jobs.yml'
 
 stages:
  - build
- - test
+ - test+docs
  - package
  - test-package
+ - deploy
 
 variables:
   DEPS: git lcov
@@ -15,10 +14,6 @@ variables:
         git meson ninja gnome-desktop-dev gobject-introspection-dev
         libinput-dev wayland-dev wayland-protocols libxkbcommon-dev wlroots-dev
   XVFB_RUN: xvfb-run -s -noreset
-
-.tags: &tags
-  tags:
-    - librem5
 
 .build: &build
   script:
@@ -34,54 +29,20 @@ variables:
   - apt-get -y install $DEPS
   - apt-get -y build-dep .
 
-.before_script_debian_buster: &before_script_debian_buster
-  # meson in buster is too old
-  - apt-get -y update
-  - apt-get -y install wget ca-certificates gnupg
-  - wget -O- https://ci.puri.sm/ci-repo.key | apt-key add -
-  - echo "deb https://ci.puri.sm/ scratch librem5" > /etc/apt/sources.list.d/ci.list
-  - *before_script_debian
-
 .before_script_alpine: &before_script_alpine
   - apk -q add alpine-sdk
   - apk -q add $ALPINE_EDGE_DEPS
 
-
-build-with-xwayland-debian-buster:
+build-with-xwayland-debian-bookworm:
   stage: build
-  image: debian:buster
-  before_script: *before_script_debian_buster
+  image: debian:bookworm
+  before_script: *before_script_debian
   variables:
      BUILD_ARGS: -Dxwayland=enabled -Db_coverage=true
-  <<: *tags
   <<: *build
   artifacts:
     paths:
       - _build
-  except:
-    variables:
-      - $PKG_ONLY == "1"
-
-build-with-xwayland-debian-bullseye:
-  stage: build
-  image: debian:bullseye
-  before_script: *before_script_debian
-  variables:
-     BUILD_ARGS: -Dxwayland=enabled
-  <<: *tags
-  <<: *build
-  except:
-    variables:
-      - $PKG_ONLY == "1"
-
-build-without-xwayland-debian-buster:
-  stage: build
-  image: debian:buster
-  before_script: *before_script_debian_buster
-  variables:
-     BUILD_ARGS: -Dxwayland=disabled
-  <<: *tags
-  <<: *build
   except:
     variables:
       - $PKG_ONLY == "1"
@@ -92,7 +53,6 @@ build-with-xwayland-alpinelinux-edge:
   before_script: *before_script_alpine
   variables:
      BUILD_ARGS: -Dxwayland=enabled
-  <<: *tags
   <<: *build
   allow_failure: true
   except:
@@ -105,7 +65,6 @@ build-without-xwayland-alpinelinux-edge:
   before_script: *before_script_alpine
   variables:
      BUILD_ARGS: -Dxwayland=disabled
-  <<: *tags
   <<: *build
   allow_failure: true
   except:
@@ -113,13 +72,12 @@ build-without-xwayland-alpinelinux-edge:
       - $PKG_ONLY == "1"
 
 
-unit-test-with-xwayland-debian-buster:
-  <<: *tags
-  stage: test
-  image: debian:buster
+unit-test-with-xwayland-debian-bookworm:
+  stage: test+docs
+  image: debian:bookworm
   needs:
-    - build-with-xwayland-debian-buster
-  before_script: *before_script_debian_buster
+    - build-with-xwayland-debian-bookworm
+  before_script: *before_script_debian
   script:
     - ${XVFB_RUN} ninja -C _build test
     - ${XVFB_RUN} ninja -C _build coverage
@@ -131,3 +89,41 @@ unit-test-with-xwayland-debian-buster:
   except:
     variables:
       - $PKG_ONLY == "1"
+
+build-gtkdoc:
+  stage: test+docs
+  image: debian:bookworm
+  before_script: *before_script_debian
+  variables:
+    BUILD_ARGS: -Dgtk_doc=true -Dembed-wlroots=disabled
+  script:
+    - git clean -dfx
+    - 'echo "Build opts: ${BUILD_ARGS}"'
+    - meson . _build $BUILD_ARGS
+    - ninja -C _build
+    - mv _build/doc/phoc-*/ _reference/
+  artifacts:
+    paths:
+      - _reference
+  except:
+    variables:
+      - $PKG_ONLY == "1"
+
+package-pureos-byzantium:arm64:
+  variables:
+    L5_DOCKER_IMAGE: pureos/byzantium
+  tags:
+    - aarch64
+  extends: .l5-build-debian-package
+
+pages:
+  stage: deploy
+  needs:
+    - build-gtkdoc
+  script:
+    - mv _reference/ public/
+  artifacts:
+    paths:
+      - public
+  only:
+    - master

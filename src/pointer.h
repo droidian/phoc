@@ -20,11 +20,10 @@ struct _PhocPointer {
 
   /* private */
   GSettings               *input_settings;
-  struct roots_seat       *seat;
+  PhocSeat                *seat;
   gboolean                 touchpad;
   GSettings               *touchpad_settings;
   GSettings               *mouse_settings;
 };
 
-PhocPointer *phoc_pointer_new (struct wlr_input_device *device,
-                               struct roots_seat       *seat);
+PhocPointer *phoc_pointer_new (struct wlr_input_device *device, PhocSeat *seat);

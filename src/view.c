@@ -25,6 +25,7 @@ void view_init(struct roots_view *view, const struct roots_view_interface *impl,
 	view->scale = 1.0f;
 	view->title = NULL;
 	view->app_id = NULL;
+	view->state = PHOC_VIEW_STATE_FLOATING;
 	wl_signal_init(&view->events.unmap);
 	wl_signal_init(&view->events.destroy);
 	wl_list_init(&view->child_surfaces);
@@ -57,21 +58,33 @@ void view_destroy(struct roots_view *view) {
 	}
 
 	// Can happen if fullscreened while unmapped, and hasn't been mapped
-	if (view->fullscreen_output != NULL) {
+	if (view_is_fullscreen (view)) {
 		view->fullscreen_output->fullscreen_view = NULL;
 	}
+
+	g_clear_object (&view->settings);
 
 	view->impl->destroy(view);
 }
 
+gboolean view_is_floating(const struct roots_view *view)
+{
+	return view->state == PHOC_VIEW_STATE_FLOATING && !view_is_fullscreen (view);
+}
+
 gboolean view_is_maximized(const struct roots_view *view)
 {
-	return view->state == PHOC_VIEW_STATE_MAXIMIZED;
+	return view->state == PHOC_VIEW_STATE_MAXIMIZED && !view_is_fullscreen (view);
 }
 
 gboolean view_is_tiled(const struct roots_view *view)
 {
-	return view->state == PHOC_VIEW_STATE_TILED;
+	return view->state == PHOC_VIEW_STATE_TILED && !view_is_fullscreen (view);
+}
+
+gboolean view_is_fullscreen(const struct roots_view *view)
+{
+	return view->fullscreen_output != NULL;
 }
 
 void view_get_box(const struct roots_view *view, struct wlr_box *box) {
@@ -195,7 +208,7 @@ static void view_update_output(struct roots_view *view,
 static void
 view_save(struct roots_view *view)
 {
-  if (view_is_maximized (view) || view_is_tiled (view))
+  if (!view_is_floating (view))
     return;
 
   /* backup window state */
@@ -214,6 +227,7 @@ void view_move(struct roots_view *view, double x, double y) {
 
 	view->pending_move_resize.update_x = false;
 	view->pending_move_resize.update_y = false;
+	view->pending_centering = false;
 
 	struct wlr_box before;
 	view_get_box(view, &before);
@@ -222,7 +236,6 @@ void view_move(struct roots_view *view, double x, double y) {
 	} else {
 		view_update_position(view, x, y);
 	}
-	view_update_output(view, &before);
 }
 
 void
@@ -244,7 +257,7 @@ void view_activate(struct roots_view *view, bool activate) {
 			activate);
 	}
 
-	if (activate && view->fullscreen_output && view->fullscreen_output->force_shell_reveal) {
+	if (activate && view_is_fullscreen (view) && view->fullscreen_output->force_shell_reveal) {
 		view->fullscreen_output->force_shell_reveal = false;
 		phoc_output_damage_whole(view->fullscreen_output);
 	}
@@ -257,7 +270,6 @@ void view_resize(struct roots_view *view, uint32_t width, uint32_t height) {
 	if (view->impl->resize) {
 		view->impl->resize(view, width, height);
 	}
-	view_update_output(view, &before);
 }
 
 void view_move_resize(struct roots_view *view, double x, double y,
@@ -298,7 +310,7 @@ static struct wlr_output *view_get_output(struct roots_view *view) {
 }
 
 void view_arrange_maximized(struct roots_view *view, struct wlr_output *output) {
-	if (view->fullscreen_output)
+	if (view_is_fullscreen (view))
 		return;
 
 	if (!output)
@@ -321,7 +333,7 @@ void view_arrange_maximized(struct roots_view *view, struct wlr_output *output) 
 void
 view_arrange_tiled (struct roots_view *view, struct wlr_output *output)
 {
-  if (view->fullscreen_output)
+  if (view_is_fullscreen (view))
     return;
 
   if (!output)
@@ -377,7 +389,7 @@ void view_maximize(struct roots_view *view, struct wlr_output *output) {
 		return;
 	}
 
-	if (view->fullscreen_output != NULL) {
+	if (view_is_fullscreen (view)) {
 		return;
 	}
 
@@ -417,9 +429,14 @@ view_restore(struct roots_view *view)
   struct wlr_box geom;
   view_get_geometry(view, &geom);
 
-  view->state = PHOC_VIEW_STATE_NORMAL;
-  view_move_resize (view, view->saved.x - geom.x * view->scale, view->saved.y - geom.y * view->scale,
-                    view->saved.width, view->saved.height);
+  view->state = PHOC_VIEW_STATE_FLOATING;
+  if (!wlr_box_empty(&view->saved)) {
+    view_move_resize (view, view->saved.x - geom.x * view->scale, view->saved.y - geom.y * view->scale,
+                      view->saved.width, view->saved.height);
+  } else {
+    view_resize (view, 0, 0);
+    view->pending_centering = true;
+  }
 
   if (view->toplevel_handle)
     wlr_foreign_toplevel_handle_v1_set_maximized (view->toplevel_handle, false);
@@ -430,11 +447,13 @@ view_restore(struct roots_view *view)
 
 void view_set_fullscreen(struct roots_view *view, bool fullscreen,
 		struct wlr_output *output) {
-	bool was_fullscreen = view->fullscreen_output != NULL;
+	bool was_fullscreen = view_is_fullscreen (view);
 
-	// TODO: check if client is focused?
+	if (was_fullscreen != fullscreen) {
+		/* don't allow unfocused surfaces to make themselves fullscreen */
+		if (fullscreen && view->wlr_surface)
+			g_return_if_fail (phoc_input_view_has_focus (phoc_server_get_default()->input, view));
 
-	if (!was_fullscreen) {
 		if (view->impl->set_fullscreen) {
 			view->impl->set_fullscreen(view, fullscreen);
 		}
@@ -488,9 +507,12 @@ void view_set_fullscreen(struct roots_view *view, bool fullscreen,
 			view_arrange_maximized (view, phoc_output->wlr_output);
 		} else if (view->state == PHOC_VIEW_STATE_TILED) {
 			view_arrange_tiled (view, phoc_output->wlr_output);
-		} else {
+		} else if (!wlr_box_empty(&view->saved)) {
 			view_move_resize(view, view->saved.x - view_geom.x * view->scale, view->saved.y - view_geom.y * view->scale,
 			                 view->saved.width, view->saved.height);
+		} else {
+			view_resize (view, 0, 0);
+			view->pending_centering = true;
 		}
 
 		view_auto_maximize(view);
@@ -514,9 +536,6 @@ view_move_to_next_output (struct roots_view *view, enum wlr_direction direction)
   struct wlr_box usable_area;
   double x, y;
 
-  if (view->fullscreen_output)
-    return false;
-
   output = view_get_output(view);
   if (!output)
     return false;
@@ -531,20 +550,24 @@ view_move_to_next_output (struct roots_view *view, enum wlr_direction direction)
   usable_area = phoc_output->usable_area;
   l_output = wlr_output_layout_get(desktop->layout, new_output);
 
-  /* use a proper position on the new output */
-  x = usable_area.x + l_output->x;
-  y = usable_area.y + l_output->y;
-  g_debug("moving view to %f %f", x, y);
-
+  /* update saved position to the new output */
+  x = usable_area.x + l_output->x + usable_area.width / 2 - view->saved.width / 2;
+  y = usable_area.y + l_output->y + usable_area.height / 2 - view->saved.height / 2;
+  g_debug("moving view's saved position to %f %f", x, y);
   view->saved.x = x;
   view->saved.y = y;
+
+  if (view_is_fullscreen (view)) {
+    view_set_fullscreen (view, true, new_output);
+    return true;
+  }
 
   if (view_is_maximized (view)) {
     view_arrange_maximized (view, new_output);
   } else if (view_is_tiled (view)) {
     view_arrange_tiled (view, new_output);
   } else {
-    view_move(view, x, y);
+    view_center (view, new_output);
   }
 
   return true;
@@ -553,7 +576,7 @@ view_move_to_next_output (struct roots_view *view, enum wlr_direction direction)
 void
 view_tile(struct roots_view *view, PhocViewTileDirection direction, struct wlr_output *output)
 {
-  if (view->fullscreen_output)
+  if (view_is_fullscreen (view))
     return;
 
   /* Set the maximized flag on the toplevel so it remove it's drop shadows */
@@ -567,23 +590,26 @@ view_tile(struct roots_view *view, PhocViewTileDirection direction, struct wlr_o
   view_arrange_tiled (view, output);
 }
 
-bool view_center(struct roots_view *view) {
+bool view_center(struct roots_view *view, struct wlr_output *wlr_output) {
         PhocServer *server = phoc_server_get_default ();
 	struct wlr_box box, geom;
 	view_get_box(view, &box);
 	view_get_geometry (view, &geom);
 
+	if (!view_is_floating (view))
+		return false;
+
 	PhocDesktop *desktop = view->desktop;
 	PhocInput *input = server->input;
-	struct roots_seat *seat = input_last_active_seat(input);
-	struct roots_cursor *cursor;
+	PhocSeat *seat = input_last_active_seat(input);
+	PhocCursor *cursor;
 
 	if (!seat) {
 		return false;
 	}
-	cursor = roots_seat_get_cursor (seat);
+	cursor = phoc_seat_get_cursor (seat);
 
-	struct wlr_output *output = wlr_output_layout_output_at(desktop->layout,
+	struct wlr_output *output = wlr_output ?: wlr_output_layout_output_at(desktop->layout,
 		cursor->cursor->x, cursor->cursor->y);
 	if (!output) {
 		// empty layout
@@ -593,7 +619,9 @@ bool view_center(struct roots_view *view) {
 	const struct wlr_output_layout_output *l_output =
 		wlr_output_layout_get(desktop->layout, output);
 
-	PhocOutput *phoc_output = output->data;
+	PhocOutput *phoc_output = PHOC_OUTPUT (output->data);
+	g_assert (PHOC_IS_OUTPUT (phoc_output));
+
 	struct wlr_box usable_area = phoc_output->usable_area;
 
 	double view_x = (double)(usable_area.width - box.width) / 2 +
@@ -763,11 +791,8 @@ static void view_update_scale(struct roots_view *view) {
 
 	bool scaling_enabled = false;
 
-	if (view->app_id) {
-		g_autofree gchar *munged_app_id = munge_app_id (view->app_id);
-		g_autofree gchar *path = g_strconcat ("/sm/puri/phoc/application/", munged_app_id, "/", NULL);
-		g_autoptr (GSettings) setting =  g_settings_new_with_path ("sm.puri.phoc.application", path);
-		scaling_enabled = g_settings_get_boolean (setting, "scale-to-fit");
+	if (view->settings) {
+		scaling_enabled = g_settings_get_boolean (view->settings, "scale-to-fit");
 	}
 
 	if (!scaling_enabled && !phoc_desktop_get_scale_to_fit (server->desktop)) {
@@ -792,7 +817,7 @@ static void view_update_scale(struct roots_view *view) {
 	if (view->scale < 0.5f) {
 		view->scale = 0.5f;
 	}
-	if (view->scale > 1.0f || view->fullscreen_output) {
+	if (view->scale > 1.0f || view_is_fullscreen (view)) {
 		view->scale = 1.0f;
 	}
 	if (view->scale != oldscale) {
@@ -801,7 +826,7 @@ static void view_update_scale(struct roots_view *view) {
 		} else if (view_is_tiled(view)) {
 			view_arrange_tiled(view, NULL);
 		} else {
-			view_center(view);
+			view_center(view, NULL);
 		}
 	}
 }
@@ -856,7 +881,7 @@ void view_unmap(struct roots_view *view) {
 		view_child_destroy(child);
 	}
 
-	if (view->fullscreen_output != NULL) {
+	if (view_is_fullscreen (view)) {
 		phoc_output_damage_whole(view->fullscreen_output);
 		view->fullscreen_output->fullscreen_view = NULL;
 		view->fullscreen_output = NULL;
@@ -887,9 +912,9 @@ void view_initial_focus(struct roots_view *view) {
 	PhocServer *server = phoc_server_get_default ();
 	PhocInput *input = server->input;
 	// TODO what seat gets focus? the one with the last input event?
-	struct roots_seat *seat;
+	PhocSeat *seat;
 	wl_list_for_each(seat, &input->seats, link) {
-		roots_seat_set_focus(seat, view);
+		phoc_seat_set_focus(seat, view);
 	}
 }
 
@@ -898,15 +923,13 @@ void view_setup(struct roots_view *view) {
 	view_create_foreign_toplevel_handle(view);
 	view_initial_focus(view);
 
-	if (view->fullscreen_output == NULL && !view_is_maximized(view)) {
-		view_center(view);
-	}
+	view_center(view, NULL);
 	view_update_scale(view);
 
 	view_update_output(view, NULL);
 
 	wlr_foreign_toplevel_handle_v1_set_fullscreen(view->toplevel_handle,
-	                                              view->fullscreen_output != NULL);
+	                                              view_is_fullscreen (view));
 	wlr_foreign_toplevel_handle_v1_set_maximized(view->toplevel_handle,
 	                                             view_is_maximized(view));
 	wlr_foreign_toplevel_handle_v1_set_title(view->toplevel_handle,
@@ -943,9 +966,12 @@ void view_update_position(struct roots_view *view, int x, int y) {
 		return;
 	}
 
+	struct wlr_box before;
+	view_get_box(view, &before);
 	view_damage_whole(view);
 	view->box.x = x;
 	view->box.y = y;
+	view_update_output(view, &before);
 	view_damage_whole(view);
 }
 
@@ -955,10 +981,17 @@ void view_update_size(struct roots_view *view, int width, int height) {
 		return;
 	}
 
+	struct wlr_box before;
+	view_get_box(view, &before);
 	view_damage_whole(view);
 	view->box.width = width;
 	view->box.height = height;
+	if (view->pending_centering) {
+		view_center (view, NULL);
+		view->pending_centering = false;
+	}
 	view_update_scale(view);
+	view_update_output(view, &before);
 	view_damage_whole(view);
 }
 
@@ -1011,6 +1044,13 @@ void view_set_app_id(struct roots_view *view, const char *app_id) {
 	free(view->app_id);
 	view->app_id = app_id ? strdup(app_id) : NULL;
 
+	g_clear_object (&view->settings);
+	if (app_id) {
+		g_autofree gchar *munged_app_id = munge_app_id (app_id);
+		g_autofree gchar *path = g_strconcat ("/sm/puri/phoc/application/", munged_app_id, "/", NULL);
+		view->settings = g_settings_new_with_path ("sm.puri.phoc.application", path);
+	}
+
 	view_update_scale(view);
 
 	if (view->toplevel_handle) {
@@ -1037,10 +1077,10 @@ static void handle_toplevel_handle_request_activate(struct wl_listener *listener
 		wl_container_of(listener, view, toplevel_handle_request_activate);
 	struct wlr_foreign_toplevel_handle_v1_activated_event *event = data;
 
-	struct roots_seat *seat;
+	PhocSeat *seat;
 	wl_list_for_each(seat, &server->input->seats, link) {
 		if (event->seat == seat->seat) {
-			roots_seat_set_focus(seat, view);
+			phoc_seat_set_focus(seat, view);
 		}
 	}
 }

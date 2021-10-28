@@ -1,11 +1,11 @@
 #pragma once
 
 #include "config.h"
+#include "phosh-private.h"
 
 #include <time.h>
 #include <wayland-server-core.h>
 #include <wlr/config.h>
-#include <wlr/types/wlr_compositor.h>
 #include <wlr/types/wlr_foreign_toplevel_management_v1.h>
 #include <wlr/types/wlr_gamma_control_v1.h>
 #include <wlr/types/wlr_gtk_primary_selection.h>
@@ -44,9 +44,7 @@ G_DECLARE_FINAL_TYPE (PhocDesktop, phoc_desktop, PHOC, DESKTOP, GObject);
  * This will fix itself once output / view / phosh are gobjects and have their
  * most of their members made non-public */
 #include "input.h"
-#include "output.h"
 #include "view.h"
-#include "phosh.h"
 #include "gtk-shell.h"
 
 struct _PhocDesktop {
@@ -62,7 +60,6 @@ struct _PhocDesktop {
 	struct wlr_output_layout *layout;
 	struct wlr_xcursor_manager *xcursor_manager;
 
-	struct wlr_compositor *compositor;
 	struct wlr_xdg_shell *xdg_shell;
 	struct wlr_gamma_control_manager_v1 *gamma_control_manager_v1;
 	struct wlr_export_dmabuf_manager_v1 *export_dmabuf_manager_v1;
@@ -104,6 +101,7 @@ struct _PhocDesktop {
 	struct wlr_xwayland *xwayland;
 	struct wl_listener xwayland_surface;
 	struct wl_listener xwayland_ready;
+	struct wl_listener xwayland_remove_startup_id;
 	xcb_atom_t xwayland_atoms[XWAYLAND_ATOM_LAST];
 #endif
 
@@ -111,8 +109,8 @@ struct _PhocDesktop {
 	gboolean maximize, scale_to_fit;
 	GHashTable *input_output_map;
 
-	/* Protocols that upstreamable implementations */
-	struct phosh_private *phosh;
+	/* Protocols without upstreamable implementations */
+	PhocPhoshPrivate *phosh;
 	PhocGtkShell *gtk_shell;
 };
 

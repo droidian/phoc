@@ -30,7 +30,7 @@ This assumes you have wlroots installed on your system. If you don't have that
 and/or want to build from source run:
 
     git submodule update --init
-    meson . _build
+    meson -Dembed_wlroots=true --default-library=static _build
     ninja -C _build
 
 This will fetch a matching version of wlroots and build that as well.
@@ -81,5 +81,9 @@ details on these environment variables.
 
 There's also a `PHOC_DEBUG` enviroment variable to turn on some debugging
 features. Use `PHOC_DEBUG=help phoc` to see supported flags.
+
+# API docs
+
+API documentation is available at https://world.pages.gitlab.gnome.org/Phosh/phoc/
 
 [1]: https://github.com/swaywm/wlroots

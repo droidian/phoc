@@ -19,7 +19,7 @@
  * wl_keyboard focused doesn't mean that text-input will be focused.
  */
 struct roots_input_method_relay {
-	struct roots_seat *seat;
+	PhocSeat *seat;
 
 	struct wl_list text_inputs; // roots_text_input::link
 	struct wlr_input_method_v2 *input_method; // doesn't have to be present
@@ -49,8 +49,7 @@ struct roots_text_input {
 	struct wl_listener destroy;
 };
 
-void roots_input_method_relay_init(struct roots_seat *seat,
-	struct roots_input_method_relay *relay);
+void roots_input_method_relay_init(PhocSeat *seat, struct roots_input_method_relay *relay);
 
 void roots_input_method_relay_destroy(struct roots_input_method_relay *relay);
 

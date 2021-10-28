@@ -187,6 +187,12 @@ static int config_ini_handler(void *user, const char *section, const char *name,
 	return 1;
 }
 
+
+/**
+ * roots_config_create:
+ *
+ * Create a roots config from the given arguments.
+ */
 struct roots_config *roots_config_create(const char *config_path) {
 	struct roots_config *config = calloc(1, sizeof(struct roots_config));
 	if (config == NULL) {
@@ -232,6 +238,12 @@ struct roots_config *roots_config_create(const char *config_path) {
 	return config;
 }
 
+
+/**
+ * roots_config_destroy:
+ *
+ * Destroy the config and free its resources.
+ */
 void roots_config_destroy(struct roots_config *config) {
 	struct roots_output_config *oc, *otmp = NULL;
 	wl_list_for_each_safe(oc, otmp, &config->outputs, link) {
@@ -249,6 +261,12 @@ void roots_config_destroy(struct roots_config *config) {
 	free(config);
 }
 
+/**
+ * roots_config_get_output:
+ *
+ * Get configuration for the output. If the output is not configured, returns
+ * NULL.
+ */
 struct roots_output_config *roots_config_get_output(struct roots_config *config,
 		struct wlr_output *output) {
 	char name[88];

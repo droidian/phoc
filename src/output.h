@@ -89,13 +89,13 @@ void        handle_output_manager_test (struct wl_listener *listener, void *data
 void        phoc_output_handle_output_power_manager_set_mode (struct wl_listener *listener, void *data);
 
 struct roots_view;
-struct roots_drag_icon;
+typedef struct _PhocDragIcon PhocDragIcon;
 void        phoc_output_damage_whole (PhocOutput *output);
 void        phoc_output_damage_whole_view (PhocOutput *self, struct roots_view   *view);
 void        phoc_output_damage_from_view (PhocOutput *self, struct roots_view
                                           *view);
-void        phoc_output_damage_whole_drag_icon (PhocOutput             *self,
-                                                struct roots_drag_icon *icon);
+void        phoc_output_damage_whole_drag_icon (PhocOutput   *self,
+                                                PhocDragIcon *icon);
 void        phoc_output_damage_from_local_surface (PhocOutput *self, struct wlr_surface *surface, double
                                                    ox, double oy);
 void        phoc_output_damage_whole_local_surface (PhocOutput *self, struct wlr_surface *surface,

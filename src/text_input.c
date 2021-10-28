@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <wlr/util/log.h>
 #include "seat.h"
+#include "server.h"
 #include "text_input.h"
 
 static struct roots_text_input *relay_get_focusable_text_input(
@@ -289,7 +290,7 @@ static void relay_handle_input_method(struct wl_listener *listener,
 	}
 }
 
-void roots_input_method_relay_init(struct roots_seat *seat,
+void roots_input_method_relay_init(PhocSeat *seat,
 		struct roots_input_method_relay *relay) {
         PhocServer *server = phoc_server_get_default ();
 	relay->seat = seat;

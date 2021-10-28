@@ -319,13 +319,13 @@ static void handle_request_move(struct wl_listener *listener, void *data) {
 	struct roots_view *view = &roots_xdg_surface->view;
 	PhocInput *input = server->input;
 	struct wlr_xdg_toplevel_move_event *e = data;
-	struct roots_seat *seat = phoc_input_seat_from_wlr_seat(input, e->seat->seat);
+	PhocSeat *seat = phoc_input_seat_from_wlr_seat(input, e->seat->seat);
 
 	// TODO verify event serial
-	if (!seat || roots_seat_get_cursor(seat)->mode != ROOTS_CURSOR_PASSTHROUGH) {
+	if (!seat || phoc_seat_get_cursor(seat)->mode != PHOC_CURSOR_PASSTHROUGH) {
 		return;
 	}
-	roots_seat_begin_move(seat, view);
+	phoc_seat_begin_move(seat, view);
 }
 
 static void handle_request_resize(struct wl_listener *listener, void *data) {
@@ -335,14 +335,14 @@ static void handle_request_resize(struct wl_listener *listener, void *data) {
 	struct roots_view *view = &roots_xdg_surface->view;
 	PhocInput *input = server->input;
 	struct wlr_xdg_toplevel_resize_event *e = data;
-	struct roots_seat *seat = phoc_input_seat_from_wlr_seat(input, e->seat->seat);
+	PhocSeat *seat = phoc_input_seat_from_wlr_seat(input, e->seat->seat);
 
 	// TODO verify event serial
 	assert(seat);
-	if (!seat || roots_seat_get_cursor(seat)->mode != ROOTS_CURSOR_PASSTHROUGH) {
+	if (!seat || phoc_seat_get_cursor(seat)->mode != PHOC_CURSOR_PASSTHROUGH) {
 		return;
 	}
-	roots_seat_begin_resize(seat, view, e->edges);
+	phoc_seat_begin_resize(seat, view, e->edges);
 }
 
 static void handle_request_maximize(struct wl_listener *listener, void *data) {
@@ -444,7 +444,7 @@ static void handle_surface_commit(struct wl_listener *listener, void *data) {
 	struct wlr_box geometry;
 	get_geometry(view, &geometry);
 	if (roots_surface->saved_geometry.x != geometry.x || roots_surface->saved_geometry.y != geometry.y) {
-		if (!view_is_maximized(view) && !view_is_tiled(view) && !view->fullscreen_output) {
+		if (view_is_floating (view)) {
 			view_update_position(view,
 			                     view->box.x + (roots_surface->saved_geometry.x - geometry.x) * view->scale,
 			                     view->box.y + (roots_surface->saved_geometry.y - geometry.y) * view->scale);
@@ -526,7 +526,14 @@ void handle_xdg_shell_surface(struct wl_listener *listener, void *data) {
 		surface->toplevel->client_pending.fullscreen_output);
 	view_auto_maximize(&roots_surface->view);
 	view_set_title(&roots_surface->view, surface->toplevel->title);
-	view_set_app_id(&roots_surface->view, surface->toplevel->app_id);
+
+	// Check for app-id override coming from gtk-shell
+	PhocGtkSurface *gtk_surface = phoc_gtk_shell_get_gtk_surface_from_wlr_surface (desktop->gtk_shell, surface->surface);
+	if (gtk_surface && gtk_surface->app_id) {
+		view_set_app_id (&roots_surface->view, gtk_surface->app_id);
+	} else {
+		view_set_app_id (&roots_surface->view, surface->toplevel->app_id);
+	}
 
 	roots_surface->surface_commit.notify = handle_surface_commit;
 	wl_signal_add(&surface->surface->events.commit,

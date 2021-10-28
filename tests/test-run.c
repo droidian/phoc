@@ -23,6 +23,7 @@ test_phoc_run_session_success (void)
   g_assert_true (PHOC_IS_SERVER (server));
 
   g_assert_true (phoc_server_setup(server, TEST_PHOC_INI, "/bin/true", loop,
+                                   PHOC_SERVER_FLAG_NONE,
 				   PHOC_SERVER_DEBUG_FLAG_NONE));
   g_timeout_add_seconds (3, on_timer_expired, NULL);
   g_main_loop_run (loop);
@@ -38,6 +39,7 @@ test_phoc_run_session_failure (void)
   g_assert_true (PHOC_IS_SERVER (server));
 
   g_assert_true (phoc_server_setup(server, TEST_PHOC_INI, "/bin/false", loop,
+                                   PHOC_SERVER_FLAG_NONE,
 				   PHOC_SERVER_DEBUG_FLAG_NONE));
   g_timeout_add_seconds (3, on_timer_expired, NULL);
   g_main_loop_run (loop);

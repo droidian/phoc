@@ -1,6 +1,19 @@
+/*
+ * Copyright (C) 2021 Purism SPC
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * Authors: The wlroots authors
+ *          Sebastian Krzyszkowiak
+ *          Guido Günther <agx@sigxcpu.org>
+ */
+
 #define G_LOG_DOMAIN "phoc-render"
 
 #include "config.h"
+#include "layers.h"
+#include "server.h"
+#include "render.h"
 
 #define _POSIX_C_SOURCE 200809L
 #include <assert.h>
@@ -20,10 +33,6 @@
 #include <wlr/version.h>
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
-#include "layers.h"
-#include "render.h"
-#include "server.h"
-#include "render.h"
 
 #define TOUCH_POINT_RADIUS 30
 #define TOUCH_POINT_BORDER 0.1
@@ -33,6 +42,35 @@
 #define COLOR_TRANSPARENT_WHITE    {0.5f, 0.5f, 0.5f, 0.5f}
 #define COLOR_TRANSPARENT_YELLOW   {0.5f, 0.5f, 0.0f, 0.5f}
 #define COLOR_TRANSPARENT_MAGENTA  {0.5f, 0.0f, 0.5f, 0.5f}
+
+
+/**
+ * PhocRenderer:
+ *
+ * The renderer
+ */
+
+enum {
+  RENDER_START,
+  RENDER_END,
+  N_SIGNALS
+};
+static guint signals[N_SIGNALS] = { 0 };
+
+enum {
+  PROP_0,
+  PROP_WLR_RENDERER,
+  PROP_LAST_PROP
+};
+static GParamSpec *props[PROP_LAST_PROP];
+
+struct _PhocRenderer {
+  GObject               parent;
+
+  struct wlr_renderer  *wlr_renderer;
+};
+G_DEFINE_TYPE (PhocRenderer, phoc_renderer, G_TYPE_OBJECT)
+
 
 struct render_data {
 	pixman_region32_t *damage;
@@ -44,6 +82,45 @@ struct touch_point_data {
   double x;
   double y;
 };
+
+
+static void
+phoc_renderer_set_property (GObject      *object,
+                            guint         property_id,
+                            const GValue *value,
+                            GParamSpec   *pspec)
+{
+  PhocRenderer *self = PHOC_RENDERER (object);
+
+  switch (property_id) {
+  case PROP_WLR_RENDERER:
+    self->wlr_renderer = g_value_get_pointer (value);
+    break;
+  default:
+    G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
+    break;
+  }
+}
+
+
+static void
+phoc_renderer_get_property (GObject    *object,
+                            guint       property_id,
+                            GValue     *value,
+                            GParamSpec *pspec)
+{
+  PhocRenderer *self = PHOC_RENDERER (object);
+
+  switch (property_id) {
+  case PROP_WLR_RENDERER:
+    g_value_set_pointer (value, self->wlr_renderer);
+    break;
+  default:
+    G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
+    break;
+  }
+}
+
 
 static void scissor_output(struct wlr_output *wlr_output,
 		pixman_box32_t *rect) {
@@ -108,7 +185,7 @@ collect_touch_points (PhocOutput *output, struct wlr_surface *surface, struct wl
     return;
   }
 
-  struct roots_seat *seat;
+  PhocSeat *seat;
   wl_list_for_each(seat, &server->input->seats, link) {
     struct wlr_touch_point *point;
     wl_list_for_each(point, &seat->seat->touch_state.touch_points, link) {
@@ -197,12 +274,12 @@ buffer_damage_finish:
 static void render_view(PhocOutput *output, struct roots_view *view,
 		struct render_data *data) {
 	// Do not render views fullscreened on other outputs
-	if (view->fullscreen_output != NULL && view->fullscreen_output != output) {
+	if (view_is_fullscreen (view) && view->fullscreen_output != output) {
 		return;
 	}
 
 	data->alpha = view->alpha;
-	if (view->fullscreen_output == NULL) {
+	if (!view_is_fullscreen (view)) {
 		render_decorations(output, view, data);
 	}
 	phoc_output_view_for_each_surface(output, view, render_surface_iterator, data);
@@ -229,9 +306,9 @@ static bool scan_out_fullscreen_view(PhocOutput *output) {
 	struct wlr_output *wlr_output = output->wlr_output;
 	PhocServer *server = phoc_server_get_default ();
 
-	struct roots_seat *seat;
+	PhocSeat *seat;
 	wl_list_for_each(seat, &server->input->seats, link) {
-		struct roots_drag_icon *drag_icon = seat->drag_icon;
+		PhocDragIcon *drag_icon = seat->drag_icon;
 		if (drag_icon && drag_icon->wlr_drag_icon->mapped) {
 			return false;
 		}
@@ -407,6 +484,7 @@ view_render_iterator (struct wlr_surface *surface, int sx, int sy, void *data)
   }
 
   PhocServer *server = phoc_server_get_default ();
+  PhocRenderer *self = server->renderer;
   struct wlr_texture *view_texture = wlr_surface_get_texture (surface);
 
   struct roots_view *view = data;
@@ -432,15 +510,19 @@ view_render_iterator (struct wlr_surface *surface, int sx, int sy, void *data)
   wlr_matrix_scale (mat, view->scale, view->scale);
   wlr_matrix_scale (mat, root->current.scale / surface->current.scale, root->current.scale / surface->current.scale);
 
-  wlr_render_texture (server->renderer, view_texture, mat, sx * surface->current.scale, sy * surface->current.scale, 1.0);
+  wlr_render_texture (self->wlr_renderer,
+                      view_texture, mat, sx * surface->current.scale,
+                      sy * surface->current.scale,
+                      1.0);
 }
 
 gboolean
 view_render_to_buffer (struct roots_view *view, enum wl_shm_format fmt, int width, int height, int stride, uint32_t *flags, void* data)
 {
   PhocServer *server = phoc_server_get_default ();
+  PhocRenderer *self = server->renderer;
   struct wlr_surface *surface = view->wlr_surface;
-  struct wlr_egl *egl = wlr_gles2_renderer_get_egl (server->renderer);
+  struct wlr_egl *egl = wlr_gles2_renderer_get_egl (self->wlr_renderer);
   GLuint tex, fbo;
   GLint gl_format;
 
@@ -467,20 +549,18 @@ view_render_to_buffer (struct roots_view *view, enum wl_shm_format fmt, int widt
   glBindFramebuffer (GL_FRAMEBUFFER, fbo);
   glFramebufferTexture2D (GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex, 0);
 
-  wlr_renderer_begin (server->renderer, width, height);
-  wlr_renderer_clear (server->renderer, (float[])COLOR_TRANSPARENT);
+  wlr_renderer_begin (self->wlr_renderer, width, height);
+  wlr_renderer_clear (self->wlr_renderer, (float[])COLOR_TRANSPARENT);
   wlr_surface_for_each_surface (surface, view_render_iterator, view);
-  wlr_renderer_end (server->renderer);
+  wlr_renderer_end (self->wlr_renderer);
 
-  wlr_renderer_read_pixels (server->renderer, fmt, flags, stride, width, height, 0, 0, 0, 0, data);
+  wlr_renderer_read_pixels (self->wlr_renderer, fmt, flags, stride, width, height, 0, 0, 0, 0, data);
 
   glDeleteFramebuffers (1, &fbo);
   glDeleteTextures (1, &tex);
   glBindFramebuffer (GL_FRAMEBUFFER, 0);
 
-#if WLR_VERSION_MAJOR > 0 || WLR_VERSION_MINOR >= 11
   wlr_egl_unset_current (egl);
-#endif
 
   return TRUE;
 }
@@ -496,9 +576,11 @@ void output_render(PhocOutput *output) {
 	struct wlr_output *wlr_output = output->wlr_output;
 	PhocDesktop *desktop = output->desktop;
 	PhocServer *server = phoc_server_get_default ();
-	struct wlr_renderer *renderer =
-		wlr_backend_get_renderer(wlr_output->backend);
-	assert(renderer);
+	PhocRenderer *self = server->renderer;
+	struct wlr_renderer *wlr_renderer;
+
+        g_assert (PHOC_IS_RENDERER (self));
+        wlr_renderer = self->wlr_renderer;
 
 	if (!wlr_output->enabled) {
 		return;
@@ -511,6 +593,8 @@ void output_render(PhocOutput *output) {
 
 	const struct wlr_box *output_box =
 		wlr_output_layout_get_box(desktop->layout, wlr_output);
+
+	g_signal_emit (self, signals[RENDER_START], 0, output);
 
 	// Check if we can delegate the fullscreen surface to the output
 	if (output->fullscreen_view != NULL &&
@@ -577,7 +661,7 @@ void output_render(PhocOutput *output) {
 		goto buffer_damage_finish;
 	}
 
-	wlr_renderer_begin(renderer, wlr_output->width, wlr_output->height);
+	wlr_renderer_begin(wlr_renderer, wlr_output->width, wlr_output->height);
 
 	if (!pixman_region32_not_empty(&buffer_damage)) {
 		// Output isn't damaged but needs buffer swap
@@ -588,7 +672,7 @@ void output_render(PhocOutput *output) {
 	pixman_box32_t *rects = pixman_region32_rectangles(&buffer_damage, &nrects);
 	for (int i = 0; i < nrects; ++i) {
 		scissor_output(output->wlr_output, &rects[i]);
-		wlr_renderer_clear(renderer, clear_color);
+		wlr_renderer_clear(wlr_renderer, clear_color);
 	}
 
 	// If a view is fullscreen on this output, render it
@@ -642,9 +726,10 @@ void output_render(PhocOutput *output) {
 
 renderer_end:
 	wlr_output_render_software_cursors(wlr_output, &buffer_damage);
-	wlr_renderer_scissor(renderer, NULL);
+	wlr_renderer_scissor(wlr_renderer, NULL);
 
 	render_touch_points (output);
+	g_signal_emit (self, signals[RENDER_END], 0, output);
 
 	int width, height;
 	wlr_output_transformed_resolution(wlr_output, &width, &height);
@@ -665,19 +750,19 @@ renderer_end:
 		rects = pixman_region32_rectangles(&previous_damage, &nrects);
 		for (int i = 0; i < nrects; ++i) {
 			wlr_box_from_pixman_box32(&box, rects[i]);
-			wlr_render_rect(renderer, &box, (float[])COLOR_TRANSPARENT_MAGENTA, wlr_output->transform_matrix);
+			wlr_render_rect(wlr_renderer, &box, (float[])COLOR_TRANSPARENT_MAGENTA, wlr_output->transform_matrix);
 		}
 
 		rects = pixman_region32_rectangles(&output->damage->current, &nrects);
 		for (int i = 0; i < nrects; ++i) {
 			wlr_box_from_pixman_box32(&box, rects[i]);
-			wlr_render_rect(renderer, &box, (float[])COLOR_TRANSPARENT_YELLOW, wlr_output->transform_matrix);
+			wlr_render_rect(wlr_renderer, &box, (float[])COLOR_TRANSPARENT_YELLOW, wlr_output->transform_matrix);
 		}
 		wlr_output_schedule_frame(output->wlr_output);
 		pixman_region32_fini(&previous_damage);
 	}
 
-	wlr_renderer_end(renderer);
+	wlr_renderer_end(wlr_renderer);
 
 	wlr_output_set_damage(wlr_output, &frame_damage);
 	pixman_region32_fini(&frame_damage);
@@ -697,4 +782,75 @@ send_frame_done:
 	damage_touch_points(output);
 	g_list_free_full(output->debug_touch_points, g_free);
 	output->debug_touch_points = NULL;
+}
+
+
+static void
+phoc_renderer_finalize (GObject *object)
+{
+  /* TODO: destroy wlr_renderer */
+}
+
+
+static void
+phoc_renderer_class_init (PhocRendererClass *klass)
+{
+  GObjectClass *object_class = G_OBJECT_CLASS (klass);
+
+  object_class->get_property = phoc_renderer_get_property;
+  object_class->set_property = phoc_renderer_set_property;
+  object_class->finalize = phoc_renderer_finalize;
+
+  /**
+   * PhocRenderer:wlr-renderer
+   *
+   * The wlr-renderer from wlroots to use
+   */
+  props[PROP_WLR_RENDERER] =
+    g_param_spec_pointer ("wlr-renderer",
+                          "",
+                          "",
+                          G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY);
+
+  g_object_class_install_properties (object_class, PROP_LAST_PROP, props);
+
+  /**
+   * PhocRenderer::render-start
+   * @self: The renderer emitting the signal
+   * @output: The output being rendered on
+   *
+   * This signal is emitted at the start of a render pass
+   */
+  signals[RENDER_START] = g_signal_new ("render-start",
+                                        G_TYPE_FROM_CLASS (klass),
+                                        G_SIGNAL_RUN_LAST,
+                                        0, NULL, NULL, NULL,
+                                        G_TYPE_NONE, 1, PHOC_TYPE_OUTPUT);
+  /**
+   * PhocRenderer::render-end
+   * @self: The renderer emitting the signal
+   * @output: The output being rendered on
+   *
+   * This signal is emitted at the end of a render pass
+   */
+  signals[RENDER_END] = g_signal_new ("render-end",
+                                      G_TYPE_FROM_CLASS (klass),
+                                      G_SIGNAL_RUN_LAST,
+                                      0, NULL, NULL, NULL,
+                                      G_TYPE_NONE, 1, PHOC_TYPE_OUTPUT);
+}
+
+
+static void
+phoc_renderer_init (PhocRenderer *self)
+{
+}
+
+
+PhocRenderer *
+phoc_renderer_new (struct wlr_renderer *wlr_renderer)
+{
+  return PHOC_RENDERER (g_object_new (PHOC_TYPE_RENDERER,
+                                      "wlr-renderer", wlr_renderer,
+                                      NULL));
 }

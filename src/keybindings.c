@@ -1,10 +1,9 @@
 #define G_LOG_DOMAIN "phoc-keybindings"
 
 /**
- * SECTION:phoc-keybindings
- * @short_description: keybindings
- * @Title: PhocKeybindings
- * @Summary: Handled keybindings stored in gsettings
+ * PhocKeybindings:
+ *
+ * Keybindings stored in gsettings
  */
 #include "config.h"
 #include "keybindings.h"
@@ -17,8 +16,7 @@
 #define KEYBINDINGS_SCHEMA_ID "org.gnome.desktop.wm.keybindings"
 #define MUTTER_KEYBINDINGS_SCHEMA_ID "org.gnome.mutter.keybindings"
 
-typedef void (*PhocKeyHandlerFunc) (struct roots_seat *);
-
+typedef void (*PhocKeyHandlerFunc) (PhocSeat *);
 
 
 typedef struct
@@ -42,27 +40,27 @@ typedef struct _PhocKeybindings
 G_DEFINE_TYPE (PhocKeybindings, phoc_keybindings, G_TYPE_OBJECT);
 
 static void
-handle_maximize (struct roots_seat *seat)
+handle_maximize (PhocSeat *seat)
 {
-  struct roots_view *focus = roots_seat_get_focus(seat);
+  struct roots_view *focus = phoc_seat_get_focus(seat);
 
   if (focus != NULL)
     view_maximize(focus, NULL);
 }
 
 static void
-handle_unmaximize (struct roots_seat *seat)
+handle_unmaximize (PhocSeat *seat)
 {
-  struct roots_view *focus = roots_seat_get_focus(seat);
+  struct roots_view *focus = phoc_seat_get_focus(seat);
 
   if (focus != NULL)
     view_restore(focus);
 }
 
 static void
-handle_tile_right (struct roots_seat *seat)
+handle_tile_right (PhocSeat *seat)
 {
-  struct roots_view *view = roots_seat_get_focus(seat);
+  struct roots_view *view = phoc_seat_get_focus(seat);
 
   if (view != NULL)
     view_tile(view, PHOC_VIEW_TILE_RIGHT, NULL);
@@ -70,9 +68,9 @@ handle_tile_right (struct roots_seat *seat)
 
 
 static void
-handle_tile_left (struct roots_seat *seat)
+handle_tile_left (PhocSeat *seat)
 {
-  struct roots_view *view = roots_seat_get_focus(seat);
+  struct roots_view *view = phoc_seat_get_focus(seat);
 
   if (view != NULL)
     view_tile(view, PHOC_VIEW_TILE_LEFT, NULL);
@@ -80,9 +78,9 @@ handle_tile_left (struct roots_seat *seat)
 
 
 static void
-handle_toggle_maximized (struct roots_seat *seat)
+handle_toggle_maximized (PhocSeat *seat)
 {
-  struct roots_view *focus = roots_seat_get_focus(seat);
+  struct roots_view *focus = phoc_seat_get_focus(seat);
 
   if (focus != NULL) {
     if (view_is_maximized(focus))
@@ -93,35 +91,34 @@ handle_toggle_maximized (struct roots_seat *seat)
 }
 
 static void
-handle_toggle_fullscreen (struct roots_seat *seat)
+handle_toggle_fullscreen (PhocSeat *seat)
 {
-  struct roots_view *focus = roots_seat_get_focus(seat);
+  struct roots_view *focus = phoc_seat_get_focus(seat);
 
   if (focus) {
-    bool is_fullscreen = focus->fullscreen_output != NULL;
-    view_set_fullscreen(focus, !is_fullscreen, NULL);
+    view_set_fullscreen(focus, !view_is_fullscreen (focus), NULL);
   }
 }
 
 
-static void handle_cycle_windows (struct roots_seat *seat)
+static void handle_cycle_windows (PhocSeat *seat)
 {
-  roots_seat_cycle_focus(seat);
+  phoc_seat_cycle_focus(seat);
 }
 
 
-static void handle_close (struct roots_seat *seat)
+static void handle_close (PhocSeat *seat)
 {
-  struct roots_view *focus = roots_seat_get_focus(seat);
+  struct roots_view *focus = phoc_seat_get_focus(seat);
 
   if (focus)
     view_close(focus);
 }
 
 static void
-handle_move_to_monitor_right (struct roots_seat *seat)
+handle_move_to_monitor_right (PhocSeat *seat)
 {
-  struct roots_view *view = roots_seat_get_focus(seat);
+  struct roots_view *view = phoc_seat_get_focus(seat);
 
   if (view)
     view_move_to_next_output(view, WLR_DIRECTION_RIGHT);
@@ -129,16 +126,16 @@ handle_move_to_monitor_right (struct roots_seat *seat)
 
 
 static void
-handle_move_to_monitor_left (struct roots_seat *seat)
+handle_move_to_monitor_left (PhocSeat *seat)
 {
-  struct roots_view *view = roots_seat_get_focus(seat);
+  struct roots_view *view = phoc_seat_get_focus(seat);
 
   if (view)
     view_move_to_next_output(view, WLR_DIRECTION_LEFT);
 }
 
 
-static void handle_switch_input_source (struct roots_seat *seat)
+static void handle_switch_input_source (PhocSeat *seat)
 {
   struct wlr_keyboard *wlr_keyboard = wlr_seat_get_keyboard (seat->seat);
   PhocKeyboard *keyboard;
@@ -633,7 +630,7 @@ phoc_keybindings_handle_pressed (PhocKeybindings *self,
 				 guint32 modifiers,
 				 xkb_keysym_t *pressed_keysyms,
 				 guint32 length,
-				 struct roots_seat *seat)
+				 PhocSeat *seat)
 {
   PhocKeybinding *keybinding;
   GSList *elem;

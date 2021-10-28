@@ -7,6 +7,8 @@
 #define G_LOG_DOMAIN "phoc-server"
 
 #include "config.h"
+#include "render.h"
+#include "utils.h"
 #include "server.h"
 
 #include <errno.h>
@@ -14,7 +16,10 @@
 /* FIXME */
 #include <wlr/render/gles2.h>
 
-G_DEFINE_TYPE(PhocServer, phoc_server, G_TYPE_OBJECT);
+static void phoc_server_initable_iface_init (GInitableIface *iface);
+
+G_DEFINE_TYPE_WITH_CODE (PhocServer, phoc_server, G_TYPE_OBJECT,
+			 G_IMPLEMENT_INTERFACE (G_TYPE_INITABLE, phoc_server_initable_iface_init));
 
 typedef struct {
   GSource source;
@@ -62,6 +67,7 @@ wayland_event_source_new (struct wl_display *display)
 
   source = (WaylandEventSource *) g_source_new (&wayland_event_source_funcs,
                                                 sizeof (WaylandEventSource));
+  g_source_set_name (&source->source, "[phoc] wayland source");
   source->display = display;
   g_source_add_unix_fd (&source->source,
                         wl_event_loop_get_fd (loop),
@@ -87,7 +93,11 @@ on_session_exit (GPid pid, gint status, PhocServer *self)
 
   g_return_if_fail (PHOC_IS_SERVER (self));
   g_spawn_close_pid (pid);
+#if GLIB_CHECK_VERSION (2, 70, 0)
+  if (g_spawn_check_wait_status (status, &err)) {
+#else
   if (g_spawn_check_exit_status (status, &err)) {
+#endif
     self->exit_status = 0;
   } else {
     if (err->domain ==  G_SPAWN_EXIT_ERROR)
@@ -150,34 +160,131 @@ can_get_preferred_pixel_format (struct wlr_renderer *renderer) {
 }
 
 static void
-phoc_server_constructed (GObject *object)
+render_shield (PhocServer *self, PhocOutput *output, PhocRenderer *renderer)
 {
-  PhocServer *self = PHOC_SERVER (object);
+  struct wlr_output *wlr_output = output->wlr_output;
+  struct wlr_box box = { 0, 0, wlr_output->width, wlr_output->height };
+  struct wlr_renderer *wlr_renderer = wlr_backend_get_renderer (wlr_output->backend);
+  float color[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+
+  g_assert (PHOC_IS_RENDERER (renderer));
+
+  color[3] = 1.0 - phoc_ease_in_cubic (self->fader_t);
+  wlr_render_rect (wlr_renderer, &box, color, wlr_output->transform_matrix);
+
+  if (self->fader_t >= 1.0f) {
+    g_debug ("Shield fade done");
+    g_clear_signal_handler (&self->render_shield_id, self->renderer);
+  }
+}
+
+
+#define TICK 50
+static void
+damage_shield (PhocServer *self, PhocOutput *output, PhocRenderer *renderer)
+{
+  g_assert (PHOC_IS_RENDERER (renderer));
+  g_assert (PHOC_IS_SERVER (self));
+
+  phoc_output_damage_whole (output);
+  self->fader_t += ((float)TICK) / 1000.0;
+
+  if (self->fader_t > 1.0)
+    self->fader_t = 1.0;
+
+  if (self->fader_t >= 1.0f)
+    g_clear_signal_handler (&self->damage_shield_id, self->renderer);
+}
+
+
+static void
+on_shell_state_changed (PhocServer *self, GParamSpec *pspec, PhocPhoshPrivate *phosh)
+{
+  PhocPhoshPrivateShellState state;
+  PhocOutput *output;
+
+  g_assert (PHOC_IS_SERVER (self));
+  g_assert (PHOC_IS_PHOSH_PRIVATE (phosh));
+
+  state = phoc_phosh_private_get_shell_state (phosh);
+  g_debug ("Shell state changed: %d", state);
+
+  switch (state) {
+  case PHOC_PHOSH_PRIVATE_SHELL_STATE_UP:
+    if (self->render_shield_id) {
+      self->damage_shield_id =  g_signal_connect_object (self->renderer, "render-start",
+                                                         G_CALLBACK (damage_shield),
+                                                         self, G_CONNECT_SWAPPED);
+    }
+    break;
+  case PHOC_PHOSH_PRIVATE_SHELL_STATE_UNKNOWN:
+  default:
+    /* TODO: prevent input without a shell attached */
+    self->fader_t = 0.0f;
+    self->render_shield_id =  g_signal_connect_object (self->renderer, "render-end",
+                                                       G_CALLBACK (render_shield),
+                                                       self, G_CONNECT_SWAPPED);
+    wl_list_for_each (output, &self->desktop->outputs, link)
+      phoc_output_damage_whole (output);
+  }
+}
+
+
+static gboolean
+phoc_server_initable_init (GInitable    *initable,
+			   GCancellable *cancellable,
+			   GError      **error)
+{
+  PhocServer *self = PHOC_SERVER (initable);
+  struct wlr_renderer *wlr_renderer;
 
   self->wl_display = wl_display_create();
-  if (self->wl_display == NULL)
-    g_error("Could not create wayland display");
+  if (self->wl_display == NULL) {
+    g_set_error (error,
+                 G_FILE_ERROR, G_FILE_ERROR_FAILED,
+		 "Could not create wayland display");
+    return FALSE;
+  }
 
   self->backend = wlr_backend_autocreate(self->wl_display, NULL);
-  if (self->backend == NULL)
-    g_error("Could not create backend");
+  if (self->backend == NULL) {
+    g_set_error (error,
+                 G_FILE_ERROR, G_FILE_ERROR_FAILED,
+		 "Could not create backend");
+    return FALSE;
+  }
 
-  self->renderer = wlr_backend_get_renderer(self->backend);
-  if (self->renderer == NULL)
-    g_error("Could not create renderer");
+  wlr_renderer = wlr_backend_get_renderer(self->backend);
+  if (wlr_renderer == NULL) {
+    g_set_error (error,
+                 G_FILE_ERROR, G_FILE_ERROR_FAILED,
+		 "Could not create renderer");
+    return FALSE;
+  }
+  self->renderer = phoc_renderer_new (wlr_renderer);
 
   // FIXME: remove once we find something better
-  if (can_get_preferred_pixel_format(self->renderer)) {
-      self->preferred_pixel_format = self->renderer->impl->preferred_read_format(self->renderer);
+  if (can_get_preferred_pixel_format(wlr_renderer)) {
+      self->preferred_pixel_format = wlr_renderer->impl->preferred_read_format(wlr_renderer);
   } else {
       self->preferred_pixel_format = WL_SHM_FORMAT_ARGB8888;
   }
 
   self->data_device_manager =
     wlr_data_device_manager_create(self->wl_display);
-  wlr_renderer_init_wl_display(self->renderer, self->wl_display);
+  wlr_renderer_init_wl_display(wlr_renderer, self->wl_display);
 
-  G_OBJECT_CLASS (phoc_server_parent_class)->constructed (object);
+  self->compositor = wlr_compositor_create(self->wl_display,
+                                           wlr_renderer);
+
+  return TRUE;
+}
+
+
+static void
+phoc_server_initable_iface_init (GInitableIface *iface)
+{
+  iface->init = phoc_server_initable_init;
 }
 
 
@@ -192,6 +299,10 @@ phoc_server_dispose (GObject *object)
     self->backend = NULL;
   }
 
+  g_clear_signal_handler (&self->render_shield_id, self->renderer);
+  g_clear_signal_handler (&self->damage_shield_id, self->renderer);
+  g_clear_object (&self->renderer);
+
   G_OBJECT_CLASS (phoc_server_parent_class)->dispose (object);
 }
 
@@ -199,6 +310,7 @@ static void
 phoc_server_finalize (GObject *object)
 {
   PhocServer *self = PHOC_SERVER (object);
+
 
   if (self->wl_source) {
     g_source_remove (self->wl_source);
@@ -222,7 +334,6 @@ phoc_server_class_init (PhocServerClass *klass)
 {
   GObjectClass *object_class = G_OBJECT_CLASS (klass);
 
-  object_class->constructed = phoc_server_constructed;
   object_class->finalize = phoc_server_finalize;
   object_class->dispose = phoc_server_dispose;
 }
@@ -232,14 +343,27 @@ phoc_server_init (PhocServer *self)
 {
 }
 
+/**
+ * phoc_server_get_default:
+ *
+ * Get the server singleton.
+ *
+ * Returns: (transfer none): The server singleton
+ */
 PhocServer *
 phoc_server_get_default (void)
 {
   static PhocServer *instance;
 
   if (G_UNLIKELY (instance == NULL)) {
+    g_autoptr (GError) err = NULL;
     g_debug("Creating server");
-    instance = g_object_new (PHOC_TYPE_SERVER, NULL);
+    instance = g_initable_new (PHOC_TYPE_SERVER, NULL, &err, NULL);
+    if (instance == NULL) {
+      g_critical ("Failed to create server: %s", err->message);
+      return NULL;
+    }
+
     g_object_add_weak_pointer (G_OBJECT (instance), (gpointer *)&instance);
   }
 
@@ -257,6 +381,7 @@ phoc_server_get_default (void)
 gboolean
 phoc_server_setup (PhocServer *self, const char *config_path,
 		   const char *session, GMainLoop *mainloop,
+                   PhocServerFlags flags,
 		   PhocServerDebugFlags debug_flags)
 {
   g_assert (!self->inited);
@@ -270,9 +395,10 @@ phoc_server_setup (PhocServer *self, const char *config_path,
   self->mainloop = mainloop;
   self->exit_status = 1;
   self->desktop = phoc_desktop_new (self->config);
-  self->input = phoc_input_new (self->config);
+  self->input = phoc_input_new ();
   self->session = g_strdup (session);
   self->mainloop = mainloop;
+  self->flags = flags;
   self->debug_flags = debug_flags;
 
   const char *socket = wl_display_add_socket_auto(self->wl_display);
@@ -294,11 +420,19 @@ phoc_server_setup (PhocServer *self, const char *config_path,
   setenv("WAYLAND_DISPLAY", socket, true);
 #ifdef PHOC_XWAYLAND
   if (self->desktop->xwayland != NULL) {
-    struct roots_seat *xwayland_seat =
-      phoc_input_get_seat(self->input, ROOTS_CONFIG_DEFAULT_SEAT_NAME);
+    PhocSeat *xwayland_seat = phoc_input_get_seat(self->input, ROOTS_CONFIG_DEFAULT_SEAT_NAME);
     wlr_xwayland_set_seat(self->desktop->xwayland, xwayland_seat->seat);
   }
 #endif
+
+  if (self->flags & PHOC_SERVER_FLAG_SHELL_MODE) {
+    g_message ("Enabling shell mode");
+    g_signal_connect_object (self->desktop->phosh,
+                             "notify::shell-state",
+                             G_CALLBACK (on_shell_state_changed),
+                             self, G_CONNECT_SWAPPED);
+    on_shell_state_changed (self, NULL, self->desktop->phosh);
+  }
 
   phoc_wayland_init (self);
   if (self->session)

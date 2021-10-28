@@ -1,16 +1,11 @@
 project('phoc', 'c',
-          version: '0.8.0',
+          version: '0.9.0',
           license: 'GPLv3+',
-    meson_version: '>= 0.47.0',
+    meson_version: '>= 0.54.0',
   default_options: [
     'warning_level=1',
     'buildtype=debugoptimized',
     'c_std=gnu11',
-    # Caution: this is an option affecting all libraries built by Meson.
-    # It is needed for wlroots only,
-    # however the option is ignored if placed anywhere but here.
-    # Build with -Ddefault_library=shared to link to a shared libwlroots
-    'default_library=static',
   ],
 )
 
@@ -21,6 +16,10 @@ add_project_arguments([
 
 root_inc = include_directories('.')
 src_inc = include_directories('src')
+protocol_inc = include_directories('protocols')
+
+prefix = get_option('prefix')
+datadir = join_paths(prefix, get_option('datadir'))
 
 cc = meson.get_compiler('c')
 
@@ -52,6 +51,10 @@ if not embed_wlroots.disabled()
    if embed_wlroots.enabled() and not wlroots_proj.found()
         error('Wlroots subproject not found but enabled')
    endif
+
+   if get_option('gtk_doc') != false
+     error('Can\'t generate docs and use embedded wlroots build')
+   endif
 endif
 
 if not embed_wlroots.disabled() and wlroots_proj.found()
@@ -59,10 +62,29 @@ if not embed_wlroots.disabled() and wlroots_proj.found()
         wlroots_conf = wlroots_proj.get_variable('conf_data')
         wlroots_has_xwayland = wlroots_conf.get('WLR_HAS_XWAYLAND') == 1
         wlroots_has_output_power_management = true
+        have_wlr_set_startup_id = true
+        have_wlr_remove_startup_info = true
 else
-        wlroots = dependency('wlroots', version: '>= 0.9.0')
+        wlroots = dependency('wlroots', version: '>= 0.12.0')
         wlroots_has_xwayland = cc.get_define('WLR_HAS_XWAYLAND', prefix: '#include <wlr/config.h>', dependencies: wlroots) == '1'
         wlroots_has_output_power_management = cc.has_header('wlr/types/wlr_output_power_management_v1.h', dependencies: wlroots)
+        have_wlr_set_startup_id = false
+        if wlroots_has_xwayland and cc.has_member('struct wlr_xwayland_surface',
+                                                  'events.set_startup_id',
+                                                  prefix: '''#include "wlr/xwayland.h"''',
+                                                  args: '-DWLR_USE_UNSTABLE',
+                                                  dependencies: wlroots)
+          have_wlr_set_startup_id = true
+        endif
+
+        have_wlr_remove_startup_info = false
+        if wlroots_has_xwayland and cc.has_member('struct wlr_xwayland',
+                                                  'events.remove_startup_info',
+                                                  prefix: '''#include "wlr/xwayland.h"''',
+                                                  args: '-DWLR_USE_UNSTABLE',
+                                                  dependencies: wlroots)
+          have_wlr_remove_startup_info = true
+        endif
 endif
 
 if get_option('xwayland').enabled() and not wlroots_has_xwayland
@@ -130,6 +152,7 @@ subdir('protocols')
 subdir('src')
 subdir('tests')
 subdir('data')
+subdir('doc')
 
 summary = [
         '',
@@ -139,6 +162,7 @@ summary = [
         '           xwayland: @0@'.format(have_xwayland),
         ' wlroots subproject: @0@'.format(not embed_wlroots.disabled() and wlroots_proj.found()),
         '    wlroots version: @0@'.format(wlroots.version()),
+        '      Documentation: @0@'.format(get_option('gtk_doc')),
         '--------------------------',
         ''
 ]
@@ -148,6 +172,8 @@ message('\n'.join(summary))
 config_h = configuration_data()
 config_h.set_quoted('PHOC_VERSION', meson.project_version())
 config_h.set('PHOC_XWAYLAND', have_xwayland)
+config_h.set('PHOC_HAVE_WLR_SET_STARTUP_ID', have_wlr_set_startup_id)
+config_h.set('PHOC_HAVE_WLR_REMOVE_STARTUP_INFO', have_wlr_remove_startup_info)
 
 configure_file(
   input: 'config.h.in',
