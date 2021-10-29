@@ -975,7 +975,8 @@ phoc_output_is_builtin (PhocOutput *output)
     return TRUE;
   else if (g_str_has_prefix (output->wlr_output->name, "DSI-"))
     return TRUE;
-  else if (g_str_has_prefix (output->wlr_output->name, "HWCOMPOSER-"))
+  /* HWCOMPOSER-1 is guaranteed to be the primary display */
+  else if (g_strcmp0 (output->wlr_output->name, "HWCOMPOSER-1") == 0)
     return TRUE;
 
   return FALSE;
