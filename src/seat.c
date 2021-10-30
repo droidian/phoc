@@ -208,14 +208,14 @@ static void
 handle_switch_toggle (struct wl_listener *listener, void *data)
 {
   PhocServer *server = phoc_server_get_default ();
-  struct roots_switch *switch_device =
+  PhocSwitch *switch_device =
     wl_container_of (listener, switch_device, toggle);
   PhocDesktop *desktop = server->desktop;
 
   wlr_idle_notify_activity (desktop->idle, switch_device->seat->seat);
   struct wlr_event_switch_toggle *event = data;
 
-  roots_switch_handle_toggle (switch_device, event);
+  phoc_switch_handle_toggle (switch_device, event);
 }
 
 static void
@@ -1036,7 +1036,7 @@ seat_add_pointer (PhocSeat                *seat,
 static void
 handle_switch_destroy (struct wl_listener *listener, void *data)
 {
-  struct roots_switch *switch_device =
+  PhocSwitch *switch_device =
     wl_container_of (listener, switch_device, device_destroy);
   PhocSeat *seat = switch_device->seat;
 
@@ -1052,7 +1052,7 @@ seat_add_switch (PhocSeat                *seat,
                  struct wlr_input_device *device)
 {
   assert (device->type == WLR_INPUT_DEVICE_SWITCH);
-  struct roots_switch *switch_device = calloc (1, sizeof(struct roots_switch));
+  PhocSwitch *switch_device = phoc_switch_new (device, seat);
 
   if (!switch_device) {
     wlr_log (WLR_ERROR, "could not allocate switch for seat");
