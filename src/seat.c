@@ -1677,7 +1677,6 @@ void
 phoc_seat_set_focus_layer (PhocSeat                    *seat,
                            struct wlr_layer_surface_v1 *layer)
 {
-  PhocServer *server = phoc_server_get_default ();
   if (!layer) {
     if (seat->focused_layer) {
       seat->focused_layer = NULL;
@@ -1688,10 +1687,6 @@ phoc_seat_set_focus_layer (PhocSeat                    *seat,
         phoc_seat_set_focus (seat, first_seat_view->view);
       } else {
         phoc_seat_set_focus (seat, NULL);
-      }
-      PhocOutput *output;
-      wl_list_for_each (output, &server->desktop->outputs, link) {
-        arrange_layers (output);
       }
     }
     return;
