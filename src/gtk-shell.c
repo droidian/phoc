@@ -10,7 +10,9 @@
 
 #include <gtk-shell-protocol.h>
 #include "server.h"
+#include "cursor.h"
 #include "desktop.h"
+#include "input.h"
 #include "phosh-private.h"
 #include "gtk-shell.h"
 
@@ -79,7 +81,7 @@ handle_request_focus(struct wl_client *client,
     gtk_surface_from_resource (resource);
   PhocServer *server = phoc_server_get_default ();
   PhocInput *input = server->input;
-  PhocSeat *seat = input_last_active_seat(input);
+  PhocSeat *seat = phoc_input_get_last_active_seat (input);
   struct roots_view *view;
 
   g_debug ("Requesting focus for surface %p (res %p)", gtk_surface->wlr_surface, resource);

@@ -670,7 +670,7 @@ static const struct phosh_private_interface phosh_private_impl = {
 
 
 static void
-phosh_bind (struct wl_client *client, void *data, uint32_t version, uint32_t id)
+phosh_private_bind (struct wl_client *client, void *data, uint32_t version, uint32_t id)
 {
   PhocPhoshPrivate *phosh = data;
   struct wl_resource *resource  = wl_resource_create (client, &phosh_private_interface,
@@ -744,7 +744,7 @@ phoc_phosh_private_constructed (GObject *object)
   G_OBJECT_CLASS (phoc_phosh_private_parent_class)->constructed (object);
 
   g_info ("Initializing phosh private interface");
-  self->global = wl_global_create (display, &phosh_private_interface, PHOSH_PRIVATE_VERSION, self, phosh_bind);
+  self->global = wl_global_create (display, &phosh_private_interface, PHOSH_PRIVATE_VERSION, self, phosh_private_bind);
 }
 
 

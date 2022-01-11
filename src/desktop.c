@@ -28,6 +28,7 @@
 #include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/util/log.h>
 #include <wlr/version.h>
+#include "cursor.h"
 #include "layers.h"
 #include "output.h"
 #include "seat.h"
@@ -152,7 +153,7 @@ static struct roots_view *desktop_view_at(PhocDesktop *desktop,
 static struct wlr_surface *layer_surface_at(struct wl_list *layer, double ox,
                                              double oy, double *sx, double *sy)
 {
-	struct roots_layer_surface *roots_surface;
+	PhocLayerSurface *roots_surface;
 
 	wl_list_for_each_reverse(roots_surface, layer, link) {
 		if (roots_surface->layer_surface->current.exclusive_zone <= 0) {
@@ -189,6 +190,21 @@ static struct wlr_surface *layer_surface_at(struct wl_list *layer, double ox,
 	return NULL;
 }
 
+/**
+ * phoc_desktop_surface_at:
+ * @desktop: The `PhocDesktop` to look the surface up for
+ * @lx: X coordinate the surface to look up at in layout coordinates
+ * @ly: Y coordinate the surface to look up at in layout coordinates
+ * @sx: (out) (not nullable): Surface-local x coordinate
+ * @sy: (out) (not nullable): Surface-local y coordinate
+ * @view: (out) (optional): The corresponding [struct@Phoc.View]
+ *
+ * Looks up the surface at `lx,ly` and returns the topmost surface at
+ * that position (if any) and the surface-local coordinates of `sx,sy`
+ * on that surface.
+ *
+ * Returns: (nullable): The `struct wlr_surface`
+ */
 struct wlr_surface *phoc_desktop_surface_at(PhocDesktop *desktop,
 		double lx, double ly, double *sx, double *sy,
 		struct roots_view **view) {
@@ -337,10 +353,12 @@ handle_layout_change (struct wl_listener *listener, void *data)
 static void input_inhibit_activate(struct wl_listener *listener, void *data) {
 	PhocDesktop *desktop = wl_container_of(
 			listener, desktop, input_inhibit_activate);
-	PhocSeat *seat;
 	PhocServer *server = phoc_server_get_default ();
 
-	wl_list_for_each(seat, &server->input->seats, link) {
+	for (GSList *elem = phoc_input_get_seats (server->input); elem; elem = elem->next) {
+		PhocSeat *seat = PHOC_SEAT (elem->data);
+
+		g_assert (PHOC_IS_SEAT (seat));
 		phoc_seat_set_exclusive_client(seat,
 				desktop->input_inhibit->active_client);
 	}
@@ -349,10 +367,12 @@ static void input_inhibit_activate(struct wl_listener *listener, void *data) {
 static void input_inhibit_deactivate(struct wl_listener *listener, void *data) {
 	PhocDesktop *desktop = wl_container_of(
 			listener, desktop, input_inhibit_deactivate);
-	PhocSeat *seat;
 	PhocServer *server = phoc_server_get_default ();
 
-	wl_list_for_each(seat, &server->input->seats, link) {
+	for (GSList *elem = phoc_input_get_seats (server->input); elem; elem = elem->next) {
+		PhocSeat *seat = PHOC_SEAT (elem->data);
+
+		g_assert (PHOC_IS_SEAT (seat));
 		phoc_seat_set_exclusive_client(seat, NULL);
 	}
 }
@@ -562,12 +582,12 @@ phoc_desktop_constructed (GObject *object)
 
   const char *cursor_theme = NULL;
 #ifdef PHOC_XWAYLAND
-  const char *cursor_default = ROOTS_XCURSOR_DEFAULT;
+  const char *cursor_default = PHOC_XCURSOR_DEFAULT;
 #endif
 
   char cursor_size_fmt[16];
   snprintf(cursor_size_fmt, sizeof(cursor_size_fmt),
-	   "%d", ROOTS_XCURSOR_SIZE);
+	   "%d", PHOC_XCURSOR_SIZE);
   setenv("XCURSOR_SIZE", cursor_size_fmt, 1);
   if (cursor_theme != NULL) {
     setenv("XCURSOR_THEME", cursor_theme, 1);
@@ -575,7 +595,7 @@ phoc_desktop_constructed (GObject *object)
 
 #ifdef PHOC_XWAYLAND
   self->xcursor_manager = wlr_xcursor_manager_create(cursor_theme,
-						     ROOTS_XCURSOR_SIZE);
+						     PHOC_XCURSOR_SIZE);
   g_return_if_fail (self->xcursor_manager);
 
   if (config->xwayland) {
@@ -704,7 +724,29 @@ phoc_desktop_finalize (GObject *object)
 {
   PhocDesktop *self = PHOC_DESKTOP (object);
 
+  /* TODO: currently destroys the backend before the desktop */
+  //wl_list_remove (&self->new_output.link);
+  wl_list_remove (&self->layout_change.link);
+  wl_list_remove (&self->xdg_shell_surface.link);
+  wl_list_remove (&self->layer_shell_surface.link);
+  wl_list_remove (&self->xdg_toplevel_decoration.link);
+  wl_list_remove (&self->input_inhibit_activate.link);
+  wl_list_remove (&self->input_inhibit_deactivate.link);
+  wl_list_remove (&self->virtual_keyboard_new.link);
+  wl_list_remove (&self->virtual_pointer_new.link);
+  wl_list_remove (&self->pointer_constraint.link);
+  wl_list_remove (&self->output_manager_apply.link);
+  wl_list_remove (&self->output_manager_test.link);
+  wl_list_remove (&self->output_power_manager_set_mode.link);
+
 #ifdef PHOC_XWAYLAND
+  /* Disconnect XWayland listener before shutting it down */
+  if (self->config->xwayland) {
+    wl_list_remove (&self->xwayland_surface.link);
+    wl_list_remove (&self->xwayland_ready.link);
+    wl_list_remove (&self->xwayland_remove_startup_id.link);
+  }
+
   // We need to shutdown Xwayland before disconnecting all clients, otherwise
   // wlroots will restart it automatically.
   g_clear_pointer (&self->xwayland, wlr_xwayland_destroy);
@@ -788,6 +830,13 @@ void
 phoc_desktop_set_auto_maximize (PhocDesktop *self, gboolean enable)
 {
   struct roots_view *view;
+  PhocServer *server = phoc_server_get_default();
+
+  if (G_UNLIKELY (server->debug_flags & PHOC_SERVER_DEBUG_FLAG_AUTO_MAXIMIZE)) {
+    if (enable == FALSE)
+      g_info ("Not disabling auto-maximize due to `auto-maximize` debug flag");
+    enable = TRUE;
+  }
 
   g_debug ("auto-maximize: %d", enable);
   self->maximize = enable;
@@ -827,4 +876,60 @@ gboolean
 phoc_desktop_get_scale_to_fit (PhocDesktop *self)
 {
     return self->scale_to_fit;
+}
+
+
+/**
+ * phoc_desktop_find_output:
+ * @self: The desktop
+ * @make: The output's make / vendor
+ * @model: The output's model / product
+ * @serial: The output's serial number
+ *
+ * Find an output by make, model and serial
+ *
+ * Returns: (transfer none) (nullable): The matching output or
+ *  %NULL if no output matches.
+ */
+PhocOutput *
+phoc_desktop_find_output (PhocDesktop *self,
+                          const char  *make,
+                          const char  *model,
+                          const char  *serial)
+{
+  PhocOutput *output;
+
+  g_assert (PHOC_IS_DESKTOP (self));
+
+  wl_list_for_each (output, &self->outputs, link) {
+    if (phoc_output_is_match (output, make, model, serial))
+        return output;
+  }
+
+  return NULL;
+}
+
+
+/**
+ * phoc_desktop_get_builtin_output:
+ *
+ * Get the built-in output. This assumes there's only one
+ * and returns the first.
+ *
+ * Returns: (transfer none) (nullable): The built-in output.
+ *  %NULL if there's no built-in output.
+ */
+PhocOutput *
+phoc_desktop_get_builtin_output (PhocDesktop *self)
+{
+  PhocOutput *output;
+
+  g_assert (PHOC_IS_DESKTOP (self));
+
+  wl_list_for_each (output, &self->outputs, link) {
+    if (phoc_output_is_builtin (output))
+        return output;
+  }
+
+  return NULL;
 }

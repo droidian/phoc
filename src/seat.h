@@ -8,19 +8,32 @@
 
 #include <wayland-server-core.h>
 #include "input.h"
-#include "keyboard.h"
 #include "layers.h"
 #include "switch.h"
 #include "text_input.h"
 
+#include <glib-object.h>
+
+G_BEGIN_DECLS
+
+#define PHOC_TYPE_SEAT (phoc_seat_get_type ())
+
+G_DECLARE_FINAL_TYPE (PhocSeat, phoc_seat, PHOC, SEAT, GObject)
+
 typedef struct _PhocCursor PhocCursor;
 typedef struct _PhocDragIcon PhocDragIcon;
+typedef struct _PhocTablet PhocTablet;
 
+/* TODO: we keep the struct public due to the list links and
+   notifiers but we should avoid other member access */
 typedef struct _PhocSeat {
+  GObject                         parent;
+
   PhocInput                      *input;
+  char                           *name;
+
   struct wlr_seat                *seat;
   PhocCursor                     *cursor;
-  struct wl_list                  link; // PhocInput::seats
 
   // coordinates of the first touch point if it exists
   int32_t                         touch_id;
@@ -34,16 +47,16 @@ typedef struct _PhocSeat {
   // If non-null, only this client can receive input events
   struct wl_client               *exclusive_client;
 
-  struct wl_list                  views; // phoc_seat_view::link
+  struct wl_list                  views; // PhocSeatView::link
   bool                            has_focus;
 
   PhocDragIcon                   *drag_icon; // can be NULL
 
-  struct wl_list                  keyboards;
-  struct wl_list                  pointers;
+  GSList                         *keyboards;
+  GSList                         *pointers;
   struct wl_list                  switches;
-  struct wl_list                  touch;
-  struct wl_list                  tablets;
+  GSList                         *touch;
+  GSList                         *tablets;
   struct wl_list                  tablet_pads;
 
   struct wl_listener              request_set_selection;
@@ -51,6 +64,8 @@ typedef struct _PhocSeat {
   struct wl_listener              request_start_drag;
   struct wl_listener              start_drag;
   struct wl_listener              destroy;
+
+  GHashTable                     *input_mapping_settings;
 } PhocSeat;
 
 typedef struct _PhocSeatView {
@@ -61,7 +76,7 @@ typedef struct _PhocSeatView {
   double             grab_sx;
   double             grab_sy;
 
-  struct wl_list     link;   // roots_seat::views
+  struct wl_list     link;   // PhocSeat::views
 
   struct wl_listener view_unmap;
   struct wl_listener view_destroy;
@@ -78,19 +93,6 @@ struct _PhocDragIcon {
   struct wl_listener    unmap;
   struct wl_listener    destroy;
 };
-
-typedef struct _PhocTablet {
-  PhocSeat                    *seat;
-  struct wlr_input_device     *device;
-  struct wlr_tablet_v2_tablet *tablet_v2;
-
-  struct wl_listener           device_destroy;
-  struct wl_listener           axis;
-  struct wl_listener           proximity;
-  struct wl_listener           tip;
-  struct wl_listener           button;
-  struct wl_list               link;
-} PhocTablet;
 
 typedef struct _PhocTabletPad {
   struct wl_list                   link;
@@ -130,15 +132,14 @@ typedef struct PhocPointerConstraint {
   struct wl_listener                destroy;
 } PhocPointerConstraint;
 
-PhocSeat          *phoc_seat_create (PhocInput *input, char *name);
 
-void               phoc_seat_destroy (PhocSeat *seat);
+PhocSeat          *phoc_seat_new (PhocInput *input, const char *name);
 
 void               phoc_seat_add_device (PhocSeat                *seat,
                                          struct wlr_input_device *device);
 
 void               phoc_seat_configure_cursor (PhocSeat *seat);
-PhocCursor        *phoc_seat_get_cursor (PhocSeat *seat);
+PhocCursor        *phoc_seat_get_cursor (PhocSeat *self);
 
 void               phoc_seat_configure_xcursor (PhocSeat *seat);
 
@@ -173,6 +174,4 @@ void               phoc_seat_set_exclusive_client (PhocSeat         *seat,
 bool               phoc_seat_allow_input (PhocSeat           *seat,
                                           struct wl_resource *resource);
 
-void               phoc_seat_maybe_set_cursor (PhocSeat *seat, const char *name);
-
-PhocSeat          *input_last_active_seat (PhocInput *input);
+void               phoc_seat_maybe_set_cursor (PhocSeat *self, const char *name);

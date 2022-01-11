@@ -1,12 +1,15 @@
-#ifndef ROOTSTON_TEXT_INPUT_H
-#define ROOTSTON_TEXT_INPUT_H
+#pragma once
 
 #include <wlr/types/wlr_text_input_v3.h>
 #include <wlr/types/wlr_input_method_v2.h>
 #include <wlr/types/wlr_surface.h>
 #include "seat.h"
 
+G_BEGIN_DECLS
+
 /**
+ * roots_input_method_relay:
+ *
  * The relay structure manages the relationship between text-input and
  * input_method interfaces on a given seat. Multiple text-input interfaces may
  * be bound to a relay, but at most one will be focused (reveiving events) at
@@ -61,4 +64,4 @@ struct roots_text_input *roots_text_input_create(
 	struct roots_input_method_relay *relay,
 	struct wlr_text_input_v3 *text_input);
 
-#endif
+G_END_DECLS

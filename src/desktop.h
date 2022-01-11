@@ -1,7 +1,9 @@
 #pragma once
 
 #include "config.h"
+#include "gtk-shell.h"
 #include "phosh-private.h"
+#include "view.h"
 
 #include <time.h>
 #include <wayland-server-core.h>
@@ -39,13 +41,6 @@
 #define PHOC_TYPE_DESKTOP (phoc_desktop_get_type())
 
 G_DECLARE_FINAL_TYPE (PhocDesktop, phoc_desktop, PHOC, DESKTOP, GObject);
-
-/* These need to know about PhocDesktop so we have them after the type definition.
- * This will fix itself once output / view / phosh are gobjects and have their
- * most of their members made non-public */
-#include "input.h"
-#include "view.h"
-#include "gtk-shell.h"
 
 struct _PhocDesktop {
 	GObject parent;
@@ -120,6 +115,11 @@ void         phoc_desktop_set_auto_maximize (PhocDesktop *self, gboolean on);
 gboolean     phoc_desktop_get_auto_maximize (PhocDesktop *self);
 void         phoc_desktop_set_scale_to_fit (PhocDesktop *self, gboolean on);
 gboolean     phoc_desktop_get_scale_to_fit (PhocDesktop *self);
+PhocOutput  *phoc_desktop_find_output (PhocDesktop *self,
+                                       const char  *make,
+                                       const char  *model,
+                                       const char  *serial);
+PhocOutput *phoc_desktop_get_builtin_output (PhocDesktop *self);
 
 struct wlr_surface *phoc_desktop_surface_at(PhocDesktop *desktop,
 		double lx, double ly, double *sx, double *sy,

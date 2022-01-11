@@ -155,7 +155,7 @@ static void handle_text_input_commit(struct wl_listener *listener,
 		wlr_log(WLR_INFO, "Inactive text input tried to commit an update");
 		return;
 	}
-	wlr_log(WLR_DEBUG, "Text input committed update");
+	g_debug ("Text input committed update");
 	if (relay->input_method == NULL) {
 		wlr_log(WLR_INFO, "Text input committed, but input method is gone");
 		return;
@@ -166,7 +166,7 @@ static void handle_text_input_commit(struct wl_listener *listener,
 static void relay_disable_text_input(struct roots_input_method_relay *relay,
 		struct roots_text_input *text_input) {
 	if (relay->input_method == NULL) {
-		wlr_log(WLR_DEBUG, "Disabling text input, but input method is gone");
+		g_debug ("Disabling text input, but input method is gone");
 		return;
 	}
 	// relay_send_im_done protects from receiving unfocussed done,

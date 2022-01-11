@@ -71,6 +71,9 @@ static GDebugKey debug_keys[] =
  { .key = "no-quit",
    .value = PHOC_SERVER_DEBUG_FLAG_NO_QUIT,
  },
+ { .key = "auto-maximize",
+   .value = PHOC_SERVER_DEBUG_FLAG_AUTO_MAXIMIZE,
+ },
 };
 
 

@@ -38,6 +38,7 @@ typedef enum _PhocServerDebugFlags {
   PHOC_SERVER_DEBUG_FLAG_DAMAGE_TRACKING = 1 << 0,
   PHOC_SERVER_DEBUG_FLAG_TOUCH_POINTS = 1 << 1,
   PHOC_SERVER_DEBUG_FLAG_NO_QUIT = 1 << 2,
+  PHOC_SERVER_DEBUG_FLAG_AUTO_MAXIMIZE = 1 << 3,
 } PhocServerDebugFlags;
 
 /* TODO: we keep the struct public due to heaps of direct access

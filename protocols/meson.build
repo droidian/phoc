@@ -16,7 +16,7 @@ server_protocols = [
 	['wlr-screencopy-unstable-v1.xml']
 ]
 
-server_protos_sources = []
+protos_sources = []
 server_protos_headers = []
 client_protos_headers = []
 
@@ -26,14 +26,14 @@ foreach p : server_protocols
   base = fs.name(xml)
   proto = fs.stem(base)
 
-  server_protos_sources += custom_target('@0@ source'.format(proto),
-					 input: xml,
-					 output: '@0@-protocol.c'.format(proto),
-					 command: [wayland_scanner,
-						   'private-code',
-						   '@INPUT@',
-						   '@OUTPUT@']
-					)
+  protos_sources += custom_target('@0@ source'.format(proto),
+				  input: xml,
+				  output: '@0@-protocol.c'.format(proto),
+				  command: [wayland_scanner,
+					    'private-code',
+					    '@INPUT@',
+					    '@OUTPUT@']
+				 )
 
   server_protos_headers += custom_target('@0@ server header'.format(proto),
 					 input: xml,

@@ -19,6 +19,7 @@
 #include "layers.h"
 #include "output.h"
 #include "render.h"
+#include "seat.h"
 #include "server.h"
 #include "utils.h"
 
@@ -217,7 +218,7 @@ phoc_output_handle_mode (struct wl_listener *listener, void *data)
 {
   PhocOutput *self = wl_container_of (listener, self, mode);
 
-  arrange_layers (self);
+  phoc_layer_shell_arrange (self);
   update_output_manager_config (self->desktop);
 }
 
@@ -226,7 +227,7 @@ phoc_output_handle_transform (struct wl_listener *listener, void *data)
 {
   PhocOutput *self = wl_container_of (listener, self, transform);
 
-  arrange_layers (self);
+  phoc_layer_shell_arrange (self);
 }
 
 static void
@@ -253,10 +254,9 @@ phoc_output_set_mode (struct wlr_output *output, struct roots_output_config *oc)
     }
   }
   if (!best) {
-    wlr_log (WLR_ERROR, "Configured mode for %s not available",
-             output->name);
+    g_warning ("Configured mode for %s not available", output->name);
   } else {
-    wlr_log (WLR_DEBUG, "Assigning configured mode to %s",
+    g_debug ("Assigning configured mode to %s",
              output->name);
     wlr_output_set_mode (output, best);
   }
@@ -269,16 +269,18 @@ phoc_output_constructed (GObject *object)
   PhocServer *server = phoc_server_get_default ();
   PhocInput *input = server->input;
 
-  g_debug ("Initializing roots output");
   assert (server->desktop);
 
   struct roots_config *config = self->desktop->config;
 
-  wlr_log (WLR_DEBUG, "Output '%s' added", self->wlr_output->name);
-  wlr_log (WLR_DEBUG, "'%s %s %s' %" PRId32 "mm x %" PRId32 "mm",
-           self->wlr_output->make, self->wlr_output->model,
-           self->wlr_output->serial, self->wlr_output->phys_width,
-           self->wlr_output->phys_height);
+  g_message ("Output '%s' added ('%s'/'%s'/'%s'), "
+             "%" PRId32 "mm x %" PRId32 "mm",
+             self->wlr_output->name,
+             self->wlr_output->make,
+             self->wlr_output->model,
+             self->wlr_output->serial,
+             self->wlr_output->phys_width,
+             self->wlr_output->phys_height);
 
   clock_gettime (CLOCK_MONOTONIC, &self->last_frame);
   self->wlr_output->data = self;
@@ -322,7 +324,7 @@ phoc_output_constructed (GObject *object)
           wlr_drm_connector_add_mode (self->wlr_output, &mode_config->info);
         }
       } else if (!wl_list_empty (&output_config->modes)) {
-        wlr_log (WLR_ERROR, "Can only add modes for DRM backend");
+        g_warning ("Can only add modes for DRM backend");
       }
 
       if (output_config->mode.width) {
@@ -347,13 +349,16 @@ phoc_output_constructed (GObject *object)
   }
   wlr_output_commit (self->wlr_output);
 
-  PhocSeat *seat;
-  wl_list_for_each (seat, &input->seats, link) {
+  for (GSList *elem = phoc_input_get_seats (input); elem; elem = elem->next) {
+    PhocSeat *seat = PHOC_SEAT (elem->data);
+
+    g_assert (PHOC_IS_SEAT (seat));
     phoc_seat_configure_cursor (seat);
     phoc_seat_configure_xcursor (seat);
   }
 
-  arrange_layers (self);
+  phoc_layer_shell_arrange (self);
+  phoc_layer_shell_update_focus ();
   phoc_output_damage_whole (self);
 
   update_output_manager_config (self->desktop);
@@ -538,7 +543,7 @@ phoc_output_xwayland_children_for_each_surface (PhocOutput *self, struct
 #endif
 
 static void
-phoc_output_layer_handle_surface (PhocOutput *self, struct roots_layer_surface *layer_surface,
+phoc_output_layer_handle_surface (PhocOutput *self, PhocLayerSurface *layer_surface,
                                   roots_surface_iterator_func_t iterator, void
                                   *user_data)
 {
@@ -575,7 +580,7 @@ phoc_output_layer_for_each_surface (PhocOutput                   *self,
                                     roots_surface_iterator_func_t iterator,
                                     void                         *user_data)
 {
-  struct roots_layer_surface *layer_surface;
+  PhocLayerSurface *layer_surface;
 
   wl_list_for_each_reverse (layer_surface, layer_surfaces, link)
   {
@@ -602,8 +607,10 @@ phoc_output_drag_icons_for_each_surface (PhocOutput *self, PhocInput *input,
     return;
   }
 
-  PhocSeat *seat;
-  wl_list_for_each (seat, &input->seats, link) {
+  for (GSList *elem = phoc_input_get_seats (input); elem; elem = elem->next) {
+    PhocSeat *seat = PHOC_SEAT (elem->data);
+
+    g_assert (PHOC_IS_SEAT (seat));
     PhocDragIcon *drag_icon = seat->drag_icon;
     if (!drag_icon || !drag_icon->wlr_drag_icon->mapped) {
       continue;
@@ -980,4 +987,33 @@ phoc_output_is_builtin (PhocOutput *output)
     return TRUE;
 
   return FALSE;
+}
+
+/**
+ * phoc_output_is_match:
+ * @self: The output
+ * @make: The make / vendor name
+ * @model: The model / product name
+ * @serial: The serial number
+ *
+ * Checks if an output matches the given vendor/product/serial information.
+ * This is usually used to match on an outputs EDID information.
+ *
+ * Returns: %TRUE if the output matches the given information, otherwise %FALSE.
+ */
+gboolean
+phoc_output_is_match (PhocOutput *self,
+                      const char *make,
+                      const char *model,
+                      const char *serial)
+{
+  gboolean match;
+
+  g_assert (PHOC_IS_OUTPUT (self));
+
+  match = (g_strcmp0 (self->wlr_output->make, make) == 0 &&
+           g_strcmp0 (self->wlr_output->model, model) == 0 &&
+           g_strcmp0 (self->wlr_output->serial, serial) == 0);
+
+  return match;
 }

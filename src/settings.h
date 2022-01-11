@@ -1,5 +1,4 @@
-#ifndef ROOTSTON_CONFIG_H
-#define ROOTSTON_CONFIG_H
+#pragma once
 
 #include "keybindings.h"
 
@@ -7,6 +6,8 @@
 #include <wlr/types/wlr_input_device.h>
 #include <wlr/types/wlr_switch.h>
 #include <wlr/types/wlr_output_layout.h>
+
+G_BEGIN_DECLS
 
 #define ROOTS_CONFIG_DEFAULT_SEAT_NAME "seat0"
 
@@ -45,4 +46,4 @@ void roots_config_destroy(struct roots_config *config);
 struct roots_output_config *roots_config_get_output(struct roots_config *config,
 	struct wlr_output *output);
 
-#endif
+G_END_DECLS

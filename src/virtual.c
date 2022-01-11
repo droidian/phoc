@@ -5,6 +5,7 @@
 #define _POSIX_C_SOURCE 199309L
 #include <wlr/types/wlr_virtual_keyboard_v1.h>
 #include <wlr/version.h>
+#include "cursor.h"
 #include "virtual.h"
 #include "seat.h"
 #include "server.h"

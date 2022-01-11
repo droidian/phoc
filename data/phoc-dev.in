@@ -1,0 +1,45 @@
+#!/bin/sh
+#
+# You can edit the processed file in phoc's build directory.
+
+COMPOSITOR="@compositor@"
+PHOC_INI="@devconfig@"
+
+help()
+{
+  cat <<EOF
+phoc-dev - Start script for phoc development
+
+This is usually invoked by a systemd unit.
+
+Usage: phoc-dev [-h] [--version]
+EOF
+  exit 0
+}
+
+
+version()
+{
+   echo "@version@"
+   exit 0
+}
+
+case "$1" in
+  -h|-\?|--help)
+    help
+    ;;
+  --version)
+    version
+    ;;
+esac
+
+[ -n "$WLR_BACKENDS" ] || WLR_BACKENDS=drm,libinput
+export WLR_BACKENDS
+
+[ -n "$PHOC_DEBUG" ] || PHOC_DEBUG=
+export PHOC_DEBUG
+
+[ -n "$G_MESSAGES_DEBUG" ] || G_MESSAGES_DEBUG=all
+export G_MESSAGES_DEBUG
+
+exec "${COMPOSITOR}" -C "${PHOC_INI}"

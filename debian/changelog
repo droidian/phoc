@@ -1,3 +1,155 @@
+phoc (0.10.0) byzantium; urgency=medium
+
+  [ Guido Günther ]
+  * cursor: Drop unused struct member
+  * Use g_debug() instead of wlr_log()
+  * build: Sort settings correctly
+  * text-input: Fix doc string
+  * input: Add a doc string
+  * seat: Make a GObject
+  * Add input-device class
+  * pointer: Use PhocInputDevice
+  * touch: Move public function and _init() to the end of the file
+  * touch: Remove unused dispose
+  * touch: Use input-device as base class
+  * touch: Remove unused headers
+  * touch: Add doc string
+  * pointer: Add doc string
+  * data: Add systemd unit and config to simplify phoc development
+  * data: Make dev user id configurable
+  * output: Untangle includes
+  * output: Remove unused includes
+  * output: Use 'pragma once' and G_{BEGIN,END}_DECLS
+  * view: Untangle includes
+  * view: Use 'pragma once' and G_{BEGIN,END}_DECLS
+  * input: Drop unneeded includes
+  * dekstop: Untangle includes
+  * Use #pragma consistently
+  * xcursor: Use PHOC_ prefix
+  * Make layer-surface a GObject
+  * layers: Use PhocLayerSurface
+  * cursor: Use PhocLayerSurface
+  * output: Use PhocLayerSurface
+  * desktop: Use PhocLayerSurface
+  * layer_shell: Use PhocLayerSurface
+  * layer-surface: Remove compat define
+  * README: Fix embed-wlroots option
+  * phosh-private: Properly name callback
+  * output: Fix debug message
+  * build: Make sure g-ir-scanner knows if XWayland is enabled
+  * build: Rename server_protos_sources to protos_sources
+  * seat: Drop superfluous line breaks
+  * Replace PhocSeat leftovers
+  * view: Add typedefs for views
+  * view: Fix doc string
+  * desktop: Document phoc_desktop_surface_at
+  * layer-surface: Add doc string
+  * layer-surface: Move unmap into layer-surface
+  * layer-surface: Move object destruction to finalize
+  * input: Add seat to list of known seats
+  * input: Document phoc_input_get_seat
+  * seat: Don't hold a ref on the input
+  * server: Unref input
+  * input: Unref seat
+  * view: Don't leak title
+  * view: Don't leak app_id
+  * view: Use g_strdup ()
+  * desktop: Disconnect wlr signal listeners
+  * ci: Add helpers to build prebuilt docker images
+  * gitlab-ci: Use prebuilt images
+  * data: Set `version` in configuration data too
+  * input: Add G_{BEGIN,END}_DECLS
+  * input: Replace forward declaration by include
+  * input: Add type checks to public functions
+  * input: Move _init and _new downwards
+  * build: Use glib >= 2.64.0
+  * input: Use GSList instead of wl_list
+  * input: Move PhocInput out of header
+  * input: Drop unused declraration
+  * Move get_last_active_seat
+  * input: Use PhocView
+  * seat: Make arguments names match docstring / definition
+  * touch: Add G_{BEGIN,END}_DECLS
+  * touch: Use correct parent class
+  * cursor: Use surface relative coordinates for touch motion (Closes: #212)
+  * server: Set debug flags early
+  * desktop: Allow to override auto-maximize via a debug flag
+  * utils: Add helpers to get an instance from it's private data
+  * input-device: Add getter for device name
+  * input-device: Add 'device-destroy' signal
+  * touch: Drop "touch-destroyed" signal
+  * pointer: Use "device-destroyed" signal
+  * seat: Use a GSList to track pointers
+  * pointer: Move PhocPointer out of header
+  * seat: Use a GSList to track touch devices
+  * touch: Move PhocTouch out of header
+  * HACKING: document callback names
+  * seat/cursor: Add TODOs
+  * keyboard: Remove trailing semicolons from defines
+  * keyboard: Add G_{BEGIN,END}_DECLS
+  * seat: Drop unused header
+  * keyboard: Drop unused incudes
+  * keyboard: Document parameter in `phoc_keyboard_next_layout`
+  * input: Drop unused include
+  * keyboard: Move list membership removal to seat
+  * keyboard: Derive PhocKeyboard from PhocInput too
+  * keyboard: Use destroy signal from input_device
+  * keyboard: Add "activity" signal
+  * keyboard: Move keyboard listeners from seat to keyboard
+  * seat: Use a GSList for keyboards
+  * keyboard: Add getter for meta key
+  * keyboard: Move PhocKeyboard out of header
+  * keyboard: Make phoc_keyboard_handle_{key,modifiers} static
+  * tablet: Make a minimal GObject
+  * tablet: Use seat from PhocInput
+  * tablet: Use device from PhocInputDevice
+  * tablet: Use "device-destroy" signal
+  * tablet: Remove unused struct members
+  * seat: Use a GSList for tablets
+  * output: Add helper to match on make/model/serial
+  * desktop: Add method to find an output by make/model/serial
+  * desktop: Add method to find built-in output
+  * desktop: Merge #ifdef PHOC_XWAYLAND blocks
+  * input-device: Add type getter
+  * input-device: Drop unneeded cast
+  * input-device: Add getters for vendor and product id
+  * seat: Move variable inits to _init ()
+  * seat: Make device-destroy handler names consistent
+  * seat: Don't track device mappings on pointer changes
+  * seat: Drop seat_reset_device_mappings()
+  * seat: Track input-output mappings
+  * output: Use g_* logging functions consistently
+  * output: Improve logging output
+  * input: Fix annotation errors
+  * seat: Hide cursor on tablet proximity out
+  * run: Select a suitable backend for nested
+
+  [ Sebastian Krzyszkowiak ]
+  * view: Report toplevel's parent via wlr_foreign_toplevel_management
+  * xdg-shell: Send frame done events on configure and close to invisible views
+  * view: Always recenter a floating view in auto maximize mode
+  * xdg-shell: Only compensate size in pending_move_resize for floating views
+  * xwayland: Only compensate size in pending_move_resize for floating views
+  * roots_view_interface: Rename activate and maximize functions
+  * view_arrange_tiled: Handle view scale
+  * view: Take geometry into account when maximizing and tiling
+  * view: Add set_tiled to roots_view_interface
+  * xdg-shell: Implement set_tiled interface
+  * keybindings: Restore the view when trying to tile it again
+  * view_move_resize: Move immediately if size doesn't change
+  * debian: Reintroduce pkg.phoc.embedwlroots build profile support
+  * debian/control: Bump meson dependency to 0.54
+  * gitlab-ci: Add an optional job to build a deb with ASan and UBSan
+  * xdg-shell: Use output's usable area for popup positioning
+  * layer-shell: Reformat the code in arrange_layers
+  * layer-shell: Split and rename arrange_layers
+  * phoc_layer_shell_arrange: Iterate over a list of layers
+
+  [ Arnaud Ferraris ]
+  * seat: don't add POINTER capability to tablets
+
+ -- Sebastian Krzyszkowiak <sebastian.krzyszkowiak@puri.sm>  Wed, 15 Dec 2021 20:19:07 +0100
+
 phoc (0.9.0) byzantium; urgency=medium
 
   [ Guido Günther ]

@@ -11,7 +11,9 @@
 #include <wlr/types/wlr_surface.h>
 #include <wlr/util/log.h>
 #include <wlr/xwayland.h>
+#include "cursor.h"
 #include "server.h"
+#include "seat.h"
 #include "view.h"
 #include "xwayland.h"
 
@@ -33,7 +35,7 @@ bool is_moveable(struct roots_view *view)
 	return true;
 }
 
-static void activate(struct roots_view *view, bool active) {
+static void set_active(struct roots_view *view, bool active) {
 	struct wlr_xwayland_surface *xwayland_surface =
 		roots_xwayland_surface_from_view(view)->xwayland_surface;
 	wlr_xwayland_surface_activate(xwayland_surface, active);
@@ -148,7 +150,7 @@ static bool want_auto_maximize(struct roots_view *view) {
 	return is_moveable(view);
 }
 
-static void maximize(struct roots_view *view, bool maximized) {
+static void set_maximized(struct roots_view *view, bool maximized) {
 	struct wlr_xwayland_surface *xwayland_surface =
 		roots_xwayland_surface_from_view(view)->xwayland_surface;
 	wlr_xwayland_surface_set_maximized(xwayland_surface, maximized);
@@ -179,14 +181,14 @@ static void destroy(struct roots_view *view) {
 }
 
 static const struct roots_view_interface view_impl = {
-	.activate = activate,
 	.resize = resize,
 	.move = move,
 	.move_resize = move_resize,
 	.want_scaling = want_scaling,
 	.want_auto_maximize = want_auto_maximize,
-	.maximize = maximize,
+	.set_active = set_active,
 	.set_fullscreen = set_fullscreen,
+	.set_maximized = set_maximized,
 	.close = _close,
 	.destroy = destroy,
 };
@@ -215,8 +217,11 @@ static PhocSeat *guess_seat_for_view(struct roots_view *view) {
 	// for the pointer
 	PhocServer *server = phoc_server_get_default ();
 	PhocInput *input = server->input;
-	PhocSeat *seat;
-	wl_list_for_each(seat, &input->seats, link) {
+
+	for (GSList *elem = phoc_input_get_seats (input); elem; elem = elem->next) {
+		PhocSeat *seat = PHOC_SEAT (elem->data);
+
+		g_assert (PHOC_IS_SEAT (seat));
 		if (seat->seat->pointer_state.focused_surface == view->wlr_surface) {
 			return seat;
 		}
@@ -322,13 +327,21 @@ static void handle_surface_commit(struct wl_listener *listener, void *data) {
 	double x = view->box.x;
 	double y = view->box.y;
 	if (view->pending_move_resize.update_x) {
-		x = view->pending_move_resize.x + view->pending_move_resize.width -
-			width;
+		if (view_is_floating (view)) {
+			x = view->pending_move_resize.x + view->pending_move_resize.width -
+				width;
+		} else {
+			x = view->pending_move_resize.x;
+		}
 		view->pending_move_resize.update_x = false;
 	}
 	if (view->pending_move_resize.update_y) {
-		y = view->pending_move_resize.y + view->pending_move_resize.height -
-			height;
+		if (view_is_floating (view)) {
+			y = view->pending_move_resize.y + view->pending_move_resize.height -
+				height;
+		} else {
+			y = view->pending_move_resize.y;
+		}
 		view->pending_move_resize.update_y = false;
 	}
 	view_update_position(view, x, y);
@@ -383,7 +396,7 @@ void handle_xwayland_surface(struct wl_listener *listener, void *data) {
 		wl_container_of(listener, desktop, xwayland_surface);
 
 	struct wlr_xwayland_surface *surface = data;
-	wlr_log(WLR_DEBUG, "new xwayland surface: title=%s, class=%s, instance=%s",
+	g_debug ("new xwayland surface: title=%s, class=%s, instance=%s",
 		surface->title, surface->class, surface->instance);
 	wlr_xwayland_surface_ping(surface);
 

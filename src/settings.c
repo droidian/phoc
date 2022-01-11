@@ -159,7 +159,7 @@ static int config_ini_handler(void *user, const char *section, const char *name,
 				oc->mode.refresh_rate = strtof(end, &end);
 				assert(strcmp("Hz", end) == 0);
 			}
-			wlr_log(WLR_DEBUG, "Configured output %s with mode %dx%d@%f",
+			g_debug ("Configured output %s with mode %dx%d@%f",
 					oc->name, oc->mode.width, oc->mode.height,
 					oc->mode.refresh_rate);
 		} else if (strcmp(name, "modeline") == 0) {
@@ -224,7 +224,7 @@ struct roots_config *roots_config_create(const char *config_path) {
 	int result = ini_parse(config->config_path, config_ini_handler, config);
 
 	if (result == -1) {
-		wlr_log(WLR_DEBUG, "No config file found. Using sensible defaults.");
+		g_debug ("No config file found. Using sensible defaults.");
 	} else if (result == -2) {
 		wlr_log(WLR_ERROR, "Could not allocate memory to parse config file");
 		exit(1);

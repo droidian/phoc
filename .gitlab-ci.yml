@@ -14,6 +14,7 @@ variables:
         git meson ninja gnome-desktop-dev gobject-introspection-dev
         libinput-dev wayland-dev wayland-protocols libxkbcommon-dev wlroots-dev
   XVFB_RUN: xvfb-run -s -noreset
+  DEBIAN_IMAGE: $CI_REGISTRY/world/phosh/phoc/debian:v0.0.20211105
 
 .build: &build
   script:
@@ -25,9 +26,6 @@ variables:
 
 .before_script_debian: &before_script_debian
   - rm -f ../* || true
-  - apt-get -y update
-  - apt-get -y install $DEPS
-  - apt-get -y build-dep .
 
 .before_script_alpine: &before_script_alpine
   - apk -q add alpine-sdk
@@ -35,7 +33,7 @@ variables:
 
 build-with-xwayland-debian-bookworm:
   stage: build
-  image: debian:bookworm
+  image: ${DEBIAN_IMAGE}
   before_script: *before_script_debian
   variables:
      BUILD_ARGS: -Dxwayland=enabled -Db_coverage=true
@@ -74,7 +72,7 @@ build-without-xwayland-alpinelinux-edge:
 
 unit-test-with-xwayland-debian-bookworm:
   stage: test+docs
-  image: debian:bookworm
+  image: ${DEBIAN_IMAGE}
   needs:
     - build-with-xwayland-debian-bookworm
   before_script: *before_script_debian
@@ -92,7 +90,7 @@ unit-test-with-xwayland-debian-bookworm:
 
 build-gtkdoc:
   stage: test+docs
-  image: debian:bookworm
+  image: ${DEBIAN_IMAGE}
   before_script: *before_script_debian
   variables:
     BUILD_ARGS: -Dgtk_doc=true -Dembed-wlroots=disabled
@@ -114,6 +112,15 @@ package-pureos-byzantium:arm64:
     L5_DOCKER_IMAGE: pureos/byzantium
   tags:
     - aarch64
+  extends: .l5-build-debian-package
+
+package-pureos-byzantium:sanitizers:arm64:
+  variables:
+    L5_DOCKER_IMAGE: pureos/byzantium
+    DEB_BUILD_PROFILES: 'pkg.phoc.embedwlroots pkg.phoc.sanitizers'
+  tags:
+    - aarch64
+  when: manual
   extends: .l5-build-debian-package
 
 pages:

@@ -12,6 +12,7 @@
 
 #include "config.h"
 #include "layers.h"
+#include "seat.h"
 #include "server.h"
 #include "render.h"
 
@@ -185,8 +186,10 @@ collect_touch_points (PhocOutput *output, struct wlr_surface *surface, struct wl
     return;
   }
 
-  PhocSeat *seat;
-  wl_list_for_each(seat, &server->input->seats, link) {
+  for (GSList *elem = phoc_input_get_seats (server->input); elem; elem = elem->next) {
+    PhocSeat *seat = PHOC_SEAT (elem->data);
+
+    g_assert (PHOC_IS_SEAT (seat));
     struct wlr_touch_point *point;
     wl_list_for_each(point, &seat->seat->touch_state.touch_points, link) {
       if (point->surface != surface) { continue; }
@@ -306,8 +309,10 @@ static bool scan_out_fullscreen_view(PhocOutput *output) {
 	struct wlr_output *wlr_output = output->wlr_output;
 	PhocServer *server = phoc_server_get_default ();
 
-	PhocSeat *seat;
-	wl_list_for_each(seat, &server->input->seats, link) {
+	for (GSList *elem = phoc_input_get_seats (server->input); elem; elem = elem->next) {
+		PhocSeat *seat = PHOC_SEAT (elem->data);
+
+		g_assert (PHOC_IS_SEAT (seat));
 		PhocDragIcon *drag_icon = seat->drag_icon;
 		if (drag_icon && drag_icon->wlr_drag_icon->mapped) {
 			return false;
@@ -618,10 +623,10 @@ void output_render(PhocOutput *output) {
 		bool scanned_out = scan_out_fullscreen_view(output);
 
 		if (scanned_out && !last_scanned_out) {
-			wlr_log(WLR_DEBUG, "Scanning out fullscreen view");
+			g_debug ("Scanning out fullscreen view");
 		}
 		if (last_scanned_out && !scanned_out) {
-			wlr_log(WLR_DEBUG, "Stopping fullscreen view scan out");
+			g_debug ("Stopping fullscreen view scan out");
 		}
 		last_scanned_out = scanned_out;
 
@@ -776,7 +781,7 @@ buffer_damage_finish:
 	pixman_region32_fini(&buffer_damage);
 
 send_frame_done:
-	// Send frame done events to all surfaces
+	// Send frame done events to all visible surfaces
 	phoc_output_for_each_surface(output, surface_send_frame_done_iterator, &now, true);
 
 	damage_touch_points(output);

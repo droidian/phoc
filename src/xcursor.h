@@ -1,12 +1,13 @@
-#ifndef ROOTSTON_XCURSOR_H
-#define ROOTSTON_XCURSOR_H
+#pragma once
 
 #include <stdint.h>
 
-#define ROOTS_XCURSOR_SIZE 24
+G_BEGIN_DECLS
 
-#define ROOTS_XCURSOR_DEFAULT "left_ptr"
-#define ROOTS_XCURSOR_MOVE "grabbing"
-#define ROOTS_XCURSOR_ROTATE "grabbing"
+#define PHOC_XCURSOR_SIZE 24
 
-#endif
+#define PHOC_XCURSOR_DEFAULT "left_ptr"
+#define PHOC_XCURSOR_MOVE "grabbing"
+#define PHOC_XCURSOR_ROTATE "grabbing"
+
+G_END_DECLS

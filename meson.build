@@ -1,5 +1,5 @@
 project('phoc', 'c',
-          version: '0.9.0',
+          version: '0.10.0',
           license: 'GPLv3+',
     meson_version: '>= 0.54.0',
   default_options: [
@@ -23,10 +23,10 @@ datadir = join_paths(prefix, get_option('datadir'))
 
 cc = meson.get_compiler('c')
 
-gio            = dependency('gio-2.0', version: '>=2.50.0')
+gio            = dependency('gio-2.0', version: '>=2.64.0')
 glesv2         = dependency('glesv2')
-glib           = dependency('glib-2.0', version: '>=2.50.0')
-gobject        = dependency('gobject-2.0', version: '>=2.50.0')
+glib           = dependency('glib-2.0', version: '>=2.64.0')
+gobject        = dependency('gobject-2.0', version: '>=2.64.0')
 gnome_desktop  = dependency('gnome-desktop-3.0', version: '>=3.26')
 gsettings_desktop_schemas_dep = dependency('gsettings-desktop-schemas')
 input          = dependency('libinput')

@@ -7,8 +7,6 @@ phoc_enum_sources = gnome.mkenums_simple(
   sources : phoc_enum_headers)
 
 sources = files(
-  'settings.c',
-  'settings.h',
   'cursor.c',
   'cursor.h',
   'desktop.c',
@@ -19,10 +17,14 @@ sources = files(
   'ini.h',
   'input.c',
   'input.h',
+  'input-device.c',
+  'input-device.h',
   'keyboard.c',
   'keyboard.h',
   'keybindings.c',
   'keybindings.h',
+  'layer-surface.c',
+  'layer-surface.h',
   'layer_shell.c',
   'layers.h',
   'output.c',
@@ -37,8 +39,12 @@ sources = files(
   'seat.h',
   'server.c',
   'server.h',
+  'settings.c',
+  'settings.h',
   'switch.c',
   'switch.h',
+  'tablet.c',
+  'tablet.h',
   'text_input.c',
   'text_input.h',
   'touch.c',
@@ -54,7 +60,7 @@ sources = files(
 libphoc_generated_sources = [
   phoc_enum_sources,
   server_protos_headers,
-  server_protos_sources,
+  protos_sources,
 ]
 
 phoc_deps = [
@@ -94,6 +100,10 @@ if get_option('gtk_doc')
   phoc_gir_extra_args = [
     '--quiet',
   ]
+
+  if have_xwayland
+    phoc_gir_extra_args += '-DPHOC_XWAYLAND'
+  endif
 
   phoc_gir = gnome.generate_gir(phoc_lib,
                  sources: sources,

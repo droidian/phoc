@@ -95,14 +95,18 @@ static void popup_unconstrain(struct roots_xdg_popup *popup) {
 
 	struct wlr_box *output_box =
 		wlr_output_layout_get_box(view->desktop->layout, output);
+	PhocOutput *phoc_output = output->data;
+	struct wlr_box usable_area = phoc_output->usable_area;
+	usable_area.x += output_box->x;
+	usable_area.y += output_box->y;
 
 	// the output box expressed in the coordinate system of the toplevel parent
 	// of the popup
 	struct wlr_box output_toplevel_sx_box = {
-		.x = output_box->x - view->box.x,
-		.y = output_box->y - view->box.y,
-		.width = output_box->width,
-		.height = output_box->height,
+		.x = usable_area.x - view->box.x,
+		.y = usable_area.y - view->box.y,
+		.width = usable_area.width,
+		.height = usable_area.height,
 	};
 
 	wlr_xdg_popup_unconstrain_from_box(
@@ -144,7 +148,7 @@ static void get_size(struct roots_view *view, struct wlr_box *box) {
 	box->height = geo_box.height;
 }
 
-static void activate(struct roots_view *view, bool active) {
+static void set_active(struct roots_view *view, bool active) {
 	struct wlr_xdg_surface *xdg_surface =
 		roots_xdg_surface_from_view(view)->xdg_surface;
 	if (xdg_surface->role == WLR_XDG_SURFACE_ROLE_TOPLEVEL) {
@@ -186,6 +190,8 @@ static void resize(struct roots_view *view, uint32_t width, uint32_t height) {
 
 	wlr_xdg_toplevel_set_size(xdg_surface, constrained_width,
 		constrained_height);
+
+	view_send_frame_done_if_not_visible (view);
 }
 
 static void move_resize(struct roots_view *view, double x, double y,
@@ -225,6 +231,8 @@ static void move_resize(struct roots_view *view, double x, double y,
 	} else if (xdg_surface->pending_move_resize_configure_serial == 0) {
 		view_update_position(view, x, y);
 	}
+
+	view_send_frame_done_if_not_visible (view);
 }
 
 static bool want_scaling(struct roots_view *view) {
@@ -238,7 +246,7 @@ static bool want_auto_maximize(struct roots_view *view) {
 	return surface->toplevel && !surface->toplevel->parent;
 }
 
-static void maximize(struct roots_view *view, bool maximized) {
+static void set_maximized(struct roots_view *view, bool maximized) {
 	struct wlr_xdg_surface *xdg_surface =
 		roots_xdg_surface_from_view(view)->xdg_surface;
 	if (xdg_surface->role != WLR_XDG_SURFACE_ROLE_TOPLEVEL) {
@@ -246,6 +254,31 @@ static void maximize(struct roots_view *view, bool maximized) {
 	}
 
 	wlr_xdg_toplevel_set_maximized(xdg_surface, maximized);
+}
+
+static void
+set_tiled (struct roots_view *view, bool tiled)
+{
+  struct wlr_xdg_surface *xdg_surface = roots_xdg_surface_from_view(view)->xdg_surface;
+
+  if (xdg_surface->role != WLR_XDG_SURFACE_ROLE_TOPLEVEL)
+    return;
+
+  if (!tiled) {
+    wlr_xdg_toplevel_set_tiled (xdg_surface, WLR_EDGE_NONE);
+    return;
+  }
+
+  switch (view->tile_direction) {
+    case PHOC_VIEW_TILE_LEFT:
+      wlr_xdg_toplevel_set_tiled (xdg_surface, WLR_EDGE_TOP | WLR_EDGE_BOTTOM | WLR_EDGE_LEFT);
+      break;
+    case PHOC_VIEW_TILE_RIGHT:
+      wlr_xdg_toplevel_set_tiled (xdg_surface, WLR_EDGE_TOP | WLR_EDGE_BOTTOM | WLR_EDGE_RIGHT);
+      break;
+    default:
+      g_warn_if_reached ();
+  }
 }
 
 static void set_fullscreen(struct roots_view *view, bool fullscreen) {
@@ -266,6 +299,8 @@ static void _close(struct roots_view *view) {
 		wlr_xdg_popup_destroy(popup->base);
 	}
 	wlr_xdg_toplevel_send_close(xdg_surface);
+
+	view_send_frame_done_if_not_visible (view);
 }
 
 static void for_each_surface(struct roots_view *view,
@@ -299,13 +334,14 @@ static void destroy(struct roots_view *view) {
 }
 
 static const struct roots_view_interface view_impl = {
-	.activate = activate,
 	.resize = resize,
 	.move_resize = move_resize,
 	.want_auto_maximize = want_auto_maximize,
 	.want_scaling = want_scaling,
-	.maximize = maximize,
+	.set_active = set_active,
 	.set_fullscreen = set_fullscreen,
+	.set_maximized = set_maximized,
+	.set_tiled = set_tiled,
 	.close = _close,
 	.for_each_surface = for_each_surface,
 	.get_geometry = get_geometry,
@@ -427,12 +463,20 @@ static void handle_surface_commit(struct wl_listener *listener, void *data) {
 		double x = view->box.x;
 		double y = view->box.y;
 		if (view->pending_move_resize.update_x) {
-			x = view->pending_move_resize.x + view->pending_move_resize.width -
-				size.width;
+			if (view_is_floating (view)) {
+				x = view->pending_move_resize.x + view->pending_move_resize.width -
+					size.width;
+			} else {
+				x = view->pending_move_resize.x;
+			}
 		}
 		if (view->pending_move_resize.update_y) {
-			y = view->pending_move_resize.y + view->pending_move_resize.height -
-				size.height;
+			if (view_is_floating (view)) {
+				y = view->pending_move_resize.y + view->pending_move_resize.height -
+					size.height;
+			} else {
+				y = view->pending_move_resize.y;
+			}
 		}
 		view_update_position(view, x, y);
 
@@ -444,11 +488,9 @@ static void handle_surface_commit(struct wl_listener *listener, void *data) {
 	struct wlr_box geometry;
 	get_geometry(view, &geometry);
 	if (roots_surface->saved_geometry.x != geometry.x || roots_surface->saved_geometry.y != geometry.y) {
-		if (view_is_floating (view)) {
-			view_update_position(view,
-			                     view->box.x + (roots_surface->saved_geometry.x - geometry.x) * view->scale,
-			                     view->box.y + (roots_surface->saved_geometry.y - geometry.y) * view->scale);
-		}
+		view_update_position(view,
+		                     view->box.x + (roots_surface->saved_geometry.x - geometry.x) * view->scale,
+		                     view->box.y + (roots_surface->saved_geometry.y - geometry.y) * view->scale);
 	}
 	roots_surface->saved_geometry = geometry;
 }
@@ -492,14 +534,14 @@ void handle_xdg_shell_surface(struct wl_listener *listener, void *data) {
 	assert(surface->role != WLR_XDG_SURFACE_ROLE_NONE);
 
 	if (surface->role == WLR_XDG_SURFACE_ROLE_POPUP) {
-		wlr_log(WLR_DEBUG, "new xdg popup");
+		g_debug ("new xdg popup");
 		return;
 	}
 
 	PhocDesktop *desktop =
 		wl_container_of(listener, desktop, xdg_shell_surface);
 
-	wlr_log(WLR_DEBUG, "new xdg toplevel: title=%s, app_id=%s",
+	g_debug ("new xdg toplevel: title=%s, app_id=%s",
 		surface->toplevel->title, surface->toplevel->app_id);
 
 	wlr_xdg_surface_ping(surface);
@@ -607,7 +649,7 @@ static void decoration_handle_surface_commit(struct wl_listener *listener,
 void handle_xdg_toplevel_decoration(struct wl_listener *listener, void *data) {
 	struct wlr_xdg_toplevel_decoration_v1 *wlr_decoration = data;
 
-	wlr_log(WLR_DEBUG, "new xdg toplevel decoration");
+	g_debug ("new xdg toplevel decoration");
 
 	struct roots_xdg_surface *xdg_surface = wlr_decoration->surface->data;
 	assert(xdg_surface != NULL);

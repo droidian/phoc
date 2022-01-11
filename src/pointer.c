@@ -7,83 +7,25 @@
 
 #include <glib.h>
 #include <gdesktop-enums.h>
-#include <wlr/types/wlr_input_device.h>
 #include <wlr/backend/libinput.h>
+#include <wlr/types/wlr_input_device.h>
 
-enum {
-  PROP_0,
-  PROP_DEVICE,
-  PROP_SEAT,
-  PROP_LAST_PROP,
+/**
+ * PhocPointer:
+ *
+ * A pointer input device
+ */
+struct _PhocPointer {
+  PhocInputDevice          parent;
+
+  /* private */
+  GSettings               *input_settings;
+  gboolean                 touchpad;
+  GSettings               *touchpad_settings;
+  GSettings               *mouse_settings;
 };
-static GParamSpec *props[PROP_LAST_PROP];
 
-G_DEFINE_TYPE (PhocPointer, phoc_pointer, G_TYPE_OBJECT);
-
-
-static void
-check_touchpad (PhocPointer *self)
-{
-  struct libinput_device *ldev;
-
-  if (!wlr_input_device_is_libinput (self->device))
-    return;
-
-  ldev = wlr_libinput_get_device_handle(self->device);
-  if (libinput_device_config_tap_get_finger_count (ldev) == 0)
-    return;
-
-  g_debug ("%s is a touchpad device", self->device->name);
-  self->touchpad = TRUE;
-}
-
-
-static void
-phoc_pointer_set_property (GObject      *object,
-                           guint         property_id,
-                           const GValue *value,
-                           GParamSpec   *pspec)
-{
-  PhocPointer *self = PHOC_POINTER (object);
-
-  switch (property_id) {
-  case PROP_DEVICE:
-    self->device = g_value_get_pointer (value);
-    self->device->data = self;
-    check_touchpad (self);
-    g_object_notify_by_pspec (G_OBJECT (self), props[PROP_DEVICE]);
-    break;
-  case PROP_SEAT:
-    self->seat = g_value_get_pointer (value);
-    g_object_notify_by_pspec (G_OBJECT (self), props[PROP_SEAT]);
-    break;
-  default:
-    G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
-    break;
-  }
-}
-
-
-static void
-phoc_pointer_get_property (GObject    *object,
-                           guint       property_id,
-                           GValue     *value,
-                           GParamSpec *pspec)
-{
-  PhocPointer *self = PHOC_POINTER (object);
-
-  switch (property_id) {
-  case PROP_DEVICE:
-    g_value_set_pointer (value, self->device);
-    break;
-  case PROP_SEAT:
-    g_value_set_pointer (value, self->seat);
-    break;
-  default:
-    G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
-    break;
-  }
-}
+G_DEFINE_TYPE (PhocPointer, phoc_pointer, PHOC_TYPE_INPUT_DEVICE);
 
 
 static void
@@ -100,10 +42,10 @@ on_mouse_settings_changed (PhocPointer *self,
   g_assert (PHOC_IS_POINTER (self));
   g_assert (G_IS_SETTINGS (settings));
 
-  if (!wlr_input_device_is_libinput (self->device))
+  if (!phoc_input_device_get_is_libinput (PHOC_INPUT_DEVICE (self)))
     return;
 
-  ldev = wlr_libinput_get_device_handle(self->device);
+  ldev = phoc_input_device_get_libinput_device_handle(PHOC_INPUT_DEVICE (self));
   if (libinput_device_config_scroll_has_natural_scroll (ldev)) {
     enabled = g_settings_get_boolean (settings, "natural-scroll");
     libinput_device_config_scroll_set_natural_scroll_enabled (ldev, enabled);
@@ -141,10 +83,10 @@ on_touchpad_settings_changed (PhocPointer *self,
   g_assert (PHOC_IS_POINTER (self));
 
   settings = self->touchpad_settings;
-  if (!wlr_input_device_is_libinput (self->device))
+  if (!phoc_input_device_get_is_libinput (PHOC_INPUT_DEVICE (self)))
     return;
 
-  ldev = wlr_libinput_get_device_handle(self->device);
+  ldev = phoc_input_device_get_libinput_device_handle (PHOC_INPUT_DEVICE (self));
 
   if (libinput_device_config_scroll_has_natural_scroll (ldev)) {
     enabled = g_settings_get_boolean (settings, "natural-scroll");
@@ -219,6 +161,8 @@ phoc_pointer_constructed (GObject *object)
 
   G_OBJECT_CLASS (phoc_pointer_parent_class)->constructed (object);
 
+  self->touchpad = phoc_input_device_get_is_touchpad (PHOC_INPUT_DEVICE (self));
+
   self->mouse_settings = g_settings_new ("org.gnome.desktop.peripherals.mouse");
   if (self->touchpad) {
     self->touchpad_settings = g_settings_new ("org.gnome.desktop.peripherals.touchpad");
@@ -260,25 +204,8 @@ phoc_pointer_class_init (PhocPointerClass *klass)
 {
   GObjectClass *object_class = (GObjectClass *)klass;
 
-  object_class->set_property = phoc_pointer_set_property;
-  object_class->get_property = phoc_pointer_get_property;
-
   object_class->constructed = phoc_pointer_constructed;
   object_class->dispose = phoc_pointer_dispose;
-
-  props[PROP_DEVICE] =
-    g_param_spec_pointer ("device",
-			  "Device",
-			  "The device object",
-			  G_PARAM_CONSTRUCT_ONLY | G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
-
-  props[PROP_SEAT] =
-    g_param_spec_pointer ("seat",
-			  "Seat",
-			  "The seat this pointer belongs to",
-			  G_PARAM_CONSTRUCT_ONLY | G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
-
-  g_object_class_install_properties (object_class, PROP_LAST_PROP, props);
 }
 
 static void

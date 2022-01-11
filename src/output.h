@@ -1,22 +1,20 @@
-#ifndef ROOTSTON_OUTPUT_H
-#define ROOTSTON_OUTPUT_H
+#pragma once
 
 #include <gio/gio.h>
 #include <glib-object.h>
-#include <pixman.h>
-#include <time.h>
 #include <wayland-server-core.h>
 #include <wlr/types/wlr_box.h>
 #include <wlr/types/wlr_output_damage.h>
+#include <wlr/types/wlr_xdg_shell.h>
+
+G_BEGIN_DECLS
 
 #define PHOC_TYPE_OUTPUT (phoc_output_get_type ())
 
 G_DECLARE_FINAL_TYPE (PhocOutput, phoc_output, PHOC, OUTPUT, GObject);
 
-/* These need to know about PhocOutput so we have them after the type definition.
- * This will fix itself once view / phosh are gobjects and most of
- * their members are non-public. */
-#include "desktop.h"
+typedef struct _PhocDesktop PhocDesktop;
+typedef struct _PhocInput PhocInput;
 
 /* TODO: we keep the struct public due to the list links and
    notifiers but we should avoid other member access */
@@ -105,5 +103,9 @@ void        phoc_output_scale_box (PhocOutput *self, struct wlr_box *box, float 
 void        phoc_output_get_decoration_box (PhocOutput *self, struct roots_view *view,
                                             struct wlr_box *box);
 gboolean    phoc_output_is_builtin (PhocOutput *output);
+gboolean    phoc_output_is_match (PhocOutput *self,
+                                  const char *make,
+                                  const char *model,
+                                  const char *serial);
 
-#endif
+G_END_DECLS

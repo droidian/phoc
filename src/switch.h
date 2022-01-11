@@ -1,7 +1,8 @@
-#ifndef ROOTSTON_SWITCH_H
-#define ROOTSTON_SWITCH_H
+#pragma once
 
 #include "input.h"
+
+G_BEGIN_DECLS
 
 struct roots_switch {
 	PhocSeat *seat;
@@ -15,4 +16,4 @@ struct roots_switch {
 void roots_switch_handle_toggle(struct roots_switch *switch_device,
 		struct wlr_event_switch_toggle *event);
 
-#endif
+G_END_DECLS

@@ -1,30 +1,35 @@
-#ifndef ROOTSTON_VIEW_H
-#define ROOTSTON_VIEW_H
-
-#include "desktop.h"
+#pragma once
 
 #include <stdbool.h>
 #include <wlr/config.h>
 #include <wlr/types/wlr_box.h>
 #include <wlr/types/wlr_foreign_toplevel_management_v1.h>
+#include <wlr/types/wlr_output_layout.h>
 #include <wlr/types/wlr_surface.h>
 #include <wlr/types/wlr_xdg_decoration_v1.h>
 #include <wlr/types/wlr_xdg_shell.h>
 
+#include <gio/gio.h>
+
 #include "output.h"
 
+G_BEGIN_DECLS
+
 struct roots_view;
+typedef struct _PhocDesktop PhocDesktop;
+typedef struct _PhocOutput PhocOutput;
 
 struct roots_view_interface {
-	void (*activate)(struct roots_view *view, bool active);
 	void (*move)(struct roots_view *view, double x, double y);
 	void (*resize)(struct roots_view *view, uint32_t width, uint32_t height);
 	void (*move_resize)(struct roots_view *view, double x, double y,
 		uint32_t width, uint32_t height);
 	bool (*want_scaling)(struct roots_view *view);
 	bool (*want_auto_maximize)(struct roots_view *view);
-	void (*maximize)(struct roots_view *view, bool maximized);
+	void (*set_active)(struct roots_view *view, bool active);
 	void (*set_fullscreen)(struct roots_view *view, bool fullscreen);
+	void (*set_maximized)(struct roots_view *view, bool maximized);
+	void (*set_tiled)(struct roots_view *view, bool tiled);
 	void (*close)(struct roots_view *view);
 	void (*for_each_surface)(struct roots_view *view,
 		wlr_surface_iterator_func_t iterator, void *user_data);
@@ -50,7 +55,7 @@ typedef enum {
   PHOC_VIEW_STATE_TILED,
 } PhocViewState;
 
-struct roots_view {
+typedef struct roots_view {
 	enum roots_view_type type;
 	const struct roots_view_interface *impl;
 	PhocDesktop *desktop;
@@ -100,11 +105,11 @@ struct roots_view {
 		struct wl_signal unmap;
 		struct wl_signal destroy;
 	} events;
-};
+} PhocView;
 
 struct roots_xdg_toplevel_decoration;
 
-struct roots_xdg_surface {
+typedef struct roots_xdg_surface {
 	struct roots_view view;
 
 	struct wlr_xdg_surface *xdg_surface;
@@ -128,10 +133,10 @@ struct roots_xdg_surface {
 	uint32_t pending_move_resize_configure_serial;
 
 	struct roots_xdg_toplevel_decoration *xdg_toplevel_decoration;
-};
+} PhocXdgSurface;
 
 #ifdef PHOC_XWAYLAND
-struct roots_xwayland_surface {
+typedef struct roots_xwayland_surface {
 	struct roots_view view;
 
 	struct wlr_xwayland_surface *xwayland_surface;
@@ -149,7 +154,7 @@ struct roots_xwayland_surface {
 	struct wl_listener set_startup_id;
 
 	struct wl_listener surface_commit;
-};
+} PhocXWaylandSurface;
 #endif
 
 struct roots_view_child;
@@ -227,6 +232,7 @@ void view_set_fullscreen(struct roots_view *view, bool fullscreen,
 	struct wlr_output *output);
 void view_close(struct roots_view *view);
 bool view_center(struct roots_view *view, struct wlr_output *output);
+void view_send_frame_done_if_not_visible (struct roots_view *view);
 void view_setup(struct roots_view *view);
 void view_teardown(struct roots_view *view);
 void view_set_title(struct roots_view *view, const char *title);
@@ -261,4 +267,4 @@ void view_child_destroy(struct roots_view_child *child);
 struct roots_subsurface *subsurface_create(struct roots_view *view,
 	struct wlr_subsurface *wlr_subsurface);
 
-#endif
+G_END_DECLS
