@@ -12,6 +12,9 @@
 #include "wlr-layer-shell-unstable-v1-client-protocol.h"
 #include "wlr-screencopy-unstable-v1-client-protocol.h"
 #include "phosh-private-client-protocol.h"
+#include "phoc-layer-shell-effects-unstable-v1-client-protocol.h"
+
+#pragma once
 
 G_BEGIN_DECLS
 
@@ -45,6 +48,7 @@ typedef struct _PhocTestWlGlobals {
   struct wl_shm *shm;
   struct xdg_wm_base *xdg_shell;
   struct zwlr_layer_shell_v1 *layer_shell;
+  struct zphoc_layer_shell_effects_v1 *layer_shell_effects;
   struct zwlr_screencopy_manager_v1 *screencopy_manager;
   struct zwlr_foreign_toplevel_manager_v1 *foreign_toplevel_manager;
   GSList *foreign_toplevels;
@@ -71,6 +75,19 @@ typedef struct PhocTestClientIface {
   PhocTestClientFunc client_run;
 } PhocTestClientIface;
 
+typedef struct _PhocTestXdgToplevelSurface
+{
+  struct wl_surface *wl_surface;
+  struct xdg_surface *xdg_surface;
+  struct xdg_toplevel *xdg_toplevel;
+  PhocTestForeignToplevel *foreign_toplevel;
+  char* title;
+  PhocTestBuffer buffer;
+  guint32 width, height;
+  gboolean configured;
+  gboolean toplevel_configured;
+} PhocTestXdgToplevelSurface;
+
 /* Test client */
 void phoc_test_client_run (gint timeout, PhocTestClientIface *iface, gpointer data);
 int  phoc_test_client_create_shm_buffer (PhocTestClientGlobals *globals,
@@ -83,6 +100,15 @@ PhocTestBuffer *phoc_test_client_capture_output (PhocTestClientGlobals *globals,
 						 PhocTestOutput *output);
 PhocTestForeignToplevel *phoc_test_client_get_foreign_toplevel_handle (PhocTestClientGlobals *globals,
 								       const char *title);
+
+/* Test surfaces */
+PhocTestXdgToplevelSurface *
+                phoc_test_xdg_toplevel_new  (PhocTestClientGlobals     *globals,
+                                             guint32                    width,
+                                             guint32                    height,
+                                             const char                *title,
+                                             guint32                    color);
+void            phoc_test_xdg_toplevel_free (PhocTestXdgToplevelSurface *xs);
 
 /* Buffers */
 gboolean phoc_test_buffer_equal (PhocTestBuffer *buf1, PhocTestBuffer *buf2);

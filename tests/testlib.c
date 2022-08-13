@@ -24,7 +24,7 @@ abgr_to_argb (PhocTestBuffer *buffer)
 		 buffer->format == WL_SHM_FORMAT_XBGR8888);
   guint8 *data = buffer->shm_data;
 
-  for (int i = 0; i < buffer->height * buffer->stride / 4; i += 4) {
+  for (int i = 0; i < buffer->height * buffer->stride; i += 4) {
       guint32 *px = (guint32 *)(data + i);
       guint8 r, g, b, a;
 
@@ -248,13 +248,14 @@ foreign_toplevel_handle_closed (void *data,
 }
 
 static const struct zwlr_foreign_toplevel_handle_v1_listener foreign_toplevel_handle_listener = {
-  foreign_toplevel_handle_title,
-  foreign_toplevel_handle_app_id,
-  foreign_toplevel_handle_output_enter,
-  foreign_toplevel_handle_output_leave,
-  foreign_toplevel_handle_state,
-  foreign_toplevel_handle_done,
-  foreign_toplevel_handle_closed
+  .title = foreign_toplevel_handle_title,
+  .app_id = foreign_toplevel_handle_app_id,
+  .output_enter = foreign_toplevel_handle_output_enter,
+  .output_leave = foreign_toplevel_handle_output_leave,
+  .state = foreign_toplevel_handle_state,
+  .done = foreign_toplevel_handle_done,
+  .closed = foreign_toplevel_handle_closed,
+  .parent = NULL
 };
 
 
@@ -308,7 +309,7 @@ static void registry_handle_global(void *data, struct wl_registry *registry,
     xdg_wm_base_add_listener(globals->xdg_shell, &wm_base_listener, NULL);
   } else if (!g_strcmp0 (interface, zwlr_layer_shell_v1_interface.name)) {
     globals->layer_shell = wl_registry_bind (registry, name,
-					     &zwlr_layer_shell_v1_interface, 1);
+					     &zwlr_layer_shell_v1_interface, 2);
   } else if (!g_strcmp0 (interface, zwlr_screencopy_manager_v1_interface.name)) {
     globals->screencopy_manager = wl_registry_bind (registry, name,
 						    &zwlr_screencopy_manager_v1_interface, 1);
@@ -321,6 +322,9 @@ static void registry_handle_global(void *data, struct wl_registry *registry,
     globals->phosh = wl_registry_bind (registry, name, &phosh_private_interface, 6);
   } else if (!g_strcmp0 (interface, gtk_shell1_interface.name)) {
     globals->gtk_shell1 = wl_registry_bind (registry, name, &gtk_shell1_interface, 3);
+  } else if (!g_strcmp0 (interface, zphoc_layer_shell_effects_v1_interface.name)) {
+    globals->layer_shell_effects = wl_registry_bind (registry, name,
+                                                     &zphoc_layer_shell_effects_v1_interface, 1);
   }
 }
 
@@ -662,10 +666,11 @@ gboolean
 phoc_test_buffer_matches_screenshot (PhocTestBuffer *buffer, const gchar *filename)
 {
   const char *msg;
-  cairo_surface_t *surface = surface = cairo_image_surface_create_from_png (filename);
+  cairo_surface_t *surface = cairo_image_surface_create_from_png (filename);
   cairo_format_t format;
   guint32 *l, *r;
   guint32 mask = 0xFFFFFFFF;
+  int ret;
 
   g_assert_true (buffer->format == WL_SHM_FORMAT_XRGB8888
 		 || buffer->format == WL_SHM_FORMAT_ARGB8888);
@@ -705,7 +710,7 @@ phoc_test_buffer_matches_screenshot (PhocTestBuffer *buffer, const gchar *filena
   if (buffer->height != cairo_image_surface_get_height (surface) ||
       buffer->width != cairo_image_surface_get_width (surface) ||
       buffer->stride != cairo_image_surface_get_stride (surface)) {
-    g_debug ("Metadata mismatch");
+    g_test_message ("Metadata mismatch for %s", filename);
     return FALSE;
   }
 
@@ -713,13 +718,14 @@ phoc_test_buffer_matches_screenshot (PhocTestBuffer *buffer, const gchar *filena
   r = (guint32*)cairo_image_surface_get_data (surface);
   g_assert_nonnull (r);
 
+  ret = TRUE;
   for (int i = 0; i < buffer->height * buffer->stride / 4; i++) {
     if ((l[i] & mask) != (r[i] & mask)) {
-      g_debug ("Mismatch: %d: 0x%x 0x%x", i, l[i], r[i]);
-      return FALSE;
+      g_test_message ("Mismatch: %d: 0x%x 0x%x for %s", i, l[i], r[i], filename);
+      ret = FALSE;
     }
   }
-  return TRUE;
+  return ret;
 }
 
 void
@@ -730,4 +736,124 @@ phoc_test_buffer_free (PhocTestBuffer *buffer)
   munmap(buffer->shm_data, buffer->stride * buffer->height);
   wl_buffer_destroy(buffer->wl_buffer);
   buffer->valid = FALSE;
+}
+
+#define DEFAULT_WIDTH  100
+#define DEFAULT_HEIGHT 200
+
+static void
+xdg_toplevel_handle_configure(void *data, struct xdg_toplevel *xdg_toplevel,
+                              int32_t width, int32_t height,
+                              struct wl_array *states)
+{
+  PhocTestXdgToplevelSurface *xs = data;
+
+  g_debug ("Configured %p, size: %dx%d", xdg_toplevel, width, height);
+  g_assert_nonnull (xdg_toplevel);
+
+  xs->width = width ?: DEFAULT_WIDTH;
+  xs->height = height ?: DEFAULT_HEIGHT;
+  xs->toplevel_configured = TRUE;
+}
+
+static void
+xdg_surface_handle_configure(void *data, struct xdg_surface *xdg_surface,
+                             uint32_t serial)
+{
+  PhocTestXdgToplevelSurface *xs = data;
+
+  g_debug ("Configured %p serial %d", xdg_surface, serial);
+  xdg_surface_ack_configure(xs->xdg_surface, serial);
+  xs->configured = TRUE;
+}
+
+static const struct xdg_surface_listener xdg_surface_listener = {
+  xdg_surface_handle_configure,
+};
+
+static void
+xdg_toplevel_handle_close(void *data, struct xdg_toplevel *xdg_surface)
+{
+  /* TBD */
+}
+
+static const struct xdg_toplevel_listener xdg_toplevel_listener = {
+  xdg_toplevel_handle_configure,
+  xdg_toplevel_handle_close,
+};
+
+/**
+ * phoc_test_xdg_toplevel_new:
+ * @globals: The wayland globals
+ * @width: The desired surface width
+ * @height: The desired surface height
+ * @title: The desired title
+ * @color: Tehe color to fill the surface with
+ *
+ * Creates a xdg toplevel with the given property for use in tests.
+ * If width and/or height are 0, defaults will be used. Free with
+ * `phoc_test_xdg_toplevel_free`.
+ */
+PhocTestXdgToplevelSurface *
+phoc_test_xdg_toplevel_new (PhocTestClientGlobals *globals,
+                            guint32                width,
+                            guint32                height,
+                            const char            *title,
+                            guint32                color)
+{
+  PhocTestXdgToplevelSurface *xs = g_malloc0 (sizeof(PhocTestXdgToplevelSurface));
+
+  xs->wl_surface = wl_compositor_create_surface (globals->compositor);
+  g_assert_nonnull (xs->wl_surface);
+
+  xs->xdg_surface = xdg_wm_base_get_xdg_surface (globals->xdg_shell,
+                                                 xs->wl_surface);
+  g_assert_nonnull (xs->wl_surface);
+  xdg_surface_add_listener (xs->xdg_surface,
+                            &xdg_surface_listener, xs);
+  xs->xdg_toplevel = xdg_surface_get_toplevel (xs->xdg_surface);
+  g_assert_nonnull (xs->xdg_toplevel);
+  xdg_toplevel_add_listener (xs->xdg_toplevel,
+                             &xdg_toplevel_listener, xs);
+  xdg_toplevel_set_min_size (xs->xdg_toplevel, width ?: DEFAULT_WIDTH, height ?: DEFAULT_HEIGHT);
+  xs->title = g_strdup (title);
+  if (xs->title)
+    xdg_toplevel_set_title (xs->xdg_toplevel, xs->title);
+
+  wl_surface_commit (xs->wl_surface);
+  wl_display_dispatch (globals->display);
+  wl_display_roundtrip (globals->display);
+
+  g_assert_true (xs->configured);
+  g_assert_true (xs->toplevel_configured);
+
+  phoc_test_client_create_shm_buffer (globals, &xs->buffer, xs->width, xs->height,
+                                      WL_SHM_FORMAT_XRGB8888);
+
+  for (int i = 0; i < xs->width * xs->height * 4; i+=4)
+    *(guint32*)(xs->buffer.shm_data + i) = color;
+
+  wl_surface_attach (xs->wl_surface, xs->buffer.wl_buffer, 0, 0);
+  wl_surface_damage (xs->wl_surface, 0, 0, xs->width, xs->height);
+  wl_surface_commit (xs->wl_surface);
+  wl_display_dispatch (globals->display);
+  wl_display_roundtrip (globals->display);
+
+  if (title) {
+    xs->foreign_toplevel = phoc_test_client_get_foreign_toplevel_handle (globals, title);
+    g_assert_true (xs->foreign_toplevel);
+  }
+
+  return xs;
+}
+
+void
+phoc_test_xdg_toplevel_free (PhocTestXdgToplevelSurface *xs)
+{
+  xdg_toplevel_destroy (xs->xdg_toplevel);
+  xdg_surface_destroy (xs->xdg_surface);
+  wl_surface_destroy (xs->wl_surface);
+  phoc_test_buffer_free (&xs->buffer);
+  g_free (xs->title);
+  g_free (xs);
 }

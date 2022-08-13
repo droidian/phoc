@@ -8,7 +8,6 @@ License: GPL-3+
 
 Files: src/cursor.*
  src/desktop.*
- src/ini.*
  src/input.*
  src/keyboard.*
  src/layers.h
@@ -21,10 +20,8 @@ Files: src/cursor.*
  src/switch.*
  src/text_input.*
  src/view.*
- src/virtual_keyboard.*
  src/xcursor.h
  src/xdg_shell.c
- src/xdg_shell_v6.c
  src/xwayland.c
 Copyright: 2017, Drew DeVault
   2014, Jari Vetoniemi

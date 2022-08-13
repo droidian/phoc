@@ -14,7 +14,7 @@ variables:
         git meson ninja gnome-desktop-dev gobject-introspection-dev
         libinput-dev wayland-dev wayland-protocols libxkbcommon-dev wlroots-dev
   XVFB_RUN: xvfb-run -s -noreset
-  DEBIAN_IMAGE: $CI_REGISTRY/world/phosh/phoc/debian:v0.0.20211105
+  DEBIAN_IMAGE: $CI_REGISTRY/world/phosh/phoc/debian:v0.0.20220327.wlroots_0.15.1
 
 .build: &build
   script:
@@ -26,17 +26,23 @@ variables:
 
 .before_script_debian: &before_script_debian
   - rm -f ../* || true
+  - dpkg -l
 
 .before_script_alpine: &before_script_alpine
   - apk -q add alpine-sdk
   - apk -q add $ALPINE_EDGE_DEPS
+
+.before_script_pureos: &before_script_pureos
+  - echo "deb http://repo.pureos.net/pureos octarine main" > /etc/apt/sources.list.d/octarine.list
+  - apt-get -y update
+  - apt-get -y install -t octarine libwlroots-dev
 
 build-with-xwayland-debian-bookworm:
   stage: build
   image: ${DEBIAN_IMAGE}
   before_script: *before_script_debian
   variables:
-     BUILD_ARGS: -Dxwayland=enabled -Db_coverage=true
+     BUILD_ARGS: -Dembed-wlroots=disabled -Dxwayland=enabled -Db_coverage=true
   <<: *build
   artifacts:
     paths:
@@ -77,8 +83,8 @@ unit-test-with-xwayland-debian-bookworm:
     - build-with-xwayland-debian-bookworm
   before_script: *before_script_debian
   script:
-    - ${XVFB_RUN} ninja -C _build test
-    - ${XVFB_RUN} ninja -C _build coverage
+    - ${XVFB_RUN} meson test --print-errorlogs -C _build
+    - ninja -C _build coverage
   coverage: '/^\s+lines\.+:\s+([\d.]+\%)\s+/'
   artifacts:
     when: always
@@ -98,7 +104,8 @@ build-gtkdoc:
     - git clean -dfx
     - 'echo "Build opts: ${BUILD_ARGS}"'
     - meson . _build $BUILD_ARGS
-    - ninja -C _build
+    - ninja -C _build || true
+    - test -f _build/doc/phoc-*/index.html
     - mv _build/doc/phoc-*/ _reference/
   artifacts:
     paths:
@@ -110,6 +117,7 @@ build-gtkdoc:
 package-pureos-byzantium:arm64:
   variables:
     L5_DOCKER_IMAGE: pureos/byzantium
+  before_script: *before_script_pureos
   tags:
     - aarch64
   extends: .l5-build-debian-package
@@ -118,6 +126,7 @@ package-pureos-byzantium:sanitizers:arm64:
   variables:
     L5_DOCKER_IMAGE: pureos/byzantium
     DEB_BUILD_PROFILES: 'pkg.phoc.embedwlroots pkg.phoc.sanitizers'
+  before_script: *before_script_pureos
   tags:
     - aarch64
   when: manual

@@ -1,0 +1,11 @@
+#!/bin/bash
+#
+# Filter some warnings we don't want to fix atm out of
+# the doc build:
+
+DIR="${1:-_build}"
+
+meson compile -C "${DIR}" doc/phoc-doc |& \
+  grep -v -E '(return value: Invalid non-constant return of bare structure or union)'\
+'|(^/usr/include/wayland-server-core.h)' \
+'|(Unresolved type: .xkb_keysym_t)' -

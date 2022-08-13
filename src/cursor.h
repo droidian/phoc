@@ -7,7 +7,11 @@
 #pragma once
 
 #include <wlr/types/wlr_pointer_constraints_v1.h>
+#include <wlr/types/wlr_touch.h>
+#include <wlr/types/wlr_tablet_tool.h>
 #include "seat.h"
+#include "event.h"
+#include "gesture.h"
 
 #include <glib-object.h>
 
@@ -28,6 +32,18 @@ typedef enum {
 } PhocCursorMode;
 
 typedef struct _PhocSeatView PhocSeatView;
+
+/**
+ * PhocTouchPoint:
+ *
+ * A touch point tracked compositor side.
+ */
+typedef struct PhocTouchPoint {
+  int   touch_id;
+
+  double lx;
+  double ly;
+} PhocTouchPoint;
 
 /* TODO: we keep the struct public due to the list links and
    notifiers but we should avoid other member access */
@@ -69,6 +85,7 @@ typedef struct _PhocCursor {
   struct wl_listener                touch_down;
   struct wl_listener                touch_up;
   struct wl_listener                touch_motion;
+  struct wl_listener                touch_frame;
 
   struct wl_listener                tool_axis;
   struct wl_listener                tool_tip;
@@ -80,18 +97,11 @@ typedef struct _PhocCursor {
   struct wl_listener                focus_change;
 
   struct wl_listener                constraint_commit;
+
+
 } PhocCursor;
 
 PhocCursor *phoc_cursor_new (PhocSeat                                                    *seat);
-void        phoc_cursor_handle_motion (PhocCursor                                        *self,
-                                       struct wlr_event_pointer_motion                   *event);
-void        phoc_cursor_handle_motion_absolute (PhocCursor                               *self,
-                                                struct wlr_event_pointer_motion_absolute *event);
-void        phoc_cursor_handle_button (PhocCursor                                        *self,
-                                       struct wlr_event_pointer_button                   *event);
-void        phoc_cursor_handle_axis (PhocCursor                                          *self,
-                                     struct wlr_event_pointer_axis                       *event);
-void        phoc_cursor_handle_frame (PhocCursor                                         *self);
 void        phoc_cursor_handle_touch_down (PhocCursor                                    *self,
                                            struct wlr_event_touch_down                   *event);
 void        phoc_cursor_handle_touch_up (PhocCursor                                      *self,
@@ -115,3 +125,11 @@ void        phoc_cursor_constrain (PhocCursor                                   
 				   double                                                 sx,
 				   double                                                 sy);
 void        phoc_maybe_set_cursor (PhocCursor                                            *self);
+void        phoc_cursor_handle_event             (PhocCursor                             *self,
+                                                  PhocEventType                           type,
+                                                  gpointer                                event,
+                                                  gsize                                   size);
+
+void        phoc_cursor_add_gesture              (PhocCursor                             *self,
+                                                  PhocGesture                            *gesture);
+GSList     *phoc_cursor_get_gestures             (PhocCursor                             *self);

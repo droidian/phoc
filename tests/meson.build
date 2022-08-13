@@ -23,16 +23,20 @@ test_link_args = [
 ]
 
 tests = [
-  'server',
-  'run',
   'client',
   'layer-shell',
+  'layer-shell-effects',
+  'phosh-private',
+  'property-easer',
+  'run',
+  'server',
+  'utils',
   'xdg-shell',
-  'phosh-private'
 ]
 
 phoctest_sources = [
   'testlib.c',
+  'testlib-layer-shell.c',
 ]
 
 phoctest_lib = static_library('phoctest', phoctest_sources, client_protos_headers,

@@ -4,35 +4,26 @@
  * Author: Guido Günther <agx@sigxcpu.org>
  */
 
+#include "desktop.h"
+#include <wlr/types/wlr_surface.h>
+#include <wayland-server-core.h>
+
 #pragma once
 
 G_BEGIN_DECLS
 
-typedef struct _PhocGtkShell {
-  struct wl_global *global;
-  GSList *resources;
-  GSList *surfaces;
+typedef struct _PhocGtkShell PhocGtkShell;
+typedef struct _PhocGtkSurface PhocGtkSurface;
 
-} PhocGtkShell;
+typedef struct _PhocDesktop PhocDesktop;
+PhocGtkShell   *phoc_gtk_shell_create                           (PhocDesktop        *desktop,
+                                                                 struct wl_display  *display);
+void            phoc_gtk_shell_destroy                          (PhocGtkShell       *gtk_shell);
+PhocGtkSurface *phoc_gtk_shell_get_gtk_surface_from_wlr_surface (PhocGtkShell       *self,
+                                                                 struct wlr_surface *wlr_surface);
+PhocGtkShell   *phoc_gtk_shell_from_resource                    (struct wl_resource *resource);
 
-typedef struct PhocGtkSurface {
-  struct wl_resource *resource;
-  struct wlr_surface *wlr_surface;
-  PhocGtkShell *gtk_shell;
-  char *app_id;
-
-  struct wl_listener wlr_surface_handle_destroy;
-
-  struct {
-    struct wl_signal destroy;
-  } events;
-} PhocGtkSurface;
-
-PhocGtkShell *phoc_gtk_shell_create(PhocDesktop *desktop,
-				    struct wl_display *display);
-void phoc_gtk_shell_destroy(PhocGtkShell *gtk_shell);
-PhocGtkSurface *phoc_gtk_shell_get_gtk_surface_from_wlr_surface (PhocGtkShell *self, struct wlr_surface *wlr_surface);
-PhocGtkShell *phoc_gtk_shell_from_resource(struct wl_resource *resource);
-PhocGtkSurface *gtk_surface_from_resource(struct wl_resource *resource);
+PhocGtkSurface *phoc_gtk_surface_from_resource                  (struct wl_resource *resource);
+const char     *phoc_gtk_surface_get_app_id                     (PhocGtkSurface     *gtk_surface);
 
 G_END_DECLS

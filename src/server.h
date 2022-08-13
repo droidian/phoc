@@ -9,10 +9,6 @@
 #include <wlr/render/interface.h>
 #include <wlr/types/wlr_compositor.h>
 #include <wlr/types/wlr_data_device.h>
-#ifdef PHOC_XWAYLAND
-#include <wlr/xwayland.h>
-#include <xcb/xproto.h>
-#endif
 #include "settings.h"
 #include "desktop.h"
 #include "input.h"
@@ -35,19 +31,26 @@ typedef enum _PhocServerFlags {
 
 typedef enum _PhocServerDebugFlags {
   PHOC_SERVER_DEBUG_FLAG_NONE = 0,
-  PHOC_SERVER_DEBUG_FLAG_DAMAGE_TRACKING = 1 << 0,
-  PHOC_SERVER_DEBUG_FLAG_TOUCH_POINTS = 1 << 1,
-  PHOC_SERVER_DEBUG_FLAG_NO_QUIT = 1 << 2,
-  PHOC_SERVER_DEBUG_FLAG_AUTO_MAXIMIZE = 1 << 3,
+  PHOC_SERVER_DEBUG_FLAG_AUTO_MAXIMIZE =   1 << 0,
+  PHOC_SERVER_DEBUG_FLAG_DAMAGE_TRACKING = 1 << 1,
+  PHOC_SERVER_DEBUG_FLAG_NO_QUIT =         1 << 2,
+  PHOC_SERVER_DEBUG_FLAG_TOUCH_POINTS =    1 << 3,
 } PhocServerDebugFlags;
 
+/**
+ * PhocServer:
+ *
+ * The server singleton.
+ *
+ * Maintains the compositors state.
+ */
 /* TODO: we keep the struct public due to heaps of direct access
    which will be replaced by getters and setters over time */
 struct _PhocServer {
   GObject parent;
 
   /* Phoc resources */
-  struct roots_config *config;
+  PhocConfig *config;
   PhocDesktop *desktop;
   PhocInput *input;
   PhocServerFlags flags;
@@ -73,18 +76,14 @@ struct _PhocServer {
 
   /* Global resources */
   struct wlr_data_device_manager *data_device_manager;
-
-  /* Fader */
-  gulong render_shield_id;
-  gulong damage_shield_id;
-  float fader_t;
 };
 
-PhocServer *phoc_server_get_default (void);
-gboolean phoc_server_setup (PhocServer *server, const char *config_path,
-			    const char *exec, GMainLoop *mainloop,
-                            PhocServerFlags flags,
-			    PhocServerDebugFlags debug_flags);
-gint phoc_server_get_session_exit_status (PhocServer *self);
+PhocServer  *phoc_server_get_default (void);
+gboolean     phoc_server_setup (PhocServer *server, const char *config_path,
+                                const char *exec, GMainLoop *mainloop,
+                                PhocServerFlags flags,
+                                PhocServerDebugFlags debug_flags);
+gint          phoc_server_get_session_exit_status (PhocServer *self);
+PhocRenderer *phoc_server_get_renderer (PhocServer *self);
 
 G_END_DECLS

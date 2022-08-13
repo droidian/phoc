@@ -24,6 +24,13 @@ typedef struct _PhocCursor PhocCursor;
 typedef struct _PhocDragIcon PhocDragIcon;
 typedef struct _PhocTablet PhocTablet;
 
+/**
+ * PhocSeat:
+ * @im_relay: The input method relay for this seat
+ *
+ * Represents a seat
+ */
+
 /* TODO: we keep the struct public due to the list links and
    notifiers but we should avoid other member access */
 typedef struct _PhocSeat {
@@ -42,7 +49,7 @@ typedef struct _PhocSeat {
   // If the focused layer is set, views cannot receive keyboard focus
   struct wlr_layer_surface_v1    *focused_layer;
 
-  struct roots_input_method_relay im_relay;
+  PhocInputMethodRelay            im_relay;
 
   // If non-null, only this client can receive input events
   struct wl_client               *exclusive_client;
@@ -70,7 +77,7 @@ typedef struct _PhocSeat {
 
 typedef struct _PhocSeatView {
   PhocSeat          *seat;
-  struct roots_view *view;
+  PhocView          *view;
 
   bool               has_button_grab;
   double             grab_sx;
@@ -145,24 +152,23 @@ void               phoc_seat_configure_xcursor (PhocSeat *seat);
 
 bool               phoc_seat_has_meta_pressed (PhocSeat *seat);
 
-struct roots_view *phoc_seat_get_focus (PhocSeat *seat);
+PhocView          *phoc_seat_get_focus (PhocSeat *seat);
 
-void               phoc_seat_set_focus (PhocSeat *seat, struct roots_view *view);
+void               phoc_seat_set_focus (PhocSeat *seat, PhocView *view);
 
 void               phoc_seat_set_focus_layer (PhocSeat                    *seat,
                                               struct wlr_layer_surface_v1 *layer);
 
 void               phoc_seat_cycle_focus (PhocSeat *seat);
 
-void               phoc_seat_begin_move (PhocSeat *seat, struct roots_view *view);
+void               phoc_seat_begin_move (PhocSeat *seat, PhocView *view);
 
-void               phoc_seat_begin_resize (PhocSeat *seat, struct roots_view *view,
+void               phoc_seat_begin_resize (PhocSeat *seat, PhocView *view,
                                            uint32_t edges);
 
 void               phoc_seat_end_compositor_grab (PhocSeat *seat);
 
-PhocSeatView      *phoc_seat_view_from_view (PhocSeat          *seat,
-                                             struct roots_view *view);
+PhocSeatView      *phoc_seat_view_from_view (PhocSeat *seat, PhocView *view);
 
 void               phoc_drag_icon_update_position (PhocDragIcon *icon);
 
@@ -175,3 +181,7 @@ bool               phoc_seat_allow_input (PhocSeat           *seat,
                                           struct wl_resource *resource);
 
 void               phoc_seat_maybe_set_cursor (PhocSeat *self, const char *name);
+
+gboolean           phoc_seat_has_touch    (PhocSeat *self);
+gboolean           phoc_seat_has_pointer  (PhocSeat *self);
+gboolean           phoc_seat_has_keyboard (PhocSeat *self);

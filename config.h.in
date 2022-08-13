@@ -6,6 +6,10 @@
 #pragma once
 
 #mesondefine PHOC_VERSION
+
+/* Whether xwayland is enabled */
 #mesondefine PHOC_XWAYLAND
-#mesondefine PHOC_HAVE_WLR_SET_STARTUP_ID
-#mesondefine PHOC_HAVE_WLR_REMOVE_STARTUP_INFO
+
+/* Whether we have needed functions for toch gesture cancel */
+/* Can be dropped with wlroots 0.16                         */
+#mesondefine PHOC_HAVE_WLR_SEAT_TOUCH_NOTIFY_CANCEL
