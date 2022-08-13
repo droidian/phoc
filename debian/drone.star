@@ -7,9 +7,7 @@
 # builds, i.e. arch-dep, arch-indep and source.
 # Following architectures buildds will be used only for arch-dep builds.
 BUILD_ON = [
-	"amd64",
 	"arm64",
-	"armhf",
 ]
 
 # Extra Debian repositories to add. These can be used to pull packages
@@ -148,6 +146,7 @@ def debian_package_build(suite, architecture, full_build=True, extra_repos=[], h
 					},
 				],
 				"commands" : [
+					"rm -f /etc/apt/preferences.d/10-droidian",
 					"releng-build-package",
 					"find /drone -type f -maxdepth 1 -exec mv {} /buildd \\\;",
 				],

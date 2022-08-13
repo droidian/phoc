@@ -1,4 +1,0 @@
-[submodule "subprojects/wlroots"]
-	path = subprojects/wlroots
-	url = https://source.puri.sm/Librem5/wlroots.git
-	branch = master
