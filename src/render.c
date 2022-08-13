@@ -549,7 +549,7 @@ view_render_iterator (struct wlr_surface *surface, int sx, int sy, void *_data)
 gboolean
 phoc_renderer_render_view_to_buffer (PhocRenderer *self,
                                      PhocView     *view,
-                                     enum wl_shm_format fmt
+                                     enum wl_shm_format fmt,
                                      int           width,
                                      int           height,
                                      int           stride,
@@ -557,7 +557,6 @@ phoc_renderer_render_view_to_buffer (PhocRenderer *self,
                                      void         *data)
 {
   PhocServer *server = phoc_server_get_default ();
-  PhocRenderer *self = server->renderer;
   struct wlr_surface *surface = view->wlr_surface;
   struct wlr_egl *egl = wlr_gles2_renderer_get_egl (self->wlr_renderer);
   GLuint tex, fbo;

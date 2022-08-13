@@ -221,10 +221,11 @@ view_appear_activated (PhocView *view, bool activated)
     PHOC_VIEW_GET_CLASS (view)->set_active (view, activated);
 }
 
-<<<<<<< HEAD
 void view_activate(PhocView *view, bool activate) {
+	PhocViewPrivate *priv = phoc_view_get_instance_private (view);
+
 	/* UGLY: waydroid windows always need the activate signal */
-	if ((view->app_id && g_str_has_prefix (view->app_id, "waydroid.")) ||
+	if ((priv->app_id && g_str_has_prefix (priv->app_id, "waydroid.")) ||
 		!view->desktop->maximize) {
 		view_appear_activated(view, activate);
 	}
