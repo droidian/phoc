@@ -7,6 +7,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <time.h>
+#include <wlr/version.h>
 #include <wlr/backend/drm.h>
 #include <wlr/config.h>
 #include <wlr/types/wlr_compositor.h>
@@ -306,7 +307,11 @@ phoc_output_constructed (GObject *object)
   self->mode.notify = phoc_output_handle_mode;
   wl_signal_add (&self->wlr_output->events.mode, &self->mode);
   self->commit.notify = phoc_output_handle_commit;
+#if WLR_VERSION_MAJOR == 0 && WLR_VERSION_MINOR > 12
   wl_signal_add (&self->wlr_output->events.commit, &self->commit);
+#else
+  wl_signal_add (&self->wlr_output->events.transform, &self->commit);
+#endif
 
   self->damage_frame.notify = phoc_output_damage_handle_frame;
   wl_signal_add (&self->damage->events.frame, &self->damage_frame);

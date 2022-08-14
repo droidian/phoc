@@ -440,7 +440,7 @@ thumbnail_frame_handle_copy (struct wl_client   *wl_client,
   void *data = wl_shm_buffer_get_data (frame->buffer);
 
   uint32_t renderer_flags = 0;
-  if (!phoc_renderer_render_view_to_buffer (self, view, width, height, stride, &renderer_flags, data)) {
+  if (!phoc_renderer_render_view_to_buffer (self, view, fmt, width, height, stride, &renderer_flags, data)) {
     wl_shm_buffer_end_access (frame->buffer);
     zwlr_screencopy_frame_v1_send_failed (frame->resource);
     return;

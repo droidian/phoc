@@ -13,6 +13,7 @@
 #include "server.h"
 
 #include <wlr/xwayland.h>
+#include <wlr/version.h>
 
 #include <errno.h>
 
@@ -249,7 +250,11 @@ phoc_server_initable_init (GInitable    *initable,
     return FALSE;
   }
 
+#if WLR_VERSION_MAJOR == 0 && WLR_VERSION_MINOR > 12
   self->backend = wlr_backend_autocreate(self->wl_display);
+#else
+  self->backend = wlr_backend_autocreate(self->wl_display, NULL);
+#endif
   if (self->backend == NULL) {
     g_set_error (error,
                  G_FILE_ERROR, G_FILE_ERROR_FAILED,

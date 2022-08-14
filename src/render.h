@@ -21,6 +21,7 @@ PhocRenderer *phoc_renderer_new (struct wlr_renderer *wlr_renderer);
 void          phoc_renderer_render_output (PhocRenderer *self, PhocOutput *output);
 gboolean      phoc_renderer_render_view_to_buffer (PhocRenderer *self,
                                                    PhocView     *view,
+                                                   enum wl_shm_format shm_fmt,
                                                    int           width,
                                                    int           height,
                                                    int           stride,

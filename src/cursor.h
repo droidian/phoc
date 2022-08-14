@@ -7,8 +7,11 @@
 #pragma once
 
 #include <wlr/types/wlr_pointer_constraints_v1.h>
+#include <wlr/version.h>
+#if WLR_VERSION_MAJOR == 0 && WLR_VERSION_MINOR > 12
 #include <wlr/types/wlr_touch.h>
 #include <wlr/types/wlr_tablet_tool.h>
+#endif
 #include "seat.h"
 
 #include <glib-object.h>

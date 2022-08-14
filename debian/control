@@ -16,7 +16,7 @@ Build-Depends:
  wayland-protocols,
  libgirepository1.0-dev <!nodoc>,
  libxcb1-dev,
- libwlroots-dev (>= 0.14.0) <!pkg.phoc.embedwlroots>,
+ libwlroots-dev (>= 0.12.0) <!pkg.phoc.embedwlroots>,
  libwlroots-dev (<< 0.15.0) <!pkg.phoc.embedwlroots>,
  python3-jinja2 <!nodoc>,
  python3-pygments <!nodoc>,
