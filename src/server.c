@@ -12,6 +12,8 @@
 #include "seat.h"
 #include "server.h"
 
+#include <wlr/xwayland.h>
+
 #include <errno.h>
 
 /* FIXME */
@@ -213,18 +215,18 @@ on_shell_state_changed (PhocServer *self, GParamSpec *pspec, PhocPhoshPrivate *p
   switch (state) {
   case PHOC_PHOSH_PRIVATE_SHELL_STATE_UP:
     if (self->render_shield_id) {
-      self->damage_shield_id =  g_signal_connect_object (self->renderer, "render-start",
-                                                         G_CALLBACK (damage_shield),
-                                                         self, G_CONNECT_SWAPPED);
+      self->damage_shield_id = g_signal_connect_object (self->renderer, "render-start",
+                                                        G_CALLBACK (damage_shield),
+                                                        self, G_CONNECT_SWAPPED);
     }
     break;
   case PHOC_PHOSH_PRIVATE_SHELL_STATE_UNKNOWN:
   default:
     /* TODO: prevent input without a shell attached */
     self->fader_t = 0.0f;
-    self->render_shield_id =  g_signal_connect_object (self->renderer, "render-end",
-                                                       G_CALLBACK (render_shield),
-                                                       self, G_CONNECT_SWAPPED);
+    self->render_shield_id = g_signal_connect_object (self->renderer, "render-end",
+                                                      G_CALLBACK (render_shield),
+                                                      self, G_CONNECT_SWAPPED);
     wl_list_for_each (output, &self->desktop->outputs, link)
       phoc_output_damage_whole (output);
   }
@@ -247,7 +249,7 @@ phoc_server_initable_init (GInitable    *initable,
     return FALSE;
   }
 
-  self->backend = wlr_backend_autocreate(self->wl_display, NULL);
+  self->backend = wlr_backend_autocreate(self->wl_display);
   if (self->backend == NULL) {
     g_set_error (error,
                  G_FILE_ERROR, G_FILE_ERROR_FAILED,
@@ -325,6 +327,8 @@ phoc_server_finalize (GObject *object)
     self->inited = FALSE;
   }
 
+  g_clear_pointer (&self->config, phoc_config_destroy);
+
   wl_display_destroy (self->wl_display);
   G_OBJECT_CLASS (phoc_server_parent_class)->finalize (object);
 }
@@ -387,9 +391,9 @@ phoc_server_setup (PhocServer *self, const char *config_path,
 {
   g_assert (!self->inited);
 
-  self->config = roots_config_create(config_path);
+  self->config = phoc_config_create (config_path);
   if (!self->config) {
-    g_warning("Failed to parse config");
+    /* phoc_config_create printed an error */
     return FALSE;
   }
 
@@ -418,10 +422,10 @@ phoc_server_setup (PhocServer *self, const char *config_path,
     return FALSE;
   }
 
-  setenv("WAYLAND_DISPLAY", socket, true);
+  g_setenv("WAYLAND_DISPLAY", socket, true);
 #ifdef PHOC_XWAYLAND
   if (self->desktop->xwayland != NULL) {
-    PhocSeat *xwayland_seat = phoc_input_get_seat(self->input, ROOTS_CONFIG_DEFAULT_SEAT_NAME);
+    PhocSeat *xwayland_seat = phoc_input_get_seat(self->input, PHOC_CONFIG_DEFAULT_SEAT_NAME);
     wlr_xwayland_set_seat(self->desktop->xwayland, xwayland_seat->seat);
   }
 #endif
@@ -455,4 +459,17 @@ gint
 phoc_server_get_session_exit_status (PhocServer *self)
 {
   return self->exit_status;
+}
+
+/**
+ * phoc_server_get_renderer:
+ *
+ * Returns: (transfer none): The renderer
+ */
+PhocRenderer *
+phoc_server_get_renderer (PhocServer *self)
+{
+  g_assert (PHOC_IS_SERVER (self));
+
+  return self->renderer;
 }

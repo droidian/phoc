@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include "output.h"
+
 #include <wlr/types/wlr_layer_shell_v1.h>
 #include <glib-object.h>
 
@@ -26,7 +28,7 @@ struct _PhocLayerSurface {
     GObject parent;
 
     struct wlr_layer_surface_v1 *layer_surface;
-    struct wl_list link;
+    struct wl_list link; // PhocOutput::layers[current]
 
     struct wl_listener destroy;
     struct wl_listener map;
@@ -43,5 +45,7 @@ struct _PhocLayerSurface {
 
 PhocLayerSurface *phoc_layer_surface_new (void);
 void              phoc_layer_surface_unmap (PhocLayerSurface *self);
+const char       *phoc_layer_surface_get_namespace (PhocLayerSurface *self);
+PhocOutput       *phoc_layer_surface_get_output (PhocLayerSurface *self);
 
 G_END_DECLS

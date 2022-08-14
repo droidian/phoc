@@ -2,7 +2,9 @@ FROM debian:bookworm-slim
 
 
 RUN export DEBIAN_FRONTEND=noninteractive \
+   && echo "deb http://deb.debian.org/debian/ experimental main" >> /etc/apt/sources.list.d/exp.list \
    && apt-get -y update \
+   && apt-get -y install --no-install-recommends libwlroots-dev/experimental \
    && apt-get -y install --no-install-recommends wget ca-certificates gnupg eatmydata \
    && eatmydata apt-get -y update \
    && cd /home/user/app \

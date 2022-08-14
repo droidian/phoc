@@ -13,7 +13,7 @@
 #include <wlr/types/wlr_data_control_v1.h>
 #include <wlr/types/wlr_export_dmabuf_v1.h>
 #include <wlr/types/wlr_gamma_control_v1.h>
-#include <wlr/types/wlr_gtk_primary_selection.h>
+#include <wlr/types/wlr_primary_selection_v1.h>
 #include <wlr/types/wlr_idle.h>
 #include <wlr/types/wlr_input_inhibitor.h>
 #include <wlr/types/wlr_layer_shell_v1.h>
@@ -22,11 +22,14 @@
 #include <wlr/types/wlr_pointer_constraints_v1.h>
 #include <wlr/types/wlr_server_decoration.h>
 #include <wlr/types/wlr_tablet_v2.h>
+#include <wlr/types/wlr_viewporter.h>
 #include <wlr/types/wlr_xcursor_manager.h>
+#include <wlr/types/wlr_xdg_foreign_registry.h>
+#include <wlr/types/wlr_xdg_foreign_v1.h>
+#include <wlr/types/wlr_xdg_foreign_v2.h>
 #include <wlr/types/wlr_xdg_output_v1.h>
 #include <wlr/types/wlr_xdg_output_v1.h>
 #include <wlr/types/wlr_xdg_shell.h>
-#include <wlr/util/log.h>
 #include <wlr/version.h>
 #include "cursor.h"
 #include "layers.h"
@@ -37,7 +40,10 @@
 #include "view.h"
 #include "virtual.h"
 #include "xcursor.h"
+#include "xdg-activation-v1.h"
 #include "wlr-layer-shell-unstable-v1-protocol.h"
+
+#include "xdg-surface.h"
 
 /**
  * PhocDesktop:
@@ -94,9 +100,9 @@ phoc_desktop_get_property (GObject    *object,
 }
 
 
-static bool view_at(struct roots_view *view, double lx, double ly,
+static bool view_at(PhocView *view, double lx, double ly,
 		struct wlr_surface **surface, double *sx, double *sy) {
-	if (view->wlr_surface == NULL) {
+	if (!phoc_view_is_mapped (view)) {
 		return false;
 	}
 
@@ -106,14 +112,13 @@ static bool view_at(struct roots_view *view, double lx, double ly,
 	double _sx, _sy;
 	struct wlr_surface *_surface = NULL;
 	switch (view->type) {
-	case ROOTS_XDG_SHELL_VIEW:;
-		struct roots_xdg_surface *xdg_surface =
-			roots_xdg_surface_from_view(view);
+	case PHOC_XDG_SHELL_VIEW:;
+		PhocXdgSurface *xdg_surface = phoc_xdg_surface_from_view(view);
 		_surface = wlr_xdg_surface_surface_at(xdg_surface->xdg_surface,
 			view_sx, view_sy, &_sx, &_sy);
 		break;
 #ifdef PHOC_XWAYLAND
-	case ROOTS_XWAYLAND_VIEW:
+	case PHOC_XWAYLAND_VIEW:
 		_surface = wlr_surface_surface_at(view->wlr_surface,
 			view_sx, view_sy, &_sx, &_sy);
 		break;
@@ -138,10 +143,10 @@ static bool view_at(struct roots_view *view, double lx, double ly,
 	return false;
 }
 
-static struct roots_view *desktop_view_at(PhocDesktop *desktop,
+static PhocView *desktop_view_at(PhocDesktop *desktop,
 		double lx, double ly, struct wlr_surface **surface,
 		double *sx, double *sy) {
-	struct roots_view *view;
+	PhocView *view;
 	wl_list_for_each(view, &desktop->views, link) {
 		if (phoc_desktop_view_is_visible(desktop, view) && view_at(view, lx, ly, surface, sx, sy)) {
 			return view;
@@ -153,34 +158,34 @@ static struct roots_view *desktop_view_at(PhocDesktop *desktop,
 static struct wlr_surface *layer_surface_at(struct wl_list *layer, double ox,
                                              double oy, double *sx, double *sy)
 {
-	PhocLayerSurface *roots_surface;
+	PhocLayerSurface *layer_surface;
 
-	wl_list_for_each_reverse(roots_surface, layer, link) {
-		if (roots_surface->layer_surface->current.exclusive_zone <= 0) {
+	wl_list_for_each_reverse(layer_surface, layer, link) {
+		if (layer_surface->layer_surface->current.exclusive_zone <= 0) {
 			continue;
 		}
 
-		double _sx = ox - roots_surface->geo.x;
-		double _sy = oy - roots_surface->geo.y;
+		double _sx = ox - layer_surface->geo.x;
+		double _sy = oy - layer_surface->geo.y;
 
 		struct wlr_surface *sub = wlr_layer_surface_v1_surface_at(
-			roots_surface->layer_surface, _sx, _sy, sx, sy);
+			layer_surface->layer_surface, _sx, _sy, sx, sy);
 
 		if (sub) {
 			return sub;
 		}
 	}
 
-	wl_list_for_each(roots_surface, layer, link) {
-		if (roots_surface->layer_surface->current.exclusive_zone > 0) {
+	wl_list_for_each(layer_surface, layer, link) {
+		if (layer_surface->layer_surface->current.exclusive_zone > 0) {
 			continue;
 		}
 
-		double _sx = ox - roots_surface->geo.x;
-		double _sy = oy - roots_surface->geo.y;
+		double _sx = ox - layer_surface->geo.x;
+		double _sy = oy - layer_surface->geo.y;
 
 		struct wlr_surface *sub = wlr_layer_surface_v1_surface_at(
-			roots_surface->layer_surface, _sx, _sy, sx, sy);
+			layer_surface->layer_surface, _sx, _sy, sx, sy);
 
 		if (sub) {
 			return sub;
@@ -197,7 +202,7 @@ static struct wlr_surface *layer_surface_at(struct wl_list *layer, double ox,
  * @ly: Y coordinate the surface to look up at in layout coordinates
  * @sx: (out) (not nullable): Surface-local x coordinate
  * @sy: (out) (not nullable): Surface-local y coordinate
- * @view: (out) (optional): The corresponding [struct@Phoc.View]
+ * @view: (out) (optional): The corresponding [class@Phoc.View]
  *
  * Looks up the surface at `lx,ly` and returns the topmost surface at
  * that position (if any) and the surface-local coordinates of `sx,sy`
@@ -207,7 +212,7 @@ static struct wlr_surface *layer_surface_at(struct wl_list *layer, double ox,
  */
 struct wlr_surface *phoc_desktop_surface_at(PhocDesktop *desktop,
 		double lx, double ly, double *sx, double *sy,
-		struct roots_view **view) {
+		PhocView **view) {
 	struct wlr_surface *surface = NULL;
 	struct wlr_output *wlr_output =
 		wlr_output_layout_output_at(desktop->layout, lx, ly);
@@ -252,7 +257,7 @@ struct wlr_surface *phoc_desktop_surface_at(PhocDesktop *desktop,
 		}
 	}
 
-	struct roots_view *_view;
+	PhocView *_view;
 	if ((_view = desktop_view_at(desktop, lx, ly, &surface, sx, sy))) {
 		if (view) {
 			*view = _view;
@@ -274,9 +279,9 @@ struct wlr_surface *phoc_desktop_surface_at(PhocDesktop *desktop,
 }
 
 gboolean
-phoc_desktop_view_is_visible (PhocDesktop *desktop, struct roots_view *view)
+phoc_desktop_view_is_visible (PhocDesktop *desktop, PhocView *view)
 {
-  if (!view->wlr_surface) {
+  if (!phoc_view_is_mapped (view)) {
     return false;
   }
 
@@ -291,18 +296,18 @@ phoc_desktop_view_is_visible (PhocDesktop *desktop, struct roots_view *view)
     return true;
   }
 
-  struct roots_view *top_view = wl_container_of (desktop->views.next, view, link);
+  PhocView *top_view = wl_container_of (desktop->views.next, view, link);
 
 #ifdef PHOC_XWAYLAND
-  // XWayland parent relations can be complicated and aren't described by roots_view
+  // XWayland parent relations can be complicated and aren't described by PhocView
   // relationships very well at the moment, so just make all XWayland windows visible
   // when some XWayland window is active for now
-  if (view->type == ROOTS_XWAYLAND_VIEW && top_view->type == ROOTS_XWAYLAND_VIEW) {
+  if (view->type == PHOC_XWAYLAND_VIEW && top_view->type == PHOC_XWAYLAND_VIEW) {
     return true;
   }
 #endif
 
-  struct roots_view *v = top_view;
+  PhocView *v = top_view;
   while (v) {
     if (v == view) {
       return true;
@@ -323,7 +328,7 @@ handle_layout_change (struct wl_listener *listener, void *data)
   struct wlr_output *center_output;
   struct wlr_box *center_output_box;
   double center_x, center_y;
-  struct roots_view *view;
+  PhocView *view;
   PhocOutput *output;
 
   self = wl_container_of (listener, self, layout_change);
@@ -395,7 +400,7 @@ static void handle_constraint_destroy(struct wl_listener *listener,
 		if (wlr_constraint->current.committed &
 				WLR_POINTER_CONSTRAINT_V1_STATE_CURSOR_HINT &&
 				cursor->pointer_view) {
-			struct roots_view *view = cursor->pointer_view->view;
+			PhocView *view = cursor->pointer_view->view;
 			double lx = view->box.x + wlr_constraint->current.cursor_hint.x;
 			double ly = view->box.y + wlr_constraint->current.cursor_hint.y;
 
@@ -548,12 +553,64 @@ handle_new_output (struct wl_listener *listener, void *data)
 			  NULL);
 }
 
+
+static void
+phoc_desktop_setup_xwayland (PhocDesktop *self)
+{
+#ifdef PHOC_XWAYLAND
+  const char *cursor_default = PHOC_XCURSOR_DEFAULT;
+  PhocConfig *config = self->config;
+  PhocServer *server = phoc_server_get_default ();
+
+  self->xcursor_manager = wlr_xcursor_manager_create(NULL, PHOC_XCURSOR_SIZE);
+  g_return_if_fail (self->xcursor_manager);
+
+  if (config->xwayland) {
+    self->xwayland = wlr_xwayland_create(server->wl_display,
+					 server->compositor, config->xwayland_lazy);
+    if (!self->xwayland) {
+      g_critical ("Failed to initialize Xwayland");
+      g_unsetenv ("DISPLAY");
+      return;
+    }
+
+    wl_signal_add(&self->xwayland->events.new_surface,
+		  &self->xwayland_surface);
+    self->xwayland_surface.notify = handle_xwayland_surface;
+
+    wl_signal_add(&self->xwayland->events.ready,
+		  &self->xwayland_ready);
+    self->xwayland_ready.notify = handle_xwayland_ready;
+
+#ifdef PHOC_HAVE_WLR_REMOVE_STARTUP_INFO
+    wl_signal_add(&self->xwayland->events.remove_startup_info,
+		  &self->xwayland_remove_startup_id);
+    self->xwayland_remove_startup_id.notify = handle_xwayland_remove_startup_id;
+#endif
+
+    g_setenv ("DISPLAY", self->xwayland->display_name, true);
+
+    if (!wlr_xcursor_manager_load(self->xcursor_manager, 1))
+      g_critical ("Cannot load XWayland XCursor theme");
+
+    struct wlr_xcursor *xcursor = wlr_xcursor_manager_get_xcursor(
+								  self->xcursor_manager, cursor_default, 1);
+    if (xcursor != NULL) {
+      struct wlr_xcursor_image *image = xcursor->images[0];
+      wlr_xwayland_set_cursor(self->xwayland, image->buffer,
+			      image->width * 4, image->width, image->height, image->hotspot_x,
+			      image->hotspot_y);
+    }
+  }
+#endif
+}
+
+
 static void
 phoc_desktop_constructed (GObject *object)
 {
   PhocDesktop *self = PHOC_DESKTOP (object);
   PhocServer *server = phoc_server_get_default ();
-  struct roots_config *config = self->config;
 
   G_OBJECT_CLASS (phoc_desktop_parent_class)->constructed (object);
 
@@ -580,56 +637,12 @@ phoc_desktop_constructed (GObject *object)
 
   self->tablet_v2 = wlr_tablet_v2_create(server->wl_display);
 
-  const char *cursor_theme = NULL;
-#ifdef PHOC_XWAYLAND
-  const char *cursor_default = PHOC_XCURSOR_DEFAULT;
-#endif
-
   char cursor_size_fmt[16];
   snprintf(cursor_size_fmt, sizeof(cursor_size_fmt),
 	   "%d", PHOC_XCURSOR_SIZE);
-  setenv("XCURSOR_SIZE", cursor_size_fmt, 1);
-  if (cursor_theme != NULL) {
-    setenv("XCURSOR_THEME", cursor_theme, 1);
-  }
+  g_setenv("XCURSOR_SIZE", cursor_size_fmt, 1);
 
-#ifdef PHOC_XWAYLAND
-  self->xcursor_manager = wlr_xcursor_manager_create(cursor_theme,
-						     PHOC_XCURSOR_SIZE);
-  g_return_if_fail (self->xcursor_manager);
-
-  if (config->xwayland) {
-    self->xwayland = wlr_xwayland_create(server->wl_display,
-					 server->compositor, config->xwayland_lazy);
-    wl_signal_add(&self->xwayland->events.new_surface,
-		  &self->xwayland_surface);
-    self->xwayland_surface.notify = handle_xwayland_surface;
-
-    wl_signal_add(&self->xwayland->events.ready,
-		  &self->xwayland_ready);
-    self->xwayland_ready.notify = handle_xwayland_ready;
-
-#ifdef PHOC_HAVE_WLR_REMOVE_STARTUP_INFO
-    wl_signal_add(&self->xwayland->events.remove_startup_info,
-		  &self->xwayland_remove_startup_id);
-    self->xwayland_remove_startup_id.notify = handle_xwayland_remove_startup_id;
-#endif
-
-    setenv("DISPLAY", self->xwayland->display_name, true);
-
-    if (!wlr_xcursor_manager_load(self->xcursor_manager, 1)) {
-      wlr_log(WLR_ERROR, "Cannot load XWayland XCursor theme");
-    }
-    struct wlr_xcursor *xcursor = wlr_xcursor_manager_get_xcursor(
-								  self->xcursor_manager, cursor_default, 1);
-    if (xcursor != NULL) {
-      struct wlr_xcursor_image *image = xcursor->images[0];
-      wlr_xwayland_set_cursor(self->xwayland, image->buffer,
-			      image->width * 4, image->width, image->height, image->hotspot_x,
-			      image->hotspot_y);
-    }
-  }
-#endif
+  phoc_desktop_setup_xwayland (self);
 
   self->gamma_control_manager_v1 = wlr_gamma_control_manager_v1_create(server->wl_display);
   self->export_dmabuf_manager_v1 =
@@ -640,7 +653,7 @@ phoc_desktop_constructed (GObject *object)
 						 WLR_SERVER_DECORATION_MANAGER_MODE_CLIENT);
   self->idle = wlr_idle_create(server->wl_display);
   self->primary_selection_device_manager =
-    wlr_gtk_primary_selection_device_manager_create(server->wl_display);
+    wlr_primary_selection_v1_device_manager_create(server->wl_display);
   self->input_inhibit =
     wlr_input_inhibit_manager_create(server->wl_display);
   self->input_inhibit_activate.notify = input_inhibit_activate;
@@ -657,6 +670,12 @@ phoc_desktop_constructed (GObject *object)
 
   self->gtk_shell = phoc_gtk_shell_create(self, server->wl_display);
   self->phosh = phoc_phosh_private_new ();
+
+  self->xdg_activation_v1 = wlr_xdg_activation_v1_create (server->wl_display);
+  self->xdg_activation_v1_request_activate.notify = phoc_xdg_activation_v1_handle_request_activate;
+  wl_signal_add (&self->xdg_activation_v1->events.request_activate,
+                 &self->xdg_activation_v1_request_activate);
+
   self->virtual_keyboard = wlr_virtual_keyboard_manager_v1_create(
 								  server->wl_display);
   wl_signal_add(&self->virtual_keyboard->events.new_virtual_keyboard,
@@ -675,6 +694,12 @@ phoc_desktop_constructed (GObject *object)
   wl_signal_add(&self->xdg_decoration_manager->events.new_toplevel_decoration,
 		&self->xdg_toplevel_decoration);
   self->xdg_toplevel_decoration.notify = handle_xdg_toplevel_decoration;
+  wlr_viewporter_create(server->wl_display);
+
+  struct wlr_xdg_foreign_registry *foreign_registry =
+                wlr_xdg_foreign_registry_create(server->wl_display);
+  wlr_xdg_foreign_v1_create(server->wl_display, foreign_registry);
+  wlr_xdg_foreign_v2_create(server->wl_display, foreign_registry);
 
   self->pointer_constraints =
     wlr_pointer_constraints_v1_create(server->wl_display);
@@ -738,15 +763,19 @@ phoc_desktop_finalize (GObject *object)
   wl_list_remove (&self->output_manager_apply.link);
   wl_list_remove (&self->output_manager_test.link);
   wl_list_remove (&self->output_power_manager_set_mode.link);
+  wl_list_remove (&self->xdg_activation_v1_request_activate.link);
 
 #ifdef PHOC_XWAYLAND
   /* Disconnect XWayland listener before shutting it down */
-  if (self->config->xwayland) {
+  if (self->xwayland) {
     wl_list_remove (&self->xwayland_surface.link);
     wl_list_remove (&self->xwayland_ready.link);
+#ifdef PHOC_HAVE_WLR_REMOVE_STARTUP_INFO
     wl_list_remove (&self->xwayland_remove_startup_id.link);
+#endif
   }
 
+  g_clear_pointer (&self->xcursor_manager, wlr_xcursor_manager_destroy);
   // We need to shutdown Xwayland before disconnecting all clients, otherwise
   // wlroots will restart it automatically.
   g_clear_pointer (&self->xwayland, wlr_xwayland_destroy);
@@ -754,6 +783,7 @@ phoc_desktop_finalize (GObject *object)
 
   g_clear_object (&self->phosh);
   g_clear_pointer (&self->gtk_shell, phoc_gtk_shell_destroy);
+  g_clear_pointer (&self->layout, wlr_output_layout_destroy);
 
   g_hash_table_remove_all (self->input_output_map);
   g_hash_table_unref (self->input_output_map);
@@ -795,7 +825,7 @@ phoc_desktop_init (PhocDesktop *self)
 
 
 PhocDesktop *
-phoc_desktop_new (struct roots_config *config)
+phoc_desktop_new (PhocConfig *config)
 {
   return g_object_new (PHOC_TYPE_DESKTOP, "config", config, NULL);
 }
@@ -804,16 +834,26 @@ phoc_desktop_new (struct roots_config *config)
 /**
  * phoc_desktop_toggle_output_blank:
  *
- * Blank or unblank all outputs depending on the current state
+ * Blank or unblank all outputs depending on the current state.
+ * Brings all outputs into consistent state (either all blanked
+ * or all enabled).
  */
 void
 phoc_desktop_toggle_output_blank (PhocDesktop *self)
 {
   PhocOutput *output;
 
+  gboolean enable = true;
   wl_list_for_each(output, &self->outputs, link) {
-    gboolean enable = !output->wlr_output->enabled;
+    if (output->wlr_output->enabled) {
+      enable = false;
+      break;
+    }
+  }
 
+  wl_list_for_each(output, &self->outputs, link) {
+    if (!wlr_output_layout_get (self->layout, output->wlr_output))
+      continue;
     wlr_output_enable (output->wlr_output, enable);
     wlr_output_commit (output->wlr_output);
     if (enable)
@@ -829,7 +869,7 @@ phoc_desktop_toggle_output_blank (PhocDesktop *self)
 void
 phoc_desktop_set_auto_maximize (PhocDesktop *self, gboolean enable)
 {
-  struct roots_view *view;
+  PhocView *view;
   PhocServer *server = phoc_server_get_default();
 
   if (G_UNLIKELY (server->debug_flags & PHOC_SERVER_DEBUG_FLAG_AUTO_MAXIMIZE)) {

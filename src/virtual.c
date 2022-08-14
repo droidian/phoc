@@ -34,7 +34,7 @@ phoc_handle_virtual_pointer(struct wl_listener *listener, void *data)
   struct wlr_virtual_pointer_v1_new_pointer_event *event = data;
   struct wlr_virtual_pointer_v1 *pointer = event->new_pointer;
   struct wlr_input_device *device = &pointer->input_device;
-  char *seat_name = ROOTS_CONFIG_DEFAULT_SEAT_NAME;
+  char *seat_name = PHOC_CONFIG_DEFAULT_SEAT_NAME;
   PhocServer *server = phoc_server_get_default ();
   PhocSeat*seat;
 

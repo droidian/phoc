@@ -7,6 +7,8 @@
 #pragma once
 
 #include <wlr/types/wlr_pointer_constraints_v1.h>
+#include <wlr/types/wlr_touch.h>
+#include <wlr/types/wlr_tablet_tool.h>
 #include "seat.h"
 
 #include <glib-object.h>
@@ -83,15 +85,6 @@ typedef struct _PhocCursor {
 } PhocCursor;
 
 PhocCursor *phoc_cursor_new (PhocSeat                                                    *seat);
-void        phoc_cursor_handle_motion (PhocCursor                                        *self,
-                                       struct wlr_event_pointer_motion                   *event);
-void        phoc_cursor_handle_motion_absolute (PhocCursor                               *self,
-                                                struct wlr_event_pointer_motion_absolute *event);
-void        phoc_cursor_handle_button (PhocCursor                                        *self,
-                                       struct wlr_event_pointer_button                   *event);
-void        phoc_cursor_handle_axis (PhocCursor                                          *self,
-                                     struct wlr_event_pointer_axis                       *event);
-void        phoc_cursor_handle_frame (PhocCursor                                         *self);
 void        phoc_cursor_handle_touch_down (PhocCursor                                    *self,
                                            struct wlr_event_touch_down                   *event);
 void        phoc_cursor_handle_touch_up (PhocCursor                                      *self,

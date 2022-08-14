@@ -8,10 +8,12 @@
 G_BEGIN_DECLS
 
 /**
- * roots_input_method_relay:
+ * PhocInputMethodRelay:
  *
  * The relay structure manages the relationship between text-input and
- * input_method interfaces on a given seat. Multiple text-input interfaces may
+ * input_method interfaces on a given seat.
+ *
+ * Multiple text-input interfaces may
  * be bound to a relay, but at most one will be focused (reveiving events) at
  * a time. At most one input-method interface may be bound to the seat. The
  * relay manages life cycle of both sides. When both sides are present and
@@ -21,10 +23,10 @@ G_BEGIN_DECLS
  * in the focused state, wl_keyboard sent an enter as well. However, having
  * wl_keyboard focused doesn't mean that text-input will be focused.
  */
-struct roots_input_method_relay {
+typedef struct _PhocInputMethodRelay {
 	PhocSeat *seat;
 
-	struct wl_list text_inputs; // roots_text_input::link
+	struct wl_list text_inputs; // PhocTextInput::link
 	struct wlr_input_method_v2 *input_method; // doesn't have to be present
 
 	struct wl_listener text_input_new;
@@ -32,36 +34,11 @@ struct roots_input_method_relay {
 	struct wl_listener input_method_new;
 	struct wl_listener input_method_commit;
 	struct wl_listener input_method_destroy;
-};
+} PhocInputMethodRelay;
 
-struct roots_text_input {
-	struct roots_input_method_relay *relay;
-
-	struct wlr_text_input_v3 *input;
-	// The surface getting seat's focus. Stored for when text-input cannot
-	// be sent an enter event immediately after getting focus, e.g. when
-	// there's no input method available. Cleared once text-input is entered.
-	struct wlr_surface *pending_focused_surface;
-
-	struct wl_list link;
-
-	struct wl_listener pending_focused_surface_destroy;
-	struct wl_listener enable;
-	struct wl_listener commit;
-	struct wl_listener disable;
-	struct wl_listener destroy;
-};
-
-void roots_input_method_relay_init(PhocSeat *seat, struct roots_input_method_relay *relay);
-
-void roots_input_method_relay_destroy(struct roots_input_method_relay *relay);
-
-// Updates currently focused surface. Surface must belong to the same seat.
-void roots_input_method_relay_set_focus(struct roots_input_method_relay *relay,
-	struct wlr_surface *surface);
-
-struct roots_text_input *roots_text_input_create(
-	struct roots_input_method_relay *relay,
-	struct wlr_text_input_v3 *text_input);
+void phoc_input_method_relay_init      (PhocSeat *seat, PhocInputMethodRelay *relay);
+void phoc_input_method_relay_destroy   (PhocInputMethodRelay *relay);
+void phoc_input_method_relay_set_focus (PhocInputMethodRelay *relay,
+                                        struct wlr_surface   *surface);
 
 G_END_DECLS

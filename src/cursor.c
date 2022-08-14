@@ -13,7 +13,6 @@
 #include <assert.h>
 #include <math.h>
 #include <stdlib.h>
-#include <wlr/types/wlr_region.h>
 #include <wlr/types/wlr_xcursor_manager.h>
 #include <wlr/util/edges.h>
 #include <wlr/util/log.h>
@@ -35,6 +34,12 @@ static GParamSpec *props[PROP_LAST_PROP];
 
 
 G_DEFINE_TYPE (PhocCursor, phoc_cursor, G_TYPE_OBJECT)
+
+static void handle_pointer_motion (struct wl_listener *listener, void *data);
+static void handle_pointer_motion_absolute (struct wl_listener *listener, void *data);
+static void handle_pointer_button (struct wl_listener *listener, void *data);
+static void handle_pointer_axis (struct wl_listener *listener, void *data);
+static void handle_pointer_frame (struct wl_listener *listener, void *data);
 
 static void
 phoc_cursor_set_property (GObject      *object,
@@ -87,18 +92,18 @@ seat_view_deco_motion (PhocSeatView *view, double deco_sx, double deco_sy)
     sy = view->grab_sy;
   }
 
-  enum roots_deco_part parts = view_get_deco_part (view->view, sx, sy);
+  PhocViewDecoPart parts = view_get_deco_part (view->view, sx, sy);
 
-  bool is_titlebar = (parts & ROOTS_DECO_PART_TITLEBAR);
+  bool is_titlebar = (parts & PHOC_VIEW_DECO_PART_TITLEBAR);
   uint32_t edges = 0;
 
-  if (parts & ROOTS_DECO_PART_LEFT_BORDER) {
+  if (parts & PHOC_VIEW_DECO_PART_LEFT_BORDER) {
     edges |= WLR_EDGE_LEFT;
-  } else if (parts & ROOTS_DECO_PART_RIGHT_BORDER) {
+  } else if (parts & PHOC_VIEW_DECO_PART_RIGHT_BORDER) {
     edges |= WLR_EDGE_RIGHT;
-  } else if (parts & ROOTS_DECO_PART_BOTTOM_BORDER) {
+  } else if (parts & PHOC_VIEW_DECO_PART_BOTTOM_BORDER) {
     edges |= WLR_EDGE_BOTTOM;
-  } else if (parts & ROOTS_DECO_PART_TOP_BORDER) {
+  } else if (parts & PHOC_VIEW_DECO_PART_TOP_BORDER) {
     edges |= WLR_EDGE_TOP;
   }
 
@@ -140,9 +145,9 @@ seat_view_deco_button (PhocSeatView *view, double sx,
     view->has_button_grab = false;
   }
 
-  enum roots_deco_part parts = view_get_deco_part (view->view, sx, sy);
+  PhocViewDecoPart parts = view_get_deco_part (view->view, sx, sy);
 
-  if (state == WLR_BUTTON_RELEASED && (parts & ROOTS_DECO_PART_TITLEBAR)) {
+  if (state == WLR_BUTTON_RELEASED && (parts & PHOC_VIEW_DECO_PART_TITLEBAR)) {
     phoc_seat_maybe_set_cursor (view->seat, NULL);
   }
 }
@@ -212,12 +217,14 @@ roots_handle_shell_reveal (struct wlr_surface *surface, double lx, double ly, in
       (right  && lx >= output_box->x + output_box->width - 1 - threshold)) {
     if (output->fullscreen_view) {
       output->force_shell_reveal = true;
+      phoc_layer_shell_update_focus ();
       phoc_output_damage_whole (output);
     }
     return true;
   } else {
     if (output->force_shell_reveal) {
       output->force_shell_reveal = false;
+      phoc_layer_shell_update_focus ();
       phoc_output_damage_whole (output);
     }
   }
@@ -231,7 +238,7 @@ roots_passthrough_cursor (PhocCursor *self,
 {
   PhocServer *server = phoc_server_get_default ();
   double sx, sy;
-  struct roots_view *view = NULL;
+  PhocView *view = NULL;
   PhocSeat *seat = self->seat;
   PhocDesktop *desktop = server->desktop;
   struct wlr_surface *surface = phoc_desktop_surface_at (desktop,
@@ -291,10 +298,74 @@ timespec_to_msec (const struct timespec *a)
 
 
 static void
+phoc_cursor_constructed (GObject *object)
+{
+  PhocCursor *self = PHOC_CURSOR (object);
+  struct wlr_cursor *wlr_cursor = self->cursor;
+
+  g_assert (self->cursor);
+  self->xcursor_manager = wlr_xcursor_manager_create (NULL, PHOC_XCURSOR_SIZE);
+  g_assert (self->xcursor_manager);
+
+  wl_signal_add (&wlr_cursor->events.motion, &self->motion);
+  self->motion.notify = handle_pointer_motion;
+
+  wl_signal_add (&wlr_cursor->events.motion_absolute, &self->motion_absolute);
+  self->motion_absolute.notify = handle_pointer_motion_absolute;
+
+  wl_signal_add (&wlr_cursor->events.button, &self->button);
+  self->button.notify = handle_pointer_button;
+
+  wl_signal_add (&wlr_cursor->events.axis, &self->axis);
+  self->axis.notify = handle_pointer_axis;
+
+  wl_signal_add (&wlr_cursor->events.frame, &self->frame);
+  self->frame.notify = handle_pointer_frame;
+
+  G_OBJECT_CLASS (phoc_cursor_parent_class)->constructed (object);
+}
+
+
+static void
+phoc_cursor_finalize (GObject *object)
+{
+  PhocCursor *self = PHOC_CURSOR (object);
+
+  wl_list_remove (&self->motion.link);
+  wl_list_remove (&self->motion_absolute.link);
+  wl_list_remove (&self->button.link);
+  wl_list_remove (&self->axis.link);
+  wl_list_remove (&self->frame.link);
+  wl_list_remove (&self->swipe_begin.link);
+  wl_list_remove (&self->swipe_update.link);
+  wl_list_remove (&self->swipe_end.link);
+  wl_list_remove (&self->pinch_begin.link);
+  wl_list_remove (&self->pinch_update.link);
+  wl_list_remove (&self->pinch_end.link);
+  wl_list_remove (&self->touch_down.link);
+  wl_list_remove (&self->touch_up.link);
+  wl_list_remove (&self->touch_motion.link);
+  wl_list_remove (&self->tool_axis.link);
+  wl_list_remove (&self->tool_tip.link);
+  wl_list_remove (&self->tool_proximity.link);
+  wl_list_remove (&self->tool_button.link);
+  wl_list_remove (&self->request_set_cursor.link);
+  wl_list_remove (&self->focus_change.link);
+
+  g_clear_pointer (&self->xcursor_manager, wlr_xcursor_manager_destroy);
+  g_clear_pointer (&self->cursor, wlr_cursor_destroy);
+
+  G_OBJECT_CLASS (phoc_cursor_parent_class)->finalize (object);
+}
+
+
+static void
 phoc_cursor_class_init (PhocCursorClass *klass)
 {
   GObjectClass *object_class = G_OBJECT_CLASS (klass);
 
+  object_class->constructed = phoc_cursor_constructed;
+  object_class->finalize = phoc_cursor_finalize;
   object_class->get_property = phoc_cursor_get_property;
   object_class->set_property = phoc_cursor_set_property;
 
@@ -333,7 +404,7 @@ phoc_cursor_update_position (PhocCursor *self,
   PhocServer *server = phoc_server_get_default ();
   PhocDesktop *desktop = server->desktop;
   PhocSeat *seat = self->seat;
-  struct roots_view *view;
+  PhocView *view;
 
   switch (self->mode) {
   case PHOC_CURSOR_PASSTHROUGH:
@@ -353,7 +424,7 @@ phoc_cursor_update_position (PhocCursor *self,
       bool output_is_landscape = output_box->width > output_box->height;
 
       if (view_is_fullscreen (view)) {
-        view_set_fullscreen (view, true, wlr_output);
+        phoc_view_set_fullscreen (view, true, wlr_output);
       } else if (self->cursor->y < output_box->y + PHOC_EDGE_SNAP_THRESHOLD) {
         view_maximize (view, wlr_output);
       } else if (output_is_landscape && self->cursor->x < output_box->x + PHOC_EDGE_SNAP_THRESHOLD) {
@@ -418,7 +489,7 @@ phoc_cursor_press_button (PhocCursor *self,
   bool is_touch = device->type == WLR_INPUT_DEVICE_TOUCH;
 
   double sx, sy;
-  struct roots_view *view;
+  PhocView *view;
   struct wlr_surface *surface = phoc_desktop_surface_at (desktop,
                                                          lx, ly, &sx, &sy, &view);
 
@@ -480,16 +551,21 @@ phoc_cursor_press_button (PhocCursor *self,
   }
 }
 
-void
-phoc_cursor_handle_motion (PhocCursor                      *self,
-                           struct wlr_event_pointer_motion *event)
+
+static void
+handle_pointer_motion (struct wl_listener *listener, void *data)
 {
+  PhocCursor *self = wl_container_of (listener, self, motion);
+  struct wlr_event_pointer_motion *event = data;
   PhocServer *server = phoc_server_get_default ();
+  PhocDesktop *desktop = server->desktop;
   double dx = event->delta_x;
   double dy = event->delta_y;
 
   double dx_unaccel = event->unaccel_dx;
   double dy_unaccel = event->unaccel_dy;
+
+  wlr_idle_notify_activity (desktop->idle, self->seat->seat);
 
   wlr_relative_pointer_manager_v1_send_relative_motion (
     server->desktop->relative_pointer_manager,
@@ -497,7 +573,7 @@ phoc_cursor_handle_motion (PhocCursor                      *self,
     dx_unaccel, dy_unaccel);
 
   if (self->active_constraint) {
-    struct roots_view *view = self->pointer_view->view;
+    PhocView *view = self->pointer_view->view;
     assert (view);
 
     double lx1 = self->cursor->x;
@@ -526,13 +602,16 @@ phoc_cursor_handle_motion (PhocCursor                      *self,
   phoc_cursor_update_position (self, event->time_msec);
 }
 
-void
-phoc_cursor_handle_motion_absolute (PhocCursor                               *self,
-                                    struct wlr_event_pointer_motion_absolute *event)
+static void
+handle_pointer_motion_absolute (struct wl_listener *listener, void *data)
 {
+  PhocCursor *self = wl_container_of (listener, self, motion_absolute);
+  struct wlr_event_pointer_motion_absolute *event = data;
   PhocServer *server = phoc_server_get_default ();
+  PhocDesktop *desktop = server->desktop;
   double lx, ly;
 
+  wlr_idle_notify_activity (desktop->idle, self->seat->seat);
   wlr_cursor_absolute_to_layout_coords (self->cursor, event->device, event->x,
                                         event->y, &lx, &ly);
 
@@ -544,7 +623,7 @@ phoc_cursor_handle_motion_absolute (PhocCursor                               *se
     self->seat->seat, (uint64_t)event->time_msec * 1000, dx, dy, dx, dy);
 
   if (self->pointer_view) {
-    struct roots_view *view = self->pointer_view->view;
+    PhocView *view = self->pointer_view->view;
 
     if (self->active_constraint &&
         !pixman_region32_contains_point (&self->confine,
@@ -557,25 +636,40 @@ phoc_cursor_handle_motion_absolute (PhocCursor                               *se
   phoc_cursor_update_position (self, event->time_msec);
 }
 
-void
-phoc_cursor_handle_button (PhocCursor                      *self,
-                           struct wlr_event_pointer_button *event)
+static void
+handle_pointer_button (struct wl_listener *listener, void *data)
 {
+  PhocCursor *self = wl_container_of (listener, self, button);
+  struct wlr_event_pointer_button *event = data;
+  PhocServer *server = phoc_server_get_default ();
+  PhocDesktop *desktop = server->desktop;
+
+  wlr_idle_notify_activity (desktop->idle, self->seat->seat);
   phoc_cursor_press_button (self, event->device, event->time_msec,
                             event->button, event->state, self->cursor->x, self->cursor->y);
 }
 
-void
-phoc_cursor_handle_axis (PhocCursor                    *self,
-                         struct wlr_event_pointer_axis *event)
+static void
+handle_pointer_axis (struct wl_listener *listener, void *data)
 {
+  PhocCursor *self = wl_container_of (listener, self, axis);
+  struct wlr_event_pointer_axis *event = data;
+  PhocServer *server = phoc_server_get_default ();
+  PhocDesktop *desktop = server->desktop;
+
+  wlr_idle_notify_activity (desktop->idle, self->seat->seat);
   wlr_seat_pointer_notify_axis (self->seat->seat, event->time_msec,
                                 event->orientation, event->delta, event->delta_discrete, event->source);
 }
 
-void
-phoc_cursor_handle_frame (PhocCursor *self)
+static void
+handle_pointer_frame (struct wl_listener *listener, void *data)
 {
+  PhocCursor *self = wl_container_of (listener, self, frame);
+  PhocServer *server = phoc_server_get_default ();
+  PhocDesktop *desktop = server->desktop;
+
+  wlr_idle_notify_activity (desktop->idle, self->seat->seat);
   wlr_seat_pointer_notify_frame (self->seat->seat);
 }
 
@@ -598,7 +692,7 @@ phoc_cursor_handle_touch_down (PhocCursor                  *self,
   }
 
   double sx, sy;
-  struct roots_view *view;
+  PhocView *view;
   struct wlr_surface *surface = phoc_desktop_surface_at (
     desktop, lx, ly, &sx, &sy, &view);
   bool shell_revealed = roots_handle_shell_reveal (surface, lx, ly, PHOC_SHELL_REVEAL_TOUCH_THRESHOLD);
@@ -720,7 +814,7 @@ phoc_cursor_handle_touch_motion (PhocCursor                    *self,
         }
       }
     } else {
-      struct roots_view *view = roots_view_from_wlr_surface (root);
+      PhocView *view = phoc_view_from_wlr_surface (root);
       if (view) {
         scale = view->scale;
         sx = lx / scale - view->box.x;
@@ -782,7 +876,7 @@ phoc_cursor_handle_tool_axis (PhocCursor                        *self,
 
 
   if (self->pointer_view) {
-    struct roots_view *view = self->pointer_view->view;
+    PhocView *view = self->pointer_view->view;
 
     if (self->active_constraint &&
         !pixman_region32_contains_point (&self->confine,
@@ -920,7 +1014,7 @@ phoc_cursor_constrain (PhocCursor *self,
     int nboxes;
     pixman_box32_t *boxes = pixman_region32_rectangles (region, &nboxes);
     if (nboxes > 0) {
-      struct roots_view *view = self->pointer_view->view;
+      PhocView *view = self->pointer_view->view;
 
       double lx = view->box.x + (boxes[0].x1 + boxes[0].x2) / 2.;
       double ly = view->box.y + (boxes[0].y1 + boxes[0].y2) / 2.;

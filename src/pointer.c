@@ -19,7 +19,6 @@ struct _PhocPointer {
   PhocInputDevice          parent;
 
   /* private */
-  GSettings               *input_settings;
   gboolean                 touchpad;
   GSettings               *touchpad_settings;
   GSettings               *mouse_settings;

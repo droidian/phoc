@@ -83,7 +83,7 @@ handle_new_input (struct wl_listener *listener, void *data)
   struct wlr_input_device *device = data;
   PhocInput *input = wl_container_of (listener, input, new_input);
 
-  char *seat_name = ROOTS_CONFIG_DEFAULT_SEAT_NAME;
+  char *seat_name = PHOC_CONFIG_DEFAULT_SEAT_NAME;
   PhocSeat *seat = phoc_input_get_seat (input, seat_name);
 
   if (!seat) {
@@ -232,6 +232,8 @@ PhocSeat *
 phoc_input_get_last_active_seat (PhocInput *self)
 {
   PhocSeat *seat = NULL;
+
+  g_assert (PHOC_IS_INPUT (self));
 
   for (GSList *elem = phoc_input_get_seats (self); elem; elem = elem->next) {
     PhocSeat *_seat = PHOC_SEAT (elem->data);

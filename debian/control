@@ -16,7 +16,8 @@ Build-Depends:
  wayland-protocols,
  libgirepository1.0-dev <!nodoc>,
  libxcb1-dev,
- libwlroots-dev (>= 0.12.0) <!pkg.phoc.embedwlroots>,
+ libwlroots-dev (>= 0.14.0) <!pkg.phoc.embedwlroots>,
+ libwlroots-dev (<< 0.15.0) <!pkg.phoc.embedwlroots>,
  python3-jinja2 <!nodoc>,
  python3-pygments <!nodoc>,
  python3-toml <!nodoc>,
@@ -30,19 +31,22 @@ Build-Depends:
  libgbm-dev (>= 17.1.0) <pkg.phoc.embedwlroots>,
  libgles2-mesa-dev <pkg.phoc.embedwlroots>,
  libpng-dev <pkg.phoc.embedwlroots>,
+ libseat-dev <pkg.phoc.embedwlroots>,
  libsystemd-dev <pkg.phoc.embedwlroots>,
  libxcb-composite0-dev <pkg.phoc.embedwlroots>,
  libxcb-icccm4-dev <pkg.phoc.embedwlroots>,
  libxcb-image0-dev <pkg.phoc.embedwlroots>,
  libxcb-render0-dev <pkg.phoc.embedwlroots>,
+ libxcb-res0-dev <pkg.phoc.embedwlroots>,
  libxcb-xfixes0-dev <pkg.phoc.embedwlroots>,
  libxcb-xinput-dev <pkg.phoc.embedwlroots>,
  libx11-xcb-dev <pkg.phoc.embedwlroots>,
+ xwayland <pkg.phoc.embedwlroots>,
 # to run the tests
  mutter-common <!nocheck>,
  xvfb <!nocheck>,
  xauth <!nocheck>,
-Standards-Version: 4.1.3
+Standards-Version: 4.6.0
 Section: libs
 Homepage: https://source.puri.sm/librem5/phoc
 Rules-Requires-Root: no

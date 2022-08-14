@@ -188,6 +188,11 @@ test_phosh_private_thumbnail_simple (void)
    .client_run = test_client_phosh_private_thumbnail_simple,
   };
 
+  if (g_getenv ("PHOC_TEST_HAVE_DRM") == NULL) {
+    g_test_skip ("PHOC_TEST_HAVE_DRM unsed");
+    return;
+  }
+
   phoc_test_client_run (3, &iface, GINT_TO_POINTER (FALSE));
 }
 

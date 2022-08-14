@@ -16,7 +16,7 @@ G_BEGIN_DECLS
 #define PHOC_PRIV_CONTAINER_P(t, p) ((guint8*)p - (t##_private_offset))
 
 /**
- * PHOC_PRIV_CONTAINER_P:
+ * PHOC_PRIV_CONTAINER:
  * c: cast to the type @t
  * t: the name of the type in camel case
  * p: The pointer to the private part of an instance

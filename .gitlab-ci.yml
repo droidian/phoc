@@ -14,7 +14,7 @@ variables:
         git meson ninja gnome-desktop-dev gobject-introspection-dev
         libinput-dev wayland-dev wayland-protocols libxkbcommon-dev wlroots-dev
   XVFB_RUN: xvfb-run -s -noreset
-  DEBIAN_IMAGE: $CI_REGISTRY/world/phosh/phoc/debian:v0.0.20211105
+  DEBIAN_IMAGE: $CI_REGISTRY/world/phosh/phoc/debian:v0.0.20211205-wlroots0.14.1
 
 .build: &build
   script:
@@ -26,6 +26,7 @@ variables:
 
 .before_script_debian: &before_script_debian
   - rm -f ../* || true
+  - dpkg -l
 
 .before_script_alpine: &before_script_alpine
   - apk -q add alpine-sdk
@@ -36,7 +37,7 @@ build-with-xwayland-debian-bookworm:
   image: ${DEBIAN_IMAGE}
   before_script: *before_script_debian
   variables:
-     BUILD_ARGS: -Dxwayland=enabled -Db_coverage=true
+     BUILD_ARGS: -Dembed-wlroots=disabled -Dxwayland=enabled -Db_coverage=true
   <<: *build
   artifacts:
     paths:
@@ -77,8 +78,8 @@ unit-test-with-xwayland-debian-bookworm:
     - build-with-xwayland-debian-bookworm
   before_script: *before_script_debian
   script:
-    - ${XVFB_RUN} ninja -C _build test
-    - ${XVFB_RUN} ninja -C _build coverage
+    - ${XVFB_RUN} meson test --print-errorlogs -C _build
+    - ninja -C _build coverage
   coverage: '/^\s+lines\.+:\s+([\d.]+\%)\s+/'
   artifacts:
     when: always

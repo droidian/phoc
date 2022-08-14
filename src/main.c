@@ -62,17 +62,17 @@ log_glib(enum wlr_log_importance verbosity, const char *fmt, va_list args) {
 
 static GDebugKey debug_keys[] =
 {
+ { .key = "auto-maximize",
+   .value = PHOC_SERVER_DEBUG_FLAG_AUTO_MAXIMIZE,
+ },
  { .key = "damage-tracking",
    .value = PHOC_SERVER_DEBUG_FLAG_DAMAGE_TRACKING,
- },
- { .key = "touch-points",
-   .value = PHOC_SERVER_DEBUG_FLAG_TOUCH_POINTS,
  },
  { .key = "no-quit",
    .value = PHOC_SERVER_DEBUG_FLAG_NO_QUIT,
  },
- { .key = "auto-maximize",
-   .value = PHOC_SERVER_DEBUG_FLAG_AUTO_MAXIMIZE,
+ { .key = "touch-points",
+   .value = PHOC_SERVER_DEBUG_FLAG_TOUCH_POINTS,
  },
 };
 

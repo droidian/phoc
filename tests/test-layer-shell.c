@@ -109,20 +109,20 @@ phoc_test_layer_surface_free (PhocTestLayerSurface *ls)
 static gboolean
 test_client_layer_shell_anchor (PhocTestClientGlobals *globals, gpointer data)
 {
-  PhocTestLayerSurface *ls_green, *ls_brown;
+  PhocTestLayerSurface *ls_green, *ls_red;
 
   ls_green = phoc_test_layer_surface_new (globals, WIDTH, HEIGHT, 0xFF00FF00,
 					  ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP, 0);
   g_assert_nonnull (ls_green);
   phoc_assert_screenshot (globals, "test-layer-shell-anchor-1.png");
 
-  ls_brown = phoc_test_layer_surface_new (globals, WIDTH * 2, HEIGHT * 2, 0xFF112233,
-					  ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM, 0);
-  g_assert_nonnull (ls_brown);
+  ls_red = phoc_test_layer_surface_new (globals, WIDTH * 2, HEIGHT * 2, 0xFFFF0000,
+                                        ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM, 0);
+  g_assert_nonnull (ls_red);
   phoc_assert_screenshot (globals, "test-layer-shell-anchor-2.png");
 
   phoc_test_layer_surface_free (ls_green);
-  phoc_test_layer_surface_free (ls_brown);
+  phoc_test_layer_surface_free (ls_red);
 
   phoc_assert_screenshot (globals, "empty.png");
   return TRUE;
@@ -140,7 +140,7 @@ test_layer_shell_anchor (void)
 static gboolean
 test_client_layer_shell_exclusive_zone (PhocTestClientGlobals *globals, gpointer data)
 {
-  PhocTestLayerSurface *ls_green, *ls_brown;
+  PhocTestLayerSurface *ls_green, *ls_red;
 
   ls_green = phoc_test_layer_surface_new (globals, 0, HEIGHT, 0xFF00FF00,
 					  ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP
@@ -149,15 +149,14 @@ test_client_layer_shell_exclusive_zone (PhocTestClientGlobals *globals, gpointer
 					  HEIGHT);
   g_assert_nonnull (ls_green);
   phoc_assert_screenshot (globals, "test-layer-shell-exclusive-zone-1.png");
-  wl_surface_commit (ls_green->wl_surface);
 
-  ls_brown = phoc_test_layer_surface_new (globals, WIDTH * 2, HEIGHT * 2, 0xFF112233,
-					  ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP, 0);
-  g_assert_nonnull (ls_brown);
+  ls_red = phoc_test_layer_surface_new (globals, WIDTH * 2, HEIGHT * 2, 0xFFFF0000,
+                                        ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP, 0);
+  g_assert_nonnull (ls_red);
   phoc_assert_screenshot (globals, "test-layer-shell-exclusive-zone-2.png");
 
+  phoc_test_layer_surface_free (ls_red);
   phoc_test_layer_surface_free (ls_green);
-  phoc_test_layer_surface_free (ls_brown);
 
   phoc_assert_screenshot (globals, "empty.png");
   return TRUE;
@@ -172,6 +171,48 @@ test_layer_shell_exclusive_zone (void)
 }
 
 
+static gboolean
+test_client_layer_shell_set_layer (PhocTestClientGlobals *globals, gpointer data)
+{
+  PhocTestLayerSurface *ls_green, *ls_red;
+
+  ls_green = phoc_test_layer_surface_new (globals, 0, HEIGHT, 0xFF00FF00,
+					  ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP
+					  | ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT
+					  | ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT,
+					  0);
+  g_assert_nonnull (ls_green);
+
+  ls_red = phoc_test_layer_surface_new (globals, WIDTH * 2, HEIGHT * 2, 0xFFFF0000,
+                                        ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP, 0);
+  g_assert_nonnull (ls_red);
+
+  /* Red layer is above green one as this is rendered last */
+  phoc_assert_screenshot (globals, "test-layer-shell-set-layer-1.png");
+
+  zwlr_layer_surface_v1_set_layer (ls_red->layer_surface, ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM);
+  wl_surface_commit (ls_red->wl_surface);
+
+  /* Green layer is above red one as red one moved to bottom */
+  phoc_assert_screenshot (globals, "test-layer-shell-set-layer-2.png");
+
+  phoc_test_layer_surface_free (ls_red);
+  phoc_test_layer_surface_free (ls_green);
+
+  phoc_assert_screenshot (globals, "empty.png");
+  return TRUE;
+}
+
+
+static void
+test_layer_shell_set_layer (void)
+{
+  PhocTestClientIface iface = { .client_run = test_client_layer_shell_set_layer };
+
+  phoc_test_client_run (3, &iface, NULL);
+}
+
+
 gint
 main (gint argc, gchar *argv[])
 {
@@ -179,6 +220,7 @@ main (gint argc, gchar *argv[])
 
   g_test_add_func("/phoc/layer-shell/anchor", test_layer_shell_anchor);
   g_test_add_func("/phoc/layer-shell/exclusive_zone", test_layer_shell_exclusive_zone);
+  g_test_add_func("/phoc/layer-shell/set_layer", test_layer_shell_set_layer);
 
   return g_test_run();
 }

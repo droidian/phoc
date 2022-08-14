@@ -16,7 +16,7 @@ G_DECLARE_FINAL_TYPE (PhocInput, phoc_input, PHOC, INPUT, GObject);
 
 PhocInput         *phoc_input_new (void);
 bool               phoc_input_view_has_focus (PhocInput         *self,
-                                              struct roots_view *view);
+                                              PhocView          *view);
 const char        *phoc_input_get_device_type (enum wlr_input_device_type type);
 PhocSeat          *phoc_input_get_seat (PhocInput *self, char *name);
 void               phoc_input_update_cursor_focus (PhocInput *self);

@@ -15,7 +15,6 @@
 #include <wlr/types/wlr_box.h>
 #include <wlr/types/wlr_surface.h>
 #include <wlr/types/wlr_layer_shell_v1.h>
-#include <wlr/util/log.h>
 #include "cursor.h"
 #include "desktop.h"
 #include "layers.h"
@@ -108,8 +107,8 @@ static void update_cursors(PhocLayerSurface *roots_surface,
 				phoc_cursor_update_position(cursor,
 							    time.tv_sec * 1000 + time.tv_nsec / 1000000);
 			} else {
-				wlr_log(WLR_ERROR, "Failed to get time, not updating"
-					"position. Errno: %s\n", strerror(errno));
+				g_critical ("Failed to get time, not updating position. Errno: %s\n",
+					    strerror(errno));
 			}
 		}
 	}
@@ -283,7 +282,7 @@ phoc_layer_shell_arrange (PhocOutput *output)
     arrange_layer (output->wlr_output, seats, &output->layers[layers[i]], &usable_area, true);
   output->usable_area = usable_area;
 
-  struct roots_view *view;
+  PhocView *view;
   wl_list_for_each (view, &output->desktop->views, link) {
     if (view_is_maximized (view)) {
       view_arrange_maximized (view, NULL);
@@ -313,6 +312,10 @@ phoc_layer_shell_update_focus (void)
   PhocOutput *output;
   wl_list_for_each (output, &server->desktop->outputs, link) {
     for (size_t i = 0; i < G_N_ELEMENTS(layers_above_shell); ++i) {
+      if (output->fullscreen_view && !output->force_shell_reveal) {
+        if (layers_above_shell[i] == ZWLR_LAYER_SHELL_V1_LAYER_TOP)
+          continue;
+      }
       wl_list_for_each(layer, &output->layers[layers_above_shell[i]], link) {
         if (layer->layer_surface->current.keyboard_interactive && layer->layer_surface->mapped) {
           topmost = layer;
@@ -349,6 +352,15 @@ static void handle_surface_commit(struct wl_listener *listener, void *data) {
 	if (wlr_output != NULL) {
 		PhocOutput *output = wlr_output->data;
 		struct wlr_box old_geo = layer->geo;
+
+		bool layer_changed = layer->layer != layer_surface->current.layer;
+		if (layer_changed) {
+			wl_list_remove(&layer->link);
+			wl_list_insert(&output->layers[layer_surface->current.layer],
+				&layer->link);
+			layer->layer = layer_surface->current.layer;
+		}
+
 		phoc_layer_shell_arrange (output);
 		phoc_layer_shell_update_focus ();
 
@@ -367,13 +379,6 @@ static void handle_surface_commit(struct wl_listener *listener, void *data) {
 
 		bool geo_changed =
 			memcmp(&old_geo, &layer->geo, sizeof(struct wlr_box)) != 0;
-		bool layer_changed = layer->layer != layer_surface->current.layer;
-		if (layer_changed) {
-			wl_list_remove(&layer->link);
-			wl_list_insert(&output->layers[layer_surface->current.layer],
-				&layer->link);
-			layer->layer = layer_surface->current.layer;
-		}
 		if (geo_changed || layer_changed) {
 			phoc_output_damage_whole_local_surface(output, layer_surface->surface,
 							       old_geo.x, old_geo.y);
@@ -416,7 +421,7 @@ static void popup_unconstrain(struct roots_layer_popup *popup) {
 	PhocLayerSurface *layer = popup_get_root_layer(popup);
 	struct wlr_xdg_popup *wlr_popup = popup->wlr_popup;
 
-	PhocOutput *output = layer->layer_surface->output->data;
+	PhocOutput *output = phoc_layer_surface_get_output (layer);
 
 	// the output box expressed in the coordinate system of the toplevel parent
 	// of the popup
@@ -446,16 +451,15 @@ static void popup_damage(struct roots_layer_popup *layer_popup, bool whole) {
 	ox += layer->geo.x;
 	oy += layer->geo.y;
 
-	struct wlr_output *wlr_output = layer->layer_surface->output;
-	if (!wlr_output) {
+	PhocOutput *output = phoc_layer_surface_get_output (layer);
+	if (!output) {
 		return;
 	}
 
 	if (whole) {
-		phoc_output_damage_whole_local_surface(wlr_output->data, surface, ox, oy);
+		phoc_output_damage_whole_local_surface(output, surface, ox, oy);
 	} else {
-		phoc_output_damage_from_local_surface(layer->layer_surface->output->data,
-						      surface, ox, oy);
+		phoc_output_damage_from_local_surface(output, surface, ox, oy);
 	}
 }
 
@@ -489,7 +493,13 @@ static void popup_handle_map(struct wl_listener *listener, void *data) {
 	}
 
 	struct wlr_subsurface *child;
-	wl_list_for_each(child, &popup->wlr_popup->base->surface->subsurfaces, parent_link) {
+	wl_list_for_each(child, &popup->wlr_popup->base->surface->subsurfaces_below, parent_link) {
+		struct roots_layer_subsurface *new_subsurface = layer_subsurface_create(child);
+		new_subsurface->parent_type = LAYER_PARENT_POPUP;
+		new_subsurface->parent_popup = popup;
+		wl_list_insert(&popup->subsurfaces, &new_subsurface->link);
+	}
+	wl_list_for_each(child, &popup->wlr_popup->base->surface->subsurfaces_above, parent_link) {
 		struct roots_layer_subsurface *new_subsurface = layer_subsurface_create(child);
 		new_subsurface->parent_type = LAYER_PARENT_POPUP;
 		new_subsurface->parent_popup = popup;
@@ -577,18 +587,18 @@ static PhocLayerSurface *subsurface_get_root_layer(struct roots_layer_subsurface
 
 static void subsurface_damage(struct roots_layer_subsurface *subsurface, bool whole) {
 	PhocLayerSurface *layer = subsurface_get_root_layer(subsurface);
-	struct wlr_output *wlr_output = layer->layer_surface->output;
-	if (!wlr_output) {
+	PhocOutput *output = phoc_layer_surface_get_output (layer);
+	if (!output) {
 		return;
 	}
 	int ox = subsurface->wlr_subsurface->current.x + layer->geo.x;
 	int oy = subsurface->wlr_subsurface->current.y + layer->geo.y;
 	if (whole) {
-		phoc_output_damage_whole_local_surface(wlr_output->data,
+		phoc_output_damage_whole_local_surface(output,
 						       subsurface->wlr_subsurface->surface,
 						       ox, oy);
 	} else {
-		phoc_output_damage_from_local_surface(wlr_output->data,
+		phoc_output_damage_from_local_surface(output,
 						      subsurface->wlr_subsurface->surface,
 						      ox, oy);
 	}
@@ -610,7 +620,13 @@ static void subsurface_handle_map(struct wl_listener *listener, void *data) {
 	struct roots_layer_subsurface *subsurface = wl_container_of(listener, subsurface, map);
 
 	struct wlr_subsurface *child;
-	wl_list_for_each(child, &subsurface->wlr_subsurface->surface->subsurfaces, parent_link) {
+	wl_list_for_each(child, &subsurface->wlr_subsurface->surface->subsurfaces_below, parent_link) {
+		struct roots_layer_subsurface *new_subsurface = layer_subsurface_create(child);
+		new_subsurface->parent_type = LAYER_PARENT_SUBSURFACE;
+		new_subsurface->parent_subsurface = subsurface;
+		wl_list_insert(&subsurface->subsurfaces, &new_subsurface->link);
+	}
+	wl_list_for_each(child, &subsurface->wlr_subsurface->surface->subsurfaces_above, parent_link) {
 		struct roots_layer_subsurface *new_subsurface = layer_subsurface_create(child);
 		new_subsurface->parent_type = LAYER_PARENT_SUBSURFACE;
 		new_subsurface->parent_subsurface = subsurface;
@@ -684,14 +700,20 @@ static void handle_new_subsurface(struct wl_listener *listener, void *data) {
 
 static void handle_map(struct wl_listener *listener, void *data) {
 	struct wlr_layer_surface_v1 *layer_surface = data;
-	PhocLayerSurface *layer = layer_surface->data;
-	struct wlr_output *wlr_output = layer_surface->output;
-	if (!wlr_output) {
+	PhocLayerSurface *layer = PHOC_LAYER_SURFACE (layer_surface->data);
+	PhocOutput *output = phoc_layer_surface_get_output (layer);
+	if (!output) {
 		return;
 	}
 
 	struct wlr_subsurface *subsurface;
-	wl_list_for_each(subsurface, &layer_surface->surface->subsurfaces, parent_link) {
+	wl_list_for_each(subsurface, &layer_surface->surface->subsurfaces_below, parent_link) {
+		struct roots_layer_subsurface *roots_subsurface = layer_subsurface_create(subsurface);
+		roots_subsurface->parent_type = LAYER_PARENT_LAYER;
+		roots_subsurface->parent_layer = layer;
+		wl_list_insert(&layer->subsurfaces, &roots_subsurface->link);
+	}
+	wl_list_for_each(subsurface, &layer_surface->surface->subsurfaces_above, parent_link) {
 		struct roots_layer_subsurface *roots_subsurface = layer_subsurface_create(subsurface);
 		roots_subsurface->parent_type = LAYER_PARENT_LAYER;
 		roots_subsurface->parent_layer = layer;
@@ -701,10 +723,10 @@ static void handle_map(struct wl_listener *listener, void *data) {
 	layer->new_subsurface.notify = handle_new_subsurface;
 	wl_signal_add(&layer_surface->surface->events.new_subsurface, &layer->new_subsurface);
 
-	phoc_output_damage_whole_local_surface(wlr_output->data,
+	phoc_output_damage_whole_local_surface(output,
 					       layer_surface->surface, layer->geo.x,
 					       layer->geo.y);
-	wlr_surface_send_enter(layer_surface->surface, wlr_output);
+	wlr_surface_send_enter(layer_surface->surface, output->wlr_output);
 }
 
 static void handle_unmap(struct wl_listener *listener, void *data) {
@@ -748,9 +770,9 @@ void handle_layer_shell_surface(struct wl_listener *listener, void *data) {
 					cursor->cursor->x,
 					cursor->cursor->y);
 		if (!output) {
-			wlr_log(WLR_ERROR, "Couldn't find output at (%.0f,%.0f)",
-				cursor->cursor->x,
-				cursor->cursor->y);
+			g_critical ("Couldn't find output at (%.0f,%.0f)",
+                                    cursor->cursor->x,
+                                    cursor->cursor->y);
 			output = wlr_output_layout_get_center_output(desktop->layout);
 		}
 		if (output) {

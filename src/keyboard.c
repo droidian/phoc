@@ -19,7 +19,6 @@
 #include <wayland-server-core.h>
 #include <wlr/backend/session.h>
 #include <wlr/types/wlr_pointer.h>
-#include <wlr/util/log.h>
 #include <xkbcommon/xkbcommon.h>
 #include "keyboard.h"
 #include "phosh-private.h"
@@ -28,10 +27,13 @@
 #include <glib.h>
 #include <glib/gprintf.h>
 
-#define KEYBOARD_DEFAULT_XKB_RULES "evdev"
-#define KEYBOARD_DEFAULT_XKB_MODEL "pc105"
-
-
+/**
+ * PhocKeyboard:
+ *
+ * A keyboard input device
+ *
+ * It tracks keybindings and it's keymap.
+ */
 struct _PhocKeyboard {
   PhocInputDevice parent;
 
@@ -58,7 +60,7 @@ static guint signals [N_SIGNALS];
 
 
 static ssize_t
-pressed_keysyms_index(xkb_keysym_t *pressed_keysyms,
+pressed_keysyms_index(const xkb_keysym_t *pressed_keysyms,
                       xkb_keysym_t keysym)
 {
   for (size_t i = 0; i < PHOC_KEYBOARD_PRESSED_KEYSYMS_CAP; ++i) {
@@ -69,7 +71,7 @@ pressed_keysyms_index(xkb_keysym_t *pressed_keysyms,
   return -1;
 }
 
-static size_t pressed_keysyms_length(xkb_keysym_t *pressed_keysyms) {
+static size_t pressed_keysyms_length(const xkb_keysym_t *pressed_keysyms) {
   size_t n = 0;
   for (size_t i = 0; i < PHOC_KEYBOARD_PRESSED_KEYSYMS_CAP; ++i) {
     if (pressed_keysyms[i] != XKB_KEY_NoSymbol) {
@@ -123,15 +125,15 @@ keysym_is_modifier(xkb_keysym_t keysym)
 static void
 pressed_keysyms_update(xkb_keysym_t *pressed_keysyms,
                        const xkb_keysym_t *keysyms, size_t keysyms_len,
-                       enum wlr_key_state state)
+                       enum wl_keyboard_key_state state)
 {
   for (size_t i = 0; i < keysyms_len; ++i) {
     if (keysym_is_modifier(keysyms[i])) {
       continue;
     }
-    if (state == WLR_KEY_PRESSED) {
+    if (state == WL_KEYBOARD_KEY_STATE_PRESSED) {
       pressed_keysyms_add(pressed_keysyms, keysyms[i]);
-    } else { // WLR_KEY_RELEASED
+    } else { // WL_KEYBOARD_KEY_STATE_RELEASED
       pressed_keysyms_remove(pressed_keysyms, keysyms[i]);
     }
   }
@@ -300,7 +302,7 @@ phoc_keyboard_handle_key(PhocKeyboard *self,
                                             &modifiers);
   pressed_keysyms_update(self->pressed_keysyms_translated, keysyms,
                          keysyms_len, event->state);
-  if (event->state == WLR_KEY_PRESSED) {
+  if (event->state == WL_KEYBOARD_KEY_STATE_PRESSED) {
     handled = keyboard_execute_binding(self,
                                        self->pressed_keysyms_translated, modifiers, keysyms,
                                        keysyms_len);
@@ -310,13 +312,13 @@ phoc_keyboard_handle_key(PhocKeyboard *self,
   keysyms_len = keyboard_keysyms_raw(self, keycode, &keysyms, &modifiers);
   pressed_keysyms_update(self->pressed_keysyms_raw, keysyms, keysyms_len,
                          event->state);
-  if (event->state == WLR_KEY_PRESSED && !handled) {
+  if (event->state == WL_KEYBOARD_KEY_STATE_PRESSED && !handled) {
     handled = keyboard_execute_binding(self,
                                        self->pressed_keysyms_raw, modifiers, keysyms, keysyms_len);
   }
 
   // Handle subscribed keysyms
-  if (event->state == WLR_KEY_PRESSED && !handled) {
+  if (event->state == WL_KEYBOARD_KEY_STATE_PRESSED && !handled) {
     handled = keyboard_execute_subscribed_binding (self,
                                                    self->pressed_keysyms_raw, modifiers,
                                                    keysyms, keysyms_len, event->time_msec);
@@ -348,16 +350,9 @@ phoc_keyboard_handle_modifiers(PhocKeyboard *self)
 static void
 set_fallback_keymap (PhocKeyboard *self)
 {
-  struct xkb_rule_names rules = { 0 };
   struct xkb_context *context;
   PhocInputDevice *input_device = PHOC_INPUT_DEVICE (self);
   struct wlr_input_device *device = phoc_input_device_get_device (input_device);
-
-  rules.rules = KEYBOARD_DEFAULT_XKB_RULES;
-  rules.model = KEYBOARD_DEFAULT_XKB_MODEL;
-  rules.layout = "us";
-  rules.variant = "";
-  rules.options = "";
 
   context = xkb_context_new (XKB_CONTEXT_NO_FLAGS);
   if (context == NULL) {
@@ -365,7 +360,7 @@ set_fallback_keymap (PhocKeyboard *self)
   }
 
   xkb_keymap_unref (self->keymap);
-  self->keymap = xkb_keymap_new_from_names (context, &rules,
+  self->keymap = xkb_keymap_new_from_names (context, NULL,
                                             XKB_KEYMAP_COMPILE_NO_FLAGS);
   xkb_context_unref (context);
 
@@ -384,8 +379,6 @@ set_xkb_keymap (PhocKeyboard *self, const gchar *layout, const gchar *variant, c
 
   g_assert (device->keyboard);
 
-  rules.rules = KEYBOARD_DEFAULT_XKB_RULES;
-  rules.model = KEYBOARD_DEFAULT_XKB_MODEL;
   rules.layout = layout;
   rules.variant = variant;
   rules.options = options;

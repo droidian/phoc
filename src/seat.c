@@ -24,7 +24,7 @@
 #include <wlr/types/wlr_switch.h>
 #include <wlr/types/wlr_tablet_v2.h>
 #include <wlr/types/wlr_xcursor_manager.h>
-#include <wlr/util/log.h>
+#include <wlr/types/wlr_tablet_pad.h>
 #include <wlr/version.h>
 #include "cursor.h"
 #include "keyboard.h"
@@ -35,7 +35,7 @@
 #include "text_input.h"
 #include "touch.h"
 #include "xcursor.h"
-
+#include "xwayland-surface.h"
 
 enum {
   PROP_0,
@@ -90,71 +90,6 @@ phoc_seat_get_property (GObject    *object,
     G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
     break;
   }
-}
-
-
-static void
-handle_cursor_motion (struct wl_listener *listener, void *data)
-{
-  PhocServer *server = phoc_server_get_default ();
-  PhocCursor *cursor = wl_container_of (listener, cursor, motion);
-  PhocDesktop *desktop = server->desktop;
-
-  wlr_idle_notify_activity (desktop->idle, cursor->seat->seat);
-  struct wlr_event_pointer_motion *event = data;
-
-  phoc_cursor_handle_motion (cursor, event);
-}
-
-static void
-handle_cursor_motion_absolute (struct wl_listener *listener,
-                               void               *data)
-{
-  PhocServer *server = phoc_server_get_default ();
-  PhocCursor *cursor = wl_container_of (listener, cursor, motion_absolute);
-  PhocDesktop *desktop = server->desktop;
-
-  wlr_idle_notify_activity (desktop->idle, cursor->seat->seat);
-  struct wlr_event_pointer_motion_absolute *event = data;
-
-  phoc_cursor_handle_motion_absolute (cursor, event);
-}
-
-static void
-handle_cursor_button (struct wl_listener *listener, void *data)
-{
-  PhocServer *server = phoc_server_get_default ();
-  PhocCursor *cursor = wl_container_of (listener, cursor, button);
-  PhocDesktop *desktop = server->desktop;
-
-  wlr_idle_notify_activity (desktop->idle, cursor->seat->seat);
-  struct wlr_event_pointer_button *event = data;
-
-  phoc_cursor_handle_button (cursor, event);
-}
-
-static void
-handle_cursor_axis (struct wl_listener *listener, void *data)
-{
-  PhocServer *server = phoc_server_get_default ();
-  PhocCursor *cursor = wl_container_of (listener, cursor, axis);
-  PhocDesktop *desktop = server->desktop;
-
-  wlr_idle_notify_activity (desktop->idle, cursor->seat->seat);
-  struct wlr_event_pointer_axis *event = data;
-
-  phoc_cursor_handle_axis (cursor, event);
-}
-
-static void
-handle_cursor_frame (struct wl_listener *listener, void *data)
-{
-  PhocServer *server = phoc_server_get_default ();
-  PhocCursor *cursor = wl_container_of (listener, cursor, frame);
-  PhocDesktop *desktop = server->desktop;
-
-  wlr_idle_notify_activity (desktop->idle, cursor->seat->seat);
-  phoc_cursor_handle_frame (cursor);
 }
 
 static void
@@ -502,8 +437,8 @@ handle_tool_proximity (struct wl_listener *listener, void *data)
   struct wlr_tablet_tool *tool = event->tool;
 
   if (!tool->data) {
-    PhocTabletTool *phoc_tool =
-      calloc (1, sizeof(PhocTabletTool));
+    PhocTabletTool *phoc_tool = g_new0 (PhocTabletTool, 1);
+
     phoc_tool->seat = cursor->seat;
     tool->data = phoc_tool;
     phoc_tool->tablet_v2_tool =
@@ -525,7 +460,7 @@ handle_tool_proximity (struct wl_listener *listener, void *data)
     wlr_tablet_v2_tablet_tool_notify_proximity_out (phoc_tool->tablet_v2_tool);
 
     /* Clear cursor image if there's no pointing device. */
-    if ((cursor->seat->seat->capabilities & WL_SEAT_CAPABILITY_POINTER) == 0)
+    if (phoc_seat_has_pointer (cursor->seat) == FALSE)
       phoc_seat_maybe_set_cursor (cursor->seat, cursor->default_xcursor);
 
     return;
@@ -673,22 +608,6 @@ phoc_seat_init_cursor (PhocSeat *seat)
   phoc_seat_configure_xcursor (seat);
 
   // add input signals
-  wl_signal_add (&wlr_cursor->events.motion, &seat->cursor->motion);
-  seat->cursor->motion.notify = handle_cursor_motion;
-
-  wl_signal_add (&wlr_cursor->events.motion_absolute,
-                 &seat->cursor->motion_absolute);
-  seat->cursor->motion_absolute.notify = handle_cursor_motion_absolute;
-
-  wl_signal_add (&wlr_cursor->events.button, &seat->cursor->button);
-  seat->cursor->button.notify = handle_cursor_button;
-
-  wl_signal_add (&wlr_cursor->events.axis, &seat->cursor->axis);
-  seat->cursor->axis.notify = handle_cursor_axis;
-
-  wl_signal_add (&wlr_cursor->events.frame, &seat->cursor->frame);
-  seat->cursor->frame.notify = handle_cursor_frame;
-
   wl_signal_add (&wlr_cursor->events.swipe_begin, &seat->cursor->swipe_begin);
   seat->cursor->swipe_begin.notify = handle_swipe_begin;
 
@@ -828,11 +747,8 @@ phoc_seat_handle_start_drag (struct wl_listener *listener,
     return;
   }
 
-  PhocDragIcon *icon = calloc (1, sizeof(PhocDragIcon));
+  PhocDragIcon *icon = g_new0 (PhocDragIcon, 1);
 
-  if (icon == NULL) {
-    return;
-  }
   icon->seat = seat;
   icon->wlr_drag_icon = wlr_drag_icon;
 
@@ -929,7 +845,7 @@ phoc_seat_handle_destroy (struct wl_listener *listener,
   // TODO: probably more to be freed here
   wl_list_remove (&seat->destroy.link);
 
-  roots_input_method_relay_destroy (&seat->im_relay);
+  phoc_input_method_relay_destroy (&seat->im_relay);
 
   PhocSeatView *view, *nview;
 
@@ -1097,12 +1013,8 @@ seat_add_switch (PhocSeat                *seat,
                  struct wlr_input_device *device)
 {
   assert (device->type == WLR_INPUT_DEVICE_SWITCH);
-  struct roots_switch *switch_device = calloc (1, sizeof(struct roots_switch));
+  struct roots_switch *switch_device = g_new0 (struct roots_switch, 1);
 
-  if (!switch_device) {
-    wlr_log (WLR_ERROR, "could not allocate switch for seat");
-    return;
-  }
   device->data = switch_device;
   switch_device->device = device;
   switch_device->seat = seat;
@@ -1254,13 +1166,7 @@ seat_add_tablet_pad (PhocSeat                *seat,
                      struct wlr_input_device *device)
 {
   PhocServer *server = phoc_server_get_default ();
-  PhocTabletPad *tablet_pad =
-    calloc (1, sizeof(PhocTabletPad));
-
-  if (!tablet_pad) {
-    wlr_log (WLR_ERROR, "could not allocate tablet_pad for seat");
-    return;
-  }
+  PhocTabletPad *tablet_pad = g_new0 (PhocTabletPad, 1);
 
   device->data = tablet_pad;
   tablet_pad->device = device;
@@ -1342,11 +1248,6 @@ seat_add_tablet_tool (PhocSeat                *seat,
     return;
 
   PhocTablet *tablet = phoc_tablet_new (device, seat);
-  if (!tablet) {
-    wlr_log (WLR_ERROR, "could not allocate tablet for seat");
-    return;
-  }
-
   seat->tablets = g_slist_prepend (seat->tablets, tablet);
   g_signal_connect_swapped (tablet, "device-destroy",
                             G_CALLBACK (on_tablet_destroy),
@@ -1413,24 +1314,13 @@ void
 phoc_seat_configure_xcursor (PhocSeat *seat)
 {
   PhocServer *server = phoc_server_get_default ();
-  const char *cursor_theme = NULL;
-
-  if (!seat->cursor->xcursor_manager) {
-    seat->cursor->xcursor_manager =
-      wlr_xcursor_manager_create (cursor_theme, PHOC_XCURSOR_SIZE);
-    if (seat->cursor->xcursor_manager == NULL) {
-      wlr_log (WLR_ERROR, "Cannot create XCursor manager for theme");
-      return;
-    }
-  }
-
   PhocOutput *output;
 
   wl_list_for_each (output, &server->desktop->outputs, link) {
     float scale = output->wlr_output->scale;
     if (!wlr_xcursor_manager_load (seat->cursor->xcursor_manager, scale)) {
-      wlr_log (WLR_ERROR, "Cannot load xcursor theme for output '%s' "
-               "with scale %f", output->wlr_output->name, scale);
+      g_critical ("Cannot load xcursor theme for output '%s' "
+                  "with scale %f", output->wlr_output->name, scale);
     }
   }
 
@@ -1457,7 +1347,7 @@ phoc_seat_has_meta_pressed (PhocSeat *seat)
   return false;
 }
 
-struct roots_view *
+PhocView *
 phoc_seat_get_focus (PhocSeat *seat)
 {
   if (!seat->has_focus || wl_list_empty (&seat->views)) {
@@ -1473,7 +1363,7 @@ static void
 seat_view_destroy (PhocSeatView *seat_view)
 {
   PhocSeat *seat = seat_view->seat;
-  struct roots_view *view = seat_view->view;
+  PhocView *view = seat_view->view;
 
   if (view == phoc_seat_get_focus (seat)) {
     seat->has_focus = false;
@@ -1518,13 +1408,10 @@ seat_view_handle_destroy (struct wl_listener *listener, void *data)
 }
 
 static PhocSeatView *
-seat_add_view (PhocSeat *seat, struct roots_view *view)
+seat_add_view (PhocSeat *seat, PhocView *view)
 {
-  PhocSeatView *seat_view = calloc (1, sizeof(PhocSeatView));
+  PhocSeatView *seat_view = g_new0 (PhocSeatView, 1);
 
-  if (seat_view == NULL) {
-    return NULL;
-  }
   seat_view->seat = seat;
   seat_view->view = view;
 
@@ -1539,8 +1426,7 @@ seat_add_view (PhocSeat *seat, struct roots_view *view)
 }
 
 PhocSeatView *
-phoc_seat_view_from_view (
-  PhocSeat *seat, struct roots_view *view)
+phoc_seat_view_from_view (PhocSeat *seat, PhocView *view)
 {
   if (view == NULL) {
     return NULL;
@@ -1555,13 +1441,8 @@ phoc_seat_view_from_view (
       break;
     }
   }
-  if (!found) {
+  if (!found)
     seat_view = seat_add_view (seat, view);
-    if (seat_view == NULL) {
-      wlr_log (WLR_ERROR, "Allocation failed");
-      return NULL;
-    }
-  }
 
   return seat_view;
 }
@@ -1575,7 +1456,7 @@ phoc_seat_allow_input (PhocSeat           *seat,
 }
 
 static void
-seat_raise_view_stack (PhocSeat *seat, struct roots_view *view)
+seat_raise_view_stack (PhocSeat *seat, PhocView *view)
 {
   PhocServer *server = phoc_server_get_default ();
 
@@ -1585,9 +1466,9 @@ seat_raise_view_stack (PhocSeat *seat, struct roots_view *view)
 
   wl_list_remove (&view->link);
   wl_list_insert (&server->desktop->views, &view->link);
-  view_damage_whole (view);
+  phoc_view_damage_whole (view);
 
-  struct roots_view *child;
+  PhocView *child;
 
   wl_list_for_each_reverse (child, &view->stack, parent_link)
   {
@@ -1596,7 +1477,7 @@ seat_raise_view_stack (PhocSeat *seat, struct roots_view *view)
 }
 
 void
-phoc_seat_set_focus (PhocSeat *seat, struct roots_view *view)
+phoc_seat_set_focus (PhocSeat *seat, PhocView *view)
 {
   if (view && !phoc_seat_allow_input (seat, view->wlr_surface->resource)) {
     return;
@@ -1605,7 +1486,7 @@ phoc_seat_set_focus (PhocSeat *seat, struct roots_view *view)
   // Make sure the view will be rendered on top of others, even if it's
   // already focused in this seat
   if (view != NULL) {
-    struct roots_view *parent = view;
+    PhocView *parent = view;
     // reorder stack
     while (parent->parent) {
       wl_list_remove (&parent->parent_link);
@@ -1618,9 +1499,9 @@ phoc_seat_set_focus (PhocSeat *seat, struct roots_view *view)
   bool unfullscreen = true;
 
 #ifdef PHOC_XWAYLAND
-  if (view && view->type == ROOTS_XWAYLAND_VIEW) {
-    struct roots_xwayland_surface *xwayland_surface =
-      roots_xwayland_surface_from_view (view);
+  if (view && view->type == PHOC_XWAYLAND_VIEW) {
+    PhocXWaylandSurface *xwayland_surface =
+      phoc_xwayland_surface_from_view (view);
     if (xwayland_surface->xwayland_surface->override_redirect) {
       unfullscreen = false;
     }
@@ -1638,22 +1519,22 @@ phoc_seat_set_focus (PhocSeat *seat, struct roots_view *view)
           wlr_output_layout_intersects (
             desktop->layout,
             output->wlr_output, &box)) {
-        view_set_fullscreen (output->fullscreen_view,
-                             false, NULL);
+        phoc_view_set_fullscreen (output->fullscreen_view,
+                                  false, NULL);
       }
     }
   }
 
-  struct roots_view *prev_focus = phoc_seat_get_focus (seat);
+  PhocView *prev_focus = phoc_seat_get_focus (seat);
 
   if (view && view == prev_focus) {
     return;
   }
 
 #ifdef PHOC_XWAYLAND
-  if (view && view->type == ROOTS_XWAYLAND_VIEW) {
-    struct roots_xwayland_surface *xwayland_surface =
-      roots_xwayland_surface_from_view (view);
+  if (view && view->type == PHOC_XWAYLAND_VIEW) {
+    PhocXWaylandSurface *xwayland_surface =
+      phoc_xwayland_surface_from_view (view);
     if (!wlr_xwayland_or_surface_wants_focus (
           xwayland_surface->xwayland_surface)) {
       return;
@@ -1678,7 +1559,7 @@ phoc_seat_set_focus (PhocSeat *seat, struct roots_view *view)
   if (view == NULL) {
     seat->cursor->mode = PHOC_CURSOR_PASSTHROUGH;
     wlr_seat_keyboard_clear_focus (seat->seat);
-    roots_input_method_relay_set_focus (&seat->im_relay, NULL);
+    phoc_input_method_relay_set_focus (&seat->im_relay, NULL);
     return;
   }
 
@@ -1713,7 +1594,7 @@ phoc_seat_set_focus (PhocSeat *seat, struct roots_view *view)
   }
 
   phoc_cursor_update_focus (seat->cursor);
-  roots_input_method_relay_set_focus (&seat->im_relay, view->wlr_surface);
+  phoc_input_method_relay_set_focus (&seat->im_relay, view->wlr_surface);
 }
 
 /*
@@ -1750,7 +1631,7 @@ phoc_seat_set_focus_layer (PhocSeat                    *seat,
     return;
   }
   if (seat->has_focus) {
-    struct roots_view *prev_focus = phoc_seat_get_focus (seat);
+    PhocView *prev_focus = phoc_seat_get_focus (seat);
     wlr_seat_keyboard_clear_focus (seat->seat);
     view_activate (prev_focus, false);
   }
@@ -1768,7 +1649,7 @@ phoc_seat_set_focus_layer (PhocSeat                    *seat,
   }
 
   phoc_cursor_update_focus (seat->cursor);
-  roots_input_method_relay_set_focus (&seat->im_relay, layer->surface);
+  phoc_input_method_relay_set_focus (&seat->im_relay, layer->surface);
 }
 
 void
@@ -1787,7 +1668,7 @@ phoc_seat_set_exclusive_client (PhocSeat         *seat,
     }
   }
   if (seat->has_focus) {
-    struct roots_view *focus = phoc_seat_get_focus (seat);
+    PhocView *focus = phoc_seat_get_focus (seat);
     if (wl_resource_get_client (focus->wlr_surface->resource) != client) {
       phoc_seat_set_focus (seat, NULL);
     }
@@ -1841,7 +1722,7 @@ phoc_seat_cycle_focus (PhocSeat *seat)
 }
 
 void
-phoc_seat_begin_move (PhocSeat *seat, struct roots_view *view)
+phoc_seat_begin_move (PhocSeat *seat, PhocView *view)
 {
   if (view->desktop->maximize)
     return;
@@ -1877,7 +1758,7 @@ phoc_seat_begin_move (PhocSeat *seat, struct roots_view *view)
 }
 
 void
-phoc_seat_begin_resize (PhocSeat *seat, struct roots_view *view,
+phoc_seat_begin_resize (PhocSeat *seat, PhocView *view,
                         uint32_t edges)
 {
   if (view->desktop->maximize || view_is_fullscreen (view))
@@ -1921,7 +1802,7 @@ void
 phoc_seat_end_compositor_grab (PhocSeat *seat)
 {
   PhocCursor *cursor = seat->cursor;
-  struct roots_view *view = phoc_seat_get_focus (seat);
+  PhocView *view = phoc_seat_get_focus (seat);
 
   if (view == NULL) {
     return;
@@ -1955,10 +1836,7 @@ phoc_seat_end_compositor_grab (PhocSeat *seat)
 void
 phoc_seat_maybe_set_cursor (PhocSeat *self, const char *name)
 {
-  struct wlr_seat *wlr_seat = self->seat;
-
-  g_return_if_fail (wlr_seat);
-  if ((wlr_seat->capabilities & WL_SEAT_CAPABILITY_POINTER) == 0) {
+  if (phoc_seat_has_pointer (self) == FALSE) {
     wlr_cursor_set_image (self->cursor->cursor, NULL, 0, 0, 0, 0, 0, 0);
   } else {
     if (!name)
@@ -2000,7 +1878,7 @@ phoc_seat_constructed (GObject *object)
   phoc_seat_init_cursor (self);
   g_assert (self->cursor);
 
-  roots_input_method_relay_init (self, &self->im_relay);
+  phoc_input_method_relay_init (self, &self->im_relay);
 
   self->request_set_selection.notify =
     phoc_seat_handle_request_set_selection;
@@ -2026,7 +1904,6 @@ phoc_seat_dispose (GObject *object)
   PhocSeat *self = PHOC_SEAT (object);
 
   g_clear_object (&self->cursor);
-  g_clear_object (&self->input);
 
   G_OBJECT_CLASS (phoc_seat_parent_class)->dispose (object);
 }
@@ -2055,7 +1932,7 @@ phoc_seat_class_init (PhocSeatClass *klass)
   object_class->set_property = phoc_seat_set_property;
   object_class->constructed = phoc_seat_constructed;
   object_class->dispose = phoc_seat_dispose;
-  object_class->dispose = phoc_seat_finalize;
+  object_class->finalize = phoc_seat_finalize;
 
   /**
    * PhocSeat:input:
@@ -2101,4 +1978,34 @@ phoc_seat_new (PhocInput *input, const char *name)
                                   "input", input,
                                   "name", name,
                                   NULL));
+}
+
+
+gboolean
+phoc_seat_has_touch (PhocSeat *self)
+{
+  g_return_val_if_fail (PHOC_IS_SEAT (self), FALSE);
+
+  g_assert (self->seat);
+  return (self->seat->capabilities & WL_SEAT_CAPABILITY_TOUCH);
+}
+
+
+gboolean
+phoc_seat_has_pointer (PhocSeat *self)
+{
+  g_return_val_if_fail (PHOC_IS_SEAT (self), FALSE);
+
+  g_assert (self->seat);
+  return (self->seat->capabilities & WL_SEAT_CAPABILITY_POINTER);
+}
+
+
+gboolean
+phoc_seat_has_keyboard (PhocSeat *self)
+{
+  g_return_val_if_fail (PHOC_IS_SEAT (self), FALSE);
+
+  g_assert (self->seat);
+  return (self->seat->capabilities & WL_SEAT_CAPABILITY_KEYBOARD);
 }

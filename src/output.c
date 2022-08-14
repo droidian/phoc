@@ -13,7 +13,6 @@
 #include <wlr/types/wlr_output_layout.h>
 #include <wlr/types/wlr_output_power_management_v1.h>
 #include <wlr/types/wlr_xdg_shell.h>
-#include <wlr/util/log.h>
 #include <wlr/util/region.h>
 #include "settings.h"
 #include "layers.h"
@@ -22,6 +21,7 @@
 #include "seat.h"
 #include "server.h"
 #include "utils.h"
+#include "xwayland-surface.h"
 
 
 G_DEFINE_TYPE (PhocOutput, phoc_output, G_TYPE_OBJECT);
@@ -40,18 +40,20 @@ enum {
 };
 static guint signals[N_SIGNALS] = { 0 };
 
-struct surface_iterator_data {
-  roots_surface_iterator_func_t user_iterator;
-  void                         *user_data;
 
-  PhocOutput                   *output;
-  double                        ox, oy;
-  int                           width, height;
-  float                         rotation, scale;
-};
+typedef struct {
+  PhocSurfaceIterator  user_iterator;
+  void                *user_data;
+
+  PhocOutput          *output;
+  double               ox, oy;
+  int                  width, height;
+  float                rotation, scale;
+} PhocOutputSurfaceIteratorData;
+
 
 static bool
-get_surface_box (struct surface_iterator_data *data,
+get_surface_box (PhocOutputSurfaceIteratorData *data,
                  struct wlr_surface *surface, int sx, int sy,
                  struct wlr_box *surface_box)
 {
@@ -200,8 +202,10 @@ phoc_output_damage_handle_frame (struct wl_listener *listener,
                                  void               *data)
 {
   PhocOutput *self = wl_container_of (listener, self, damage_frame);
+  PhocServer *server = phoc_server_get_default ();
+  PhocRenderer *renderer = phoc_server_get_renderer (server);
 
-  output_render (self);
+  phoc_renderer_render_output (renderer, self);
 }
 
 static void
@@ -210,7 +214,13 @@ phoc_output_damage_handle_destroy (struct wl_listener *listener,
 {
   PhocOutput *self = wl_container_of (listener, self, damage_destroy);
 
-  g_signal_emit (self, signals[OUTPUT_DESTROY], 0);
+  g_assert (PHOC_IS_OUTPUT (self));
+
+  if (self->fullscreen_view)
+    phoc_view_set_fullscreen (self->fullscreen_view, false, NULL);
+
+  wl_list_remove (&self->damage_frame.link);
+  wl_list_remove (&self->damage_destroy.link);
 }
 
 static void
@@ -223,15 +233,15 @@ phoc_output_handle_mode (struct wl_listener *listener, void *data)
 }
 
 static void
-phoc_output_handle_transform (struct wl_listener *listener, void *data)
+phoc_output_handle_commit (struct wl_listener *listener, void *data)
 {
-  PhocOutput *self = wl_container_of (listener, self, transform);
+  PhocOutput *self = wl_container_of (listener, self, commit);
 
   phoc_layer_shell_arrange (self);
 }
 
 static void
-phoc_output_set_mode (struct wlr_output *output, struct roots_output_config *oc)
+phoc_output_set_mode (struct wlr_output *output, PhocOutputConfig *oc)
 {
   int mhz = (int)(oc->mode.refresh_rate * 1000);
 
@@ -271,7 +281,7 @@ phoc_output_constructed (GObject *object)
 
   assert (server->desktop);
 
-  struct roots_config *config = self->desktop->config;
+  PhocConfig *config = self->desktop->config;
 
   g_message ("Output '%s' added ('%s'/'%s'/'%s'), "
              "%" PRId32 "mm x %" PRId32 "mm",
@@ -282,7 +292,6 @@ phoc_output_constructed (GObject *object)
              self->wlr_output->phys_width,
              self->wlr_output->phys_height);
 
-  clock_gettime (CLOCK_MONOTONIC, &self->last_frame);
   self->wlr_output->data = self;
   wl_list_insert (&self->desktop->outputs, &self->link);
 
@@ -296,22 +305,18 @@ phoc_output_constructed (GObject *object)
   wl_signal_add (&self->wlr_output->events.enable, &self->enable);
   self->mode.notify = phoc_output_handle_mode;
   wl_signal_add (&self->wlr_output->events.mode, &self->mode);
-  self->transform.notify = phoc_output_handle_transform;
-  wl_signal_add (&self->wlr_output->events.transform, &self->transform);
+  self->commit.notify = phoc_output_handle_commit;
+  wl_signal_add (&self->wlr_output->events.commit, &self->commit);
 
   self->damage_frame.notify = phoc_output_damage_handle_frame;
   wl_signal_add (&self->damage->events.frame, &self->damage_frame);
   self->damage_destroy.notify = phoc_output_damage_handle_destroy;
   wl_signal_add (&self->damage->events.destroy, &self->damage_destroy);
 
-  size_t len = sizeof(self->layers) / sizeof(self->layers[0]);
-
-  for (size_t i = 0; i < len; ++i) {
+  for (size_t i = 0; i < G_N_ELEMENTS (self->layers); ++i)
     wl_list_init (&self->layers[i]);
-  }
 
-  struct roots_output_config *output_config =
-    roots_config_get_output (config, self->wlr_output);
+  PhocOutputConfig *output_config = phoc_config_get_output (config, self->wlr_output);
 
   struct wlr_output_mode *preferred_mode =
     wlr_output_preferred_mode (self->wlr_output);
@@ -319,7 +324,7 @@ phoc_output_constructed (GObject *object)
   if (output_config) {
     if (output_config->enable) {
       if (wlr_output_is_drm (self->wlr_output)) {
-        struct roots_output_mode_config *mode_config;
+        PhocOutputModeConfig *mode_config;
         wl_list_for_each (mode_config, &output_config->modes, link) {
           wlr_drm_connector_add_mode (self->wlr_output, &mode_config->info);
         }
@@ -373,18 +378,14 @@ phoc_output_finalize (GObject *object)
   PhocOutput *self = PHOC_OUTPUT (object);
 
   wl_list_remove (&self->link);
-  wl_list_remove (&self->output_destroy.link);
   wl_list_remove (&self->enable.link);
   wl_list_remove (&self->mode.link);
-  wl_list_remove (&self->transform.link);
-  wl_list_remove (&self->damage_frame.link);
-  wl_list_remove (&self->damage_destroy.link);
-  g_list_free_full (self->debug_touch_points, g_free);
+  wl_list_remove (&self->commit.link);
+  wl_list_remove (&self->output_destroy.link);
+  g_clear_list (&self->debug_touch_points, g_free);
 
-  size_t len = sizeof (self->layers) / sizeof (self->layers[0]);
-  for (size_t i = 0; i < len; ++i) {
+  for (size_t i = 0; i < G_N_ELEMENTS (self->layers); ++i)
     wl_list_remove (&self->layers[i]);
-  }
 
   g_clear_object (&self->desktop);
 
@@ -428,7 +429,7 @@ static void
 phoc_output_for_each_surface_iterator (struct wlr_surface *surface,
                                        int sx, int sy, void *_data)
 {
-  struct surface_iterator_data *data = _data;
+  PhocOutputSurfaceIteratorData *data = _data;
 
   struct wlr_box box;
   bool intersects = get_surface_box (data, surface, sx, sy, &box);
@@ -444,10 +445,10 @@ phoc_output_for_each_surface_iterator (struct wlr_surface *surface,
 void
 phoc_output_surface_for_each_surface (PhocOutput *self, struct wlr_surface
                                       *surface, double ox, double oy,
-                                      roots_surface_iterator_func_t iterator,
+                                      PhocSurfaceIterator iterator,
                                       void *user_data)
 {
-  struct surface_iterator_data data = {
+  PhocOutputSurfaceIteratorData data = {
     .user_iterator = iterator,
     .user_data = user_data,
     .output = self,
@@ -467,10 +468,10 @@ void
 phoc_output_xdg_surface_for_each_surface (PhocOutput *self, struct
                                           wlr_xdg_surface *xdg_surface, double
                                           ox, double oy,
-                                          roots_surface_iterator_func_t
+                                          PhocSurfaceIterator
                                           iterator, void *user_data)
 {
-  struct surface_iterator_data data = {
+  PhocOutputSurfaceIteratorData data = {
     .user_iterator = iterator,
     .user_data = user_data,
     .output = self,
@@ -487,8 +488,8 @@ phoc_output_xdg_surface_for_each_surface (PhocOutput *self, struct
 }
 
 void
-phoc_output_view_for_each_surface (PhocOutput *self, struct roots_view *view,
-                                   roots_surface_iterator_func_t iterator, void
+phoc_output_view_for_each_surface (PhocOutput *self, PhocView *view,
+                                   PhocSurfaceIterator iterator, void
                                    *user_data)
 {
   struct wlr_box *output_box =
@@ -498,7 +499,7 @@ phoc_output_view_for_each_surface (PhocOutput *self, struct roots_view *view,
     return;
   }
 
-  struct surface_iterator_data data = {
+  PhocOutputSurfaceIteratorData data = {
     .user_iterator = iterator,
     .user_data = user_data,
     .output = self,
@@ -517,7 +518,7 @@ phoc_output_view_for_each_surface (PhocOutput *self, struct roots_view *view,
 void
 phoc_output_xwayland_children_for_each_surface (PhocOutput *self, struct
                                                 wlr_xwayland_surface *surface,
-                                                roots_surface_iterator_func_t
+                                                PhocSurfaceIterator
                                                 iterator, void *user_data)
 {
   struct wlr_box *output_box =
@@ -544,7 +545,7 @@ phoc_output_xwayland_children_for_each_surface (PhocOutput *self, struct
 
 static void
 phoc_output_layer_handle_surface (PhocOutput *self, PhocLayerSurface *layer_surface,
-                                  roots_surface_iterator_func_t iterator, void
+                                  PhocSurfaceIterator iterator, void
                                   *user_data)
 {
   struct wlr_layer_surface_v1 *wlr_layer_surface_v1 =
@@ -577,7 +578,7 @@ phoc_output_layer_handle_surface (PhocOutput *self, PhocLayerSurface *layer_surf
 void
 phoc_output_layer_for_each_surface (PhocOutput                   *self,
                                     struct wl_list               *layer_surfaces,
-                                    roots_surface_iterator_func_t iterator,
+                                    PhocSurfaceIterator iterator,
                                     void                         *user_data)
 {
   PhocLayerSurface *layer_surface;
@@ -597,7 +598,7 @@ phoc_output_layer_for_each_surface (PhocOutput                   *self,
 
 void
 phoc_output_drag_icons_for_each_surface (PhocOutput *self, PhocInput *input,
-                                         roots_surface_iterator_func_t
+                                         PhocSurfaceIterator
                                          iterator, void *user_data)
 {
   struct wlr_box *output_box =
@@ -624,28 +625,28 @@ phoc_output_drag_icons_for_each_surface (PhocOutput *self, PhocInput *input,
 }
 
 void
-phoc_output_for_each_surface (PhocOutput *self, roots_surface_iterator_func_t iterator, void
+phoc_output_for_each_surface (PhocOutput *self, PhocSurfaceIterator iterator, void
                               *user_data, gboolean visible_only)
 {
   PhocDesktop *desktop = self->desktop;
   PhocServer *server = phoc_server_get_default ();
 
   if (self->fullscreen_view != NULL) {
-    struct roots_view *view = self->fullscreen_view;
+    PhocView *view = self->fullscreen_view;
 
     phoc_output_view_for_each_surface (self, view, iterator, user_data);
 
 #ifdef PHOC_XWAYLAND
-    if (view->type == ROOTS_XWAYLAND_VIEW) {
-      struct roots_xwayland_surface *xwayland_surface =
-        roots_xwayland_surface_from_view (view);
+    if (view->type == PHOC_XWAYLAND_VIEW) {
+      PhocXWaylandSurface *xwayland_surface =
+        phoc_xwayland_surface_from_view (view);
       phoc_output_xwayland_children_for_each_surface (self,
                                                       xwayland_surface->xwayland_surface,
                                                       iterator, user_data);
     }
 #endif
   } else {
-    struct roots_view *view;
+    PhocView *view;
     wl_list_for_each_reverse (view, &desktop->views, link)
     {
       if (!visible_only || phoc_desktop_view_is_visible (desktop, view)) {
@@ -657,8 +658,7 @@ phoc_output_for_each_surface (PhocOutput *self, roots_surface_iterator_func_t it
   phoc_output_drag_icons_for_each_surface (self, server->input,
                                            iterator, user_data);
 
-  size_t len = sizeof(self->layers) / sizeof(self->layers[0]);
-  for (size_t i = 0; i < len; ++i) {
+  for (size_t i = 0; i < G_N_ELEMENTS (self->layers); ++i) {
     phoc_output_layer_for_each_surface (self, &self->layers[i],
                                         iterator, user_data);
   }
@@ -680,7 +680,7 @@ phoc_output_scale_box (PhocOutput *self, struct wlr_box *box, float scale)
 }
 
 void
-phoc_output_get_decoration_box (PhocOutput *self, struct roots_view *view,
+phoc_output_get_decoration_box (PhocOutput *self, PhocView *view,
                                 struct wlr_box *box)
 {
   struct wlr_box deco_box;
@@ -706,12 +706,10 @@ phoc_output_damage_whole (PhocOutput *self)
 }
 
 static bool
-phoc_view_accept_damage (PhocOutput *self, struct roots_view   *view)
+phoc_view_accept_damage (PhocOutput *self, PhocView  *view)
 {
   PhocServer *server = phoc_server_get_default ();
-  if (view->wlr_surface == NULL) {
-    return false;
-  }
+
   if (!phoc_desktop_view_is_visible (server->desktop, view)) {
     return false;
   }
@@ -722,13 +720,13 @@ phoc_view_accept_damage (PhocOutput *self, struct roots_view   *view)
     return true;
   }
 #ifdef PHOC_XWAYLAND
-  if (self->fullscreen_view->type == ROOTS_XWAYLAND_VIEW &&
-      view->type == ROOTS_XWAYLAND_VIEW) {
+  if (self->fullscreen_view->type == PHOC_XWAYLAND_VIEW &&
+      view->type == PHOC_XWAYLAND_VIEW) {
     // Special case: accept damage from children
     struct wlr_xwayland_surface *xsurface =
-      roots_xwayland_surface_from_view (view)->xwayland_surface;
+      phoc_xwayland_surface_from_view (view)->xwayland_surface;
     struct wlr_xwayland_surface *fullscreen_xsurface =
-      roots_xwayland_surface_from_view (self->fullscreen_view)->xwayland_surface;
+      phoc_xwayland_surface_from_view (self->fullscreen_view)->xwayland_surface;
     while (xsurface != NULL) {
       if (fullscreen_xsurface == xsurface) {
         return true;
@@ -792,9 +790,9 @@ phoc_output_damage_whole_local_surface (PhocOutput *self, struct wlr_surface *su
 }
 
 static void
-damage_whole_view (PhocOutput *self, struct roots_view   *view)
+damage_whole_view (PhocOutput *self, PhocView  *view)
 {
-  if (view->wlr_surface == NULL) {
+  if (!phoc_view_is_mapped (view)) {
     return;
   }
 
@@ -805,32 +803,30 @@ damage_whole_view (PhocOutput *self, struct roots_view   *view)
   wlr_output_damage_add_box (self->damage, &box);
 }
 
+
+/**
+ * phoc_output_damage_from_view:
+ * @self: The output to add damage to
+ * @view: The view providing the damage
+ * @whole: Whether
+ *
+ * Adds a [type@PhocView]'s damage to the damaged area of @self. If
+ * @whole is %TRUE the whole view is damaged (including any window
+ * decorations if they exist). If @whole is %FALSE only buffer damage
+ * is taken into account.
+ * Also schedules a new frame.
+ */
 void
-phoc_output_damage_whole_view (PhocOutput *self, struct roots_view   *view)
+phoc_output_damage_from_view (PhocOutput *self, PhocView  *view, bool whole)
 {
   if (!phoc_view_accept_damage (self, view)) {
     return;
   }
 
-  damage_whole_view (self, view);
-
-  bool whole = true;
-
-  phoc_output_view_for_each_surface (self, view, damage_surface_iterator, &whole);
-}
-
-
-void
-phoc_output_damage_from_view (PhocOutput *self, struct roots_view *view)
-{
-  if (!phoc_view_accept_damage (self, view)) {
-    return;
-  }
-
-  bool whole = false;
+  if (whole)
+    damage_whole_view (self, view);
 
   phoc_output_view_for_each_surface (self, view, damage_surface_iterator, &whole);
-
 }
 
 void
@@ -901,7 +897,7 @@ handle_output_manager_apply (struct wl_listener *listener, void *data)
     wlr_output_set_scale (wlr_output, config_head->state.scale);
     ok &= wlr_output_commit (wlr_output);
     if (output->fullscreen_view) {
-      view_set_fullscreen (output->fullscreen_view, true, wlr_output);
+      phoc_view_set_fullscreen (output->fullscreen_view, true, wlr_output);
     }
   }
 
@@ -1016,4 +1012,19 @@ phoc_output_is_match (PhocOutput *self,
            g_strcmp0 (self->wlr_output->serial, serial) == 0);
 
   return match;
+}
+
+/*
+ * phoc_output_has_fullscreen_view:
+ * @self: The #PhocOutput
+ *
+ * Returns: %TRUE if the output has a fullscreen view attached,
+ *          %FALSE otherwise.
+ */
+gboolean
+phoc_output_has_fullscreen_view (PhocOutput *self)
+{
+  g_assert (PHOC_IS_OUTPUT (self));
+
+  return self->fullscreen_view != NULL && self->fullscreen_view->wlr_surface != NULL;
 }

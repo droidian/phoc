@@ -13,8 +13,6 @@ sources = files(
   'desktop.h',
   'gtk-shell.c',
   'gtk-shell.h',
-  'ini.c',
-  'ini.h',
   'input.c',
   'input.h',
   'input-device.c',
@@ -55,7 +53,11 @@ sources = files(
   'view.h',
   'virtual.c',
   'virtual.h',
+  'xdg-activation-v1.c',
+  'xdg-activation-v1.h',
   'xdg_shell.c',
+  'xdg-surface.c',
+  'xdg-surface.h',
 )
 libphoc_generated_sources = [
   phoc_enum_sources,
@@ -78,7 +80,10 @@ phoc_deps = [
 ]
 
 if have_xwayland
-  sources += 'xwayland.c'
+  sources += ['xwayland.c',
+              'xwayland-surface.c',
+              'xwayland-surface.h',
+	     ]
   phoc_deps += dependency('xcb')
 endif
 

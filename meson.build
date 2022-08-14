@@ -1,5 +1,5 @@
 project('phoc', 'c',
-          version: '0.10.0',
+          version: '0.13.1',
           license: 'GPLv3+',
     meson_version: '>= 0.54.0',
   default_options: [
@@ -64,8 +64,9 @@ if not embed_wlroots.disabled() and wlroots_proj.found()
         wlroots_has_output_power_management = true
         have_wlr_set_startup_id = true
         have_wlr_remove_startup_info = true
+        have_wlr_xdg_activation_v1_add_token = true
 else
-        wlroots = dependency('wlroots', version: '>= 0.12.0')
+        wlroots = dependency('wlroots', version: '>= 0.14.1')
         wlroots_has_xwayland = cc.get_define('WLR_HAS_XWAYLAND', prefix: '#include <wlr/config.h>', dependencies: wlroots) == '1'
         wlroots_has_output_power_management = cc.has_header('wlr/types/wlr_output_power_management_v1.h', dependencies: wlroots)
         have_wlr_set_startup_id = false
@@ -84,6 +85,12 @@ else
                                                   args: '-DWLR_USE_UNSTABLE',
                                                   dependencies: wlroots)
           have_wlr_remove_startup_info = true
+        endif
+        have_wlr_xdg_activation_v1_add_token = false
+        if cc.has_function('wlr_xdg_activation_v1_add_token',
+                           args: '-DWLR_USE_UNSTABLE',
+                           dependencies: wlroots)
+          have_wlr_xdg_activation_v1_add_token = true
         endif
 endif
 
@@ -174,6 +181,7 @@ config_h.set_quoted('PHOC_VERSION', meson.project_version())
 config_h.set('PHOC_XWAYLAND', have_xwayland)
 config_h.set('PHOC_HAVE_WLR_SET_STARTUP_ID', have_wlr_set_startup_id)
 config_h.set('PHOC_HAVE_WLR_REMOVE_STARTUP_INFO', have_wlr_remove_startup_info)
+config_h.set('PHOC_HAVE_WLR_XDG_ACTIVATION_V1_ADD_TOKEN', have_wlr_xdg_activation_v1_add_token)
 
 configure_file(
   input: 'config.h.in',
