@@ -822,12 +822,14 @@ phoc_renderer_initable_init (GInitable    *initable,
 
   self->wlr_allocator = wlr_allocator_autocreate (self->wlr_backend,
                                                   self->wlr_renderer);
+#if 0
   if (self->wlr_allocator == NULL) {
     g_set_error (error,
                  G_FILE_ERROR, G_FILE_ERROR_FAILED,
 		 "Could not create allocator");
     return FALSE;
   }
+#endif
 
   return TRUE;
 }
