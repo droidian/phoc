@@ -48,8 +48,8 @@ static void layer_surface_closed (void                         *data,
 
 
 static struct zwlr_layer_surface_v1_listener layer_surface_listener = {
-	.configure = layer_surface_configure,
-	.closed = layer_surface_closed,
+  .configure = layer_surface_configure,
+  .closed = layer_surface_closed,
 };
 
 static PhocTestLayerSurface *

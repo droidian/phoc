@@ -95,7 +95,7 @@ static int config_ini_handler(PhocConfig *config, const char *section, const cha
 			oc = g_new0 (PhocOutputConfig, 1);
 			oc->name = strdup(output_name);
 			oc->transform = WL_OUTPUT_TRANSFORM_NORMAL;
-			oc->scale = 1;
+			oc->scale = 0;
 			oc->enable = true;
 			wl_list_init(&oc->modes);
 			wl_list_insert(&config->outputs, &oc->link);
@@ -114,8 +114,12 @@ static int config_ini_handler(PhocConfig *config, const char *section, const cha
 		} else if (strcmp(name, "y") == 0) {
 			oc->y = strtol(value, NULL, 10);
 		} else if (strcmp(name, "scale") == 0) {
-			oc->scale = strtof(value, NULL);
-			g_assert (oc->scale > 0);
+			if (strcmp(value, "auto") == 0) {
+				oc->scale = 0;
+			} else {
+				oc->scale = strtof(value, NULL);
+				g_assert (oc->scale > 0);
+			}
 		} else if (strcmp(name, "rotate") == 0) {
 			if (strcmp(value, "normal") == 0) {
 				oc->transform = WL_OUTPUT_TRANSFORM_NORMAL;

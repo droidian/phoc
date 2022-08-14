@@ -2,7 +2,6 @@
 
 #include <stdbool.h>
 #include <wlr/config.h>
-#include <wlr/types/wlr_box.h>
 #include <wlr/types/wlr_foreign_toplevel_management_v1.h>
 #include <wlr/types/wlr_output_layout.h>
 #include <wlr/types/wlr_surface.h>
@@ -24,8 +23,9 @@ typedef enum {
 } PhocViewType;
 
 typedef enum {
-  PHOC_VIEW_TILE_LEFT,
-  PHOC_VIEW_TILE_RIGHT,
+  PHOC_VIEW_TILE_NONE  = 0,
+  PHOC_VIEW_TILE_LEFT  = 1 << 0,
+  PHOC_VIEW_TILE_RIGHT = 1 << 1,
 } PhocViewTileDirection;
 
 typedef enum {
@@ -154,9 +154,9 @@ static inline PhocViewClass * PHOC_VIEW_GET_CLASS (gpointer ptr) {
 
 typedef struct _PhocViewChild PhocViewChild;
 
-struct phoc_view_child_interface {
+typedef struct phoc_view_child_interface {
   void (*destroy)(PhocViewChild *child);
-};
+} PhocViewChildInterface;
 
 /**
  * PhocViewChild:
@@ -206,6 +206,8 @@ void view_move_resize(PhocView *view, double x, double y,
 	uint32_t width, uint32_t height);
 void view_auto_maximize(PhocView *view);
 void view_tile(PhocView *view, PhocViewTileDirection direction, struct wlr_output *output);
+PhocViewTileDirection
+     phoc_view_get_tile_direction (PhocView *view);
 void view_maximize(PhocView *view, struct wlr_output *output);
 void view_restore(PhocView *view);
 void phoc_view_set_fullscreen(PhocView *view, bool fullscreen, struct wlr_output *output);
@@ -215,7 +217,7 @@ void view_send_frame_done_if_not_visible (PhocView *view);
 void view_setup(PhocView *view);
 void view_set_title(PhocView *view, const char *title);
 void view_set_parent(PhocView *view, PhocView *parent);
-void view_set_app_id(PhocView *view, const char *app_id);
+void phoc_view_set_app_id(PhocView *view, const char *app_id);
 void view_create_foreign_toplevel_handle(PhocView *view);
 void view_get_deco_box(const PhocView *view, struct wlr_box *box);
 void view_for_each_surface(PhocView *view,
@@ -224,6 +226,8 @@ PhocView *phoc_view_from_wlr_surface (struct wlr_surface *wlr_surface);
 
 bool   phoc_view_is_mapped (PhocView *view);
 PhocViewDecoPart view_get_deco_part(PhocView *view, double sx, double sy);
+void     phoc_view_set_scale_to_fit (PhocView *self, gboolean enable);
+gboolean phoc_view_get_scale_to_fit (PhocView *self);
 
 void phoc_view_child_init(PhocViewChild *child,
                           const struct phoc_view_child_interface *impl,

@@ -2,6 +2,7 @@
 
 #include "config.h"
 #include "gtk-shell.h"
+#include "layer-shell-effects.h"
 #include "phosh-private.h"
 #include "view.h"
 
@@ -107,6 +108,8 @@ struct _PhocDesktop {
 	/* Protocols without upstreamable implementations */
 	PhocPhoshPrivate *phosh;
 	PhocGtkShell *gtk_shell;
+        /* Protocols that should go upstream */
+	PhocLayerShellEffects *layer_shell_effects;
 };
 
 PhocDesktop *phoc_desktop_new (PhocConfig *config);
@@ -125,6 +128,12 @@ struct wlr_surface *phoc_desktop_surface_at(PhocDesktop *desktop,
 		double lx, double ly, double *sx, double *sy,
 		PhocView **view);
 gboolean phoc_desktop_view_is_visible (PhocDesktop *desktop, PhocView *view);
+
+PhocLayerSurface  *phoc_desktop_layer_surface_at(PhocDesktop *self,
+                                                 double lx, double ly,
+                                                 double *sx, double *sy);
+PhocDraggableLayerSurface *
+phoc_desktop_get_draggable_layer_surface (PhocDesktop *self, PhocLayerSurface *layer_surface);
 
 void handle_xdg_shell_surface(struct wl_listener *listener, void *data);
 void handle_xdg_toplevel_decoration(struct wl_listener *listener, void *data);

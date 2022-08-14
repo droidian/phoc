@@ -1,3 +1,207 @@
+phoc (0.21.0) byzantium; urgency=medium
+
+  [ Guido Günther ]
+  * layer-shell-effects: Make sure we remove the mapping
+
+  [ Sebastian Krzyszkowiak ]
+  * xdg-shell: Use correct state for maximized and fullscreen flags
+  * xdg-surface: Don't schedule configure when the size doesn't change
+  * output: Don't check for empty buffer damage in damage_surface_iterator
+  * view: Handle initial mapped state of PhocViewChild
+  * layer-shell-effects: Calculate slide duration based on distance to travel
+  * layer-shell-effect: Split accept_drag out of drag_update
+  * layer-shell-effects: Accept drag immediatelly during an animation
+  * render: Keep the aspect ratio when rendering into buffer
+  * render: Don't take view scale into account when drawing into buffer
+  * render: Apply geometry before scaling to buffer coordinates
+  * render: Simplify scale handling when rendering to buffer
+  * render: Position the surface using matrix when rendering to buffer
+  * layer-shell: Move handling of mapped property out of commit handler
+  * desktop: Ignore unmapped surfaces in layer_surface_at
+  * layer-shell-effects: Make sure to apply new margin on animation end
+
+ -- Sebastian Krzyszkowiak <sebastian.krzyszkowiak@puri.sm>  Thu, 04 Aug 2022 12:38:07 +0200
+
+phoc (0.21.0~beta1) byzantium; urgency=medium
+
+  [ Guido Günther ]
+  * output: Use g_assert()
+  * layer-surface: Move subsurface list init into object
+  * layer-shell: Pass wlr-layer-surface as property
+  * layer-surface: Move handle_output_destroy to layer-surface
+  * layer-shell: Drop NULL check
+  * Add PhocAnimatable interface
+  * output: Allow to add and remove frame callbacks
+  * layer-surface: Implement animatable interface
+  * layer-shell-effects: Don't access renderer directly
+  * layer-shell-effects: Calculate animation progress based on frame clock
+  * tests: Sort alphabetically
+  * Add timed animations
+  * layer-shell-effects: Use PhocEasing
+  * Move open coded shield to PhocOutputShield object
+  * examples: Add an example that binds to phosh-private protocol
+  * output: Fix typo
+  * cursor: Use consistent naming in phoc_cursor_handle_touch_motion
+  * cursor: Use phoc_ prefix
+  * cursor: Use consistent naming
+  * layer-shell: Name PhocLayerSurface layer_surface in arrange_layer()
+  * layer-shell: Name PhocLayerSurface layer_surface in find_osk()
+  * layer-shell: Name struct wlr_layer_surface wlr_layer_surface in handle_surface_commit()
+  * layer-shell: Name PhocLayerSurface layer_surface in handle_surface_commit()
+  * layer-shell: Name PhocLayerSurface layer_surface in handle_destroy()
+  * layer-shell: Name struct wlr_layer_surface wlr_layer_surface in handle_map()
+  * layer-shell: Name PhocLayerSurface layer_surface in handle_map()
+  * layer-shell: Name PhocLayerSurface layer_surface in handle_unmap()
+  * layer-shell: Name struct wlr_layer_surface wlr_layer_surface in wlr_layer_surface in handle_layer_shell_surface()
+  * layer-shell: Name PhocLayerSurface layer_surface in handle_layer_shell_surface()
+  * layer-shell: Name PhocLayerSurface layer_surface in update_cursors()
+  * layer-shell: Name struct wlr_layer_surface wlr_layer_surface in wlr_layer_surface in arrange_layer()
+  * layer-shell: Name PhocLayerSurface layer_surface in phoc_layer_shell_update_focus()
+  * layer_shell: Use g_assert() everywhere
+  * layer-shell: Pass PhocOutput instead of wlr_output
+  * xwayland-surface: Reindent phoc_xwayland_surface_from_view()
+  * xwayland-surface: Document phoc_xwayland_surface_from_view()
+  * cursor: Add element-type to phoc_cursor_add_gesture
+  * view: Add transfer annotation to phoc_view_from_wlr_surface()
+  * gesture: Drop superfluous since: annotation
+  * input: Add transfer annottation for phoc_input_seat_from_wlr_seat()
+  * xdg-surface: Document phoc_xdg_surface_from_view()
+  * seat: Document phoc_seat_get_focus()
+  * seat: Document currently focused view()
+  * output: Indent arguments of "for-each" helpers
+  * output: Document iterators
+  * desktop: Reindent layer_surface_at()
+  * layer_shell: Reindent change_osk()
+  * output: Use a single list for all layer surfaces
+  * output: Init fixed values in phoc_output_init()
+  * time-animation: Use some more links
+  * timed-animation: Drop pointless since: annotation
+  * output-shield: Fix property name in doc string
+  * gesture-zoom: Drop unused parameter in doc string
+  * gesture-zoom: Make variable name in declaration match the doc string
+  * output: Fix doc string parameter
+  * output-shield: Fix docstring
+  * timed-animation: Add transfer annotations
+  * layer-shell-effects: Document phoc_draggable_layer_surface_get_layer_surface
+  * layer-shell-effects: Drop phoc_draggable_layer_surface_is_draggable
+  * layer-shell-effects: Make declaration match definition
+  * event: Use Phoc prefix
+  * build: Add generated enum sources to gir build
+  * anim-enums: Fix reference
+  * anim-enums: Drop empty line
+  * helpers: Add a helper to filter doc gen warnings
+  * xdg-surface: Use phoc_ prefix consistently
+  * view: Add PhocViewChildInterface typedef
+  * layer-surface: Use phoc_ prefix consistently
+  * switch: Use phoc_ prefix consistently
+  * layer-shell: No need to assign twice
+  * desktop: Use g_assert() for consistency with the rest of the code
+  * desktop: Make scale-to-fit a property
+  * view: Reindent view_update_scale
+  * view: Update scale when global scale changes
+  * view: Rename and reindeint view_set_app_id()
+  * view: Handle scale-to-fit changes via property binding
+
+  [ Arnaud Ferraris ]
+  * cursor: avoid NULL pointer dereference
+
+  [ Sebastian Krzyszkowiak ]
+  * gitlab-ci: Enable octarine repo in PureOS build jobs
+  * Revert "ci: Mark PureOS byzantium job as manual"
+  * d/rules: Workaround false positive warnings with Byzantium's GCC version
+  * render: phoc_renderer_render_view_to_buffer: Use public wlroots APIs
+  * PhocInputMethodRelay: Introduce phoc_input_method_relay_is_enabled method
+  * PhocLayerShell: Only elevate OSK if focused layer also has IM relay focus
+  * debian: Update "Breaks" relationship with phosh
+  * render: Remove broken fullscreen scan out debug code
+  * layer-shell-effects: Add phoc_draggable_layer_surface_get_state
+  * layer-shell-effects: Add phoc_draggable_layer_surface_is_unfolded
+  * output: Add phoc_output_has_shell_revealed
+  * output: Reveal shell when a layer-surface is unfolded, focused or dragged
+  * layer-shell: Don't ignore TOP layers when setting focus w/ fullscreen view
+  * seat: set_focus_layer: Only arrange a single output after unsetting focus
+  * output: Add force_shell_reveal and update_shell_reveal methods
+  * seat: Update output's shell reveal status on focus layer changes
+  * layer-shell-effects: Update output's shell reveal status on state changes
+
+ -- Sebastian Krzyszkowiak <sebastian.krzyszkowiak@puri.sm>  Sun, 26 Jun 2022 19:32:37 +0200
+
+phoc (0.20.0) byzantium; urgency=medium
+
+  [ Guido Günther ]
+  * render: Simplify render_layer invocations
+  * render: Use output directly
+  * render: Rename _box to box
+  * editorconfig: Bump line length to 100
+  * testlib: Include header only once
+  * test-layer-shell: Fix indent
+  * tests: Add code that lets us create layer surfaces easily
+  * output: Fix some indentation
+  * config.h: Add some comments
+  * Add gesture support
+  * Add layer-shell-effects protocol
+  * layer-shell-effects: Prevent drag in the wrong direction when unfolded
+  * Attach draggable surfaces to gestures
+  * Add layer-shell-effects example
+  * testlib: Fetch layer-shell-effects protocol
+  * tests: Add initial layer-surface-effects test
+  * xdg-shell: Reformat xdg_popup_unconstrain()
+  * xdg-shell: Use toplevels output when unconstraining popups
+  * subproject: Update wlroots to 0.15.1 plus our fixes
+  * d/control: Bump wlroots dependency to 0.15.1
+  * ci: Work around a crash in g-ir-compiler
+  * ci: Switch docker container to sid
+  * ci: Use wlroots 0.15.1 based container image
+  * ci: Mark PureOS byzantium job as manual
+  * Remove startup-id compilation
+  * build: Drop output power management related checks
+  * Adjust to render changes
+  * render: Allow to fail initialization
+  * desktop: Reindent handle_new_output
+  * output: Handle failure to create renderer
+  * renderer: Make sure the modifier list isn't empty
+  * build: Require wlroots 0.15.1
+  * output: Clear list of layers on finalize
+  * cursor: Handle touch frame event
+  * layer-shell-effects: Adjust to wlroots 0.15.x
+  * gtk-shell: Namespace phoc_gtk_surface_from_resource
+  * gtk-shell: Add getter for app_id
+  * gtk-shell: Make PhocGtk{Shell,Surface} private
+  * layer-shell-effects: Make drag-surface related structs private
+  * tests: Move xdg-suface helpers to testlib
+  * gtk-surface: Drop NULL check
+  * view: Make tiled state a bit mask
+  * view: Add getter for tile direction
+  * gtk-shell: Send edge constraints
+  * build: Sort gesture source files alphabetically
+  * gesture: Use Phoc prefix consistently
+  * seat: Don't use assert and g_error for the same thing
+  * cursor: Track and use compositor side touch points
+  * gesture: Add helpers needed for zoom and cancel
+  * Support zoom gestures
+  * build: Check for wlr_seat_touch_send_cancel at build time
+  * cursor: Cancel touch gestures
+
+  [ Pablo Barciela ]
+  * server: Fix [-Wmissing-field-initializers] warning
+  * testlib: Fix [-Wmissing-field-initializers] warning
+  * tests: move 'struct _PhocTestXdgToplevelSurface' to 'testlib.h'
+
+  [ Arnaud Ferraris ]
+  * utils: Add new function for calculating output scale
+  * output: Automatically compute scaling factor
+
+  [ Sebastian Krzyszkowiak ]
+  * Adjust to wlroots 0.15
+  * layer-shell-effects: Add phoc_draggable_layer_surface_get_layer_surface
+  * cursor: Use phoc_draggable_layer_surface_get_layer_surface
+  * subprojects: Switch wlroots repo to patch-queue/pureos/octarine branch
+
+  [ anteater ]
+  * desktop: Revert output enable when commit fails
+
+ -- Sebastian Krzyszkowiak <sebastian.krzyszkowiak@puri.sm>  Mon, 30 May 2022 20:03:25 +0200
+
 phoc (0.13.1) byzantium; urgency=medium
 
   [ Sebastian Krzyszkowiak ]

@@ -146,6 +146,13 @@ phoc_input_new (void)
 }
 
 
+/**
+ * phoc_input_seat_from_wlr_seat:
+ * @self: The input
+ * @wlr_seat: The wlr_seat
+ *
+ * Returns: (nullable)(transfer none): The [class@Seat] associated with the given wlr_seat
+ */
 PhocSeat *
 phoc_input_seat_from_wlr_seat (PhocInput       *self,
                                struct wlr_seat *wlr_seat)

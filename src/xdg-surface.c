@@ -85,6 +85,10 @@ static void resize(PhocView *view, uint32_t width, uint32_t height) {
 	apply_size_constraints(xdg_surface, width, height, &constrained_width,
 		&constrained_height);
 
+	if (xdg_surface->toplevel->scheduled.width == constrained_width &&
+	    xdg_surface->toplevel->scheduled.height == constrained_height)
+		return;
+
 	wlr_xdg_toplevel_set_size(xdg_surface, constrained_width,
 		constrained_height);
 
@@ -121,12 +125,12 @@ static void move_resize(PhocView *view, double x, double y,
 	view->pending_move_resize.width = constrained_width;
 	view->pending_move_resize.height = constrained_height;
 
-	uint32_t serial = wlr_xdg_toplevel_set_size(wlr_xdg_surface,
-		constrained_width, constrained_height);
-	if (serial > 0) {
-		xdg_surface->pending_move_resize_configure_serial = serial;
-	} else if (xdg_surface->pending_move_resize_configure_serial == 0) {
+	if (wlr_xdg_surface->toplevel->scheduled.width == constrained_width &&
+	    wlr_xdg_surface->toplevel->scheduled.height == constrained_height) {
 		view_update_position(view, x, y);
+	} else {
+		xdg_surface->pending_move_resize_configure_serial =
+			wlr_xdg_toplevel_set_size(wlr_xdg_surface, constrained_width, constrained_height);
 	}
 
 	view_send_frame_done_if_not_visible (view);
@@ -289,8 +293,18 @@ phoc_xdg_surface_get_geometry (PhocXdgSurface *self, struct wlr_box *geom)
   wlr_xdg_surface_get_geometry (self->xdg_surface, geom);
 }
 
+/**
+ * phoc_xdg_surface_from_view:
+ * @view: A view
+ *
+ * Returns the [class@XdgSurface] associated with this
+ * [type@Phoc.View]. It is a programming error if the [class@View]
+ * isn't a [type@XdgSurface].
+ *
+ * Returns: (transfer none): Returns the [type@XdgSurface]
+ */
 PhocXdgSurface *
 phoc_xdg_surface_from_view (PhocView *view) {
-	g_assert (PHOC_IS_XDG_SURFACE (view));
-	return PHOC_XDG_SURFACE (view);
+  g_assert (PHOC_IS_XDG_SURFACE (view));
+  return PHOC_XDG_SURFACE (view);
 }

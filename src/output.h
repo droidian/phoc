@@ -1,13 +1,16 @@
 #pragma once
 
+#include "animatable.h"
+#include "render.h"
 #include "view.h"
 
 #include <gio/gio.h>
 #include <glib-object.h>
 #include <wayland-server-core.h>
-#include <wlr/types/wlr_box.h>
+#include <wlr/types/wlr_layer_shell_v1.h>
 #include <wlr/types/wlr_output_damage.h>
 #include <wlr/types/wlr_xdg_shell.h>
+#include <wlr/util/box.h>
 
 G_BEGIN_DECLS
 
@@ -35,8 +38,7 @@ struct _PhocOutput {
   struct wl_list            link; // PhocDesktop::outputs
 
   PhocView                 *fullscreen_view;
-  struct wl_list            layers[4]; // layer_surface::link
-  bool                      force_shell_reveal;
+  struct wl_list            layer_surfaces; // layer_surface::link
 
   struct wlr_output_damage *damage;
   GList                    *debug_touch_points;
@@ -52,7 +54,8 @@ struct _PhocOutput {
 };
 
 PhocOutput *phoc_output_new (PhocDesktop       *desktop,
-                             struct wlr_output *wlr_output);
+                             struct wlr_output *wlr_output,
+                             GError           **error);
 /* Surface iterators */
 typedef void (*PhocSurfaceIterator)(PhocOutput         *self,
                                     struct wlr_surface *surface,
@@ -81,7 +84,7 @@ void        phoc_output_drag_icons_for_each_surface  (PhocOutput *self,
                                                       PhocSurfaceIterator iterator,
                                                       void *user_data);
 void        phoc_output_layer_for_each_surface       (PhocOutput *self,
-                                                      struct wl_list *layer_surfaces,
+                                                      enum zwlr_layer_shell_v1_layer layer,
                                                       PhocSurfaceIterator iterator,
                                                       void *user_data);
 #ifdef PHOC_XWAYLAND
@@ -114,11 +117,27 @@ void        phoc_output_damage_whole_local_surface (PhocOutput *self, struct wlr
 void        phoc_output_scale_box (PhocOutput *self, struct wlr_box *box, float scale);
 void        phoc_output_get_decoration_box (PhocOutput *self, PhocView *view,
                                             struct wlr_box *box);
+void        phoc_output_update_shell_reveal (PhocOutput *self);
+void        phoc_output_force_shell_reveal (PhocOutput *self, gboolean force);
 gboolean    phoc_output_is_builtin (PhocOutput *output);
 gboolean    phoc_output_is_match (PhocOutput *self,
                                   const char *make,
                                   const char *model,
                                   const char *serial);
 gboolean    phoc_output_has_fullscreen_view (PhocOutput *self);
+gboolean    phoc_output_has_layer (PhocOutput *self, enum zwlr_layer_shell_v1_layer layer);
+gboolean    phoc_output_has_shell_revealed (PhocOutput *self);
+
+guint       phoc_output_add_frame_callback   (PhocOutput        *self,
+                                              PhocAnimatable    *animatable,
+                                              PhocFrameCallback  callback,
+                                              gpointer           user_data,
+                                              GDestroyNotify     notify);
+void       phoc_output_remove_frame_callback (PhocOutput        *self,
+                                              guint              id);
+bool       phoc_output_has_frame_callbacks   (PhocOutput        *self);
+
+void       phoc_output_lower_shield          (PhocOutput *self);
+void       phoc_output_raise_shield          (PhocOutput *self);
 
 G_END_DECLS

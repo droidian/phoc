@@ -394,3 +394,31 @@ phoc_input_method_relay_set_focus (PhocInputMethodRelay *relay,
   }
 }
 
+/**
+ * phoc_input_method_relay_is_enabled:
+ * @relay: The input method relay
+ * @surface: The surface to check
+ *
+ * Checks whether input method is currently enabled for surface.
+ */
+bool
+phoc_input_method_relay_is_enabled (PhocInputMethodRelay *relay,
+                                   struct wlr_surface *surface)
+{
+  PhocTextInput *text_input;
+  g_return_val_if_fail (surface, false);
+
+  surface = wlr_surface_get_root_surface (surface);
+
+  wl_list_for_each (text_input, &relay->text_inputs, link) {
+    if (!text_input->input->focused_surface)
+      continue;
+
+    struct wlr_surface *focused =
+        wlr_surface_get_root_surface (text_input->input->focused_surface);
+
+    if (focused == surface && text_input->input->current_enabled)
+      return true;
+  }
+  return false;
+}

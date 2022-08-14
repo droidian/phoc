@@ -45,6 +45,7 @@ static void set_active(PhocView *view, bool active) {
 	struct wlr_xwayland_surface *xwayland_surface =
 		phoc_xwayland_surface_from_view(view)->xwayland_surface;
 	wlr_xwayland_surface_activate(xwayland_surface, active);
+	wlr_xwayland_surface_restack(xwayland_surface, NULL, XCB_STACK_MODE_ABOVE);
 }
 
 static void move(PhocView *view, double x, double y) {
@@ -200,9 +201,7 @@ phoc_xwayland_surface_finalize (GObject *object)
   wl_list_remove(&self->request_maximize.link);
   wl_list_remove(&self->set_title.link);
   wl_list_remove(&self->set_class.link);
-#ifdef PHOC_HAVE_WLR_SET_STARTUP_ID
   wl_list_remove(&self->set_startup_id.link);
-#endif
   wl_list_remove(&self->map.link);
   wl_list_remove(&self->unmap.link);
 
@@ -258,7 +257,19 @@ phoc_xwayland_surface_new (struct wlr_xwayland_surface *surface)
                                               NULL));
 }
 
-PhocXWaylandSurface *phoc_xwayland_surface_from_view(PhocView *view) {
-	g_assert (PHOC_IS_XWAYLAND_SURFACE (view));
-	return PHOC_XWAYLAND_SURFACE (view);
+/**
+ * phoc_xwayland_surface_from_view:
+ * @view: A view
+ *
+ * Returns the [class@XWaylandSurface] associated with this
+ * [type@Phoc.View]. It is a programming error if the [class@View]
+ * isn't a [type@XWaylandSurface].
+ *
+ * Returns: (transfer none): Returns the [type@XWaylandSurface]
+ */
+PhocXWaylandSurface *
+phoc_xwayland_surface_from_view (PhocView *view)
+{
+  g_assert (PHOC_IS_XWAYLAND_SURFACE (view));
+  return PHOC_XWAYLAND_SURFACE (view);
 }

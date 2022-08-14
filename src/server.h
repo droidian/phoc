@@ -76,11 +76,6 @@ struct _PhocServer {
 
   /* Global resources */
   struct wlr_data_device_manager *data_device_manager;
-
-  /* Fader */
-  gulong render_shield_id;
-  gulong damage_shield_id;
-  float fader_t;
 };
 
 PhocServer  *phoc_server_get_default (void);

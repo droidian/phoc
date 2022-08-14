@@ -8,6 +8,7 @@
 
 #include "config.h"
 #include "render.h"
+#include "render-private.h"
 #include "utils.h"
 #include "seat.h"
 #include "server.h"
@@ -29,6 +30,7 @@ typedef struct {
   GSource source;
   struct wl_display *display;
 } WaylandEventSource;
+
 
 static gboolean
 wayland_event_source_prepare (GSource *base,
@@ -57,10 +59,8 @@ wayland_event_source_dispatch (GSource     *base,
 }
 
 static GSourceFuncs wayland_event_source_funcs = {
-  wayland_event_source_prepare,
-  NULL,
-  wayland_event_source_dispatch,
-  NULL
+  .prepare = wayland_event_source_prepare,
+  .dispatch = wayland_event_source_dispatch
 };
 
 static GSource *
@@ -164,44 +164,6 @@ can_get_preferred_pixel_format (struct wlr_renderer *renderer) {
 }
 
 static void
-render_shield (PhocServer *self, PhocOutput *output, PhocRenderer *renderer)
-{
-  struct wlr_output *wlr_output = output->wlr_output;
-  struct wlr_box box = { 0, 0, wlr_output->width, wlr_output->height };
-  struct wlr_renderer *wlr_renderer = wlr_backend_get_renderer (wlr_output->backend);
-  float color[4] = {0.0f, 0.0f, 0.0f, 1.0f};
-
-  g_assert (PHOC_IS_RENDERER (renderer));
-
-  color[3] = 1.0 - phoc_ease_in_cubic (self->fader_t);
-  wlr_render_rect (wlr_renderer, &box, color, wlr_output->transform_matrix);
-
-  if (self->fader_t >= 1.0f) {
-    g_debug ("Shield fade done");
-    g_clear_signal_handler (&self->render_shield_id, self->renderer);
-  }
-}
-
-
-#define TICK 50
-static void
-damage_shield (PhocServer *self, PhocOutput *output, PhocRenderer *renderer)
-{
-  g_assert (PHOC_IS_RENDERER (renderer));
-  g_assert (PHOC_IS_SERVER (self));
-
-  phoc_output_damage_whole (output);
-  self->fader_t += ((float)TICK) / 1000.0;
-
-  if (self->fader_t > 1.0)
-    self->fader_t = 1.0;
-
-  if (self->fader_t >= 1.0f)
-    g_clear_signal_handler (&self->damage_shield_id, self->renderer);
-}
-
-
-static void
 on_shell_state_changed (PhocServer *self, GParamSpec *pspec, PhocPhoshPrivate *phosh)
 {
   PhocPhoshPrivateShellState state;
@@ -215,21 +177,16 @@ on_shell_state_changed (PhocServer *self, GParamSpec *pspec, PhocPhoshPrivate *p
 
   switch (state) {
   case PHOC_PHOSH_PRIVATE_SHELL_STATE_UP:
-    if (self->render_shield_id) {
-      self->damage_shield_id = g_signal_connect_object (self->renderer, "render-start",
-                                                        G_CALLBACK (damage_shield),
-                                                        self, G_CONNECT_SWAPPED);
-    }
+    /* Shell is up, lower shields */
+    wl_list_for_each (output, &self->desktop->outputs, link)
+      phoc_output_lower_shield (output);
     break;
   case PHOC_PHOSH_PRIVATE_SHELL_STATE_UNKNOWN:
   default:
+    /* Shell is gone, raise shields */
     /* TODO: prevent input without a shell attached */
-    self->fader_t = 0.0f;
-    self->render_shield_id = g_signal_connect_object (self->renderer, "render-end",
-                                                      G_CALLBACK (render_shield),
-                                                      self, G_CONNECT_SWAPPED);
     wl_list_for_each (output, &self->desktop->outputs, link)
-      phoc_output_damage_whole (output);
+      phoc_output_raise_shield (output);
   }
 }
 
@@ -262,14 +219,11 @@ phoc_server_initable_init (GInitable    *initable,
     return FALSE;
   }
 
-  wlr_renderer = wlr_backend_get_renderer(self->backend);
-  if (wlr_renderer == NULL) {
-    g_set_error (error,
-                 G_FILE_ERROR, G_FILE_ERROR_FAILED,
-		 "Could not create renderer");
+  self->renderer = phoc_renderer_new (self->backend, error);
+  if (self->renderer == NULL) {
     return FALSE;
   }
-  self->renderer = phoc_renderer_new (wlr_renderer);
+  wlr_renderer = phoc_renderer_get_wlr_renderer (self->renderer);
 
   // FIXME: remove once we find something better
   if (can_get_preferred_pixel_format(wlr_renderer)) {
@@ -278,8 +232,7 @@ phoc_server_initable_init (GInitable    *initable,
       self->preferred_pixel_format = WL_SHM_FORMAT_ARGB8888;
   }
 
-  self->data_device_manager =
-    wlr_data_device_manager_create(self->wl_display);
+  self->data_device_manager = wlr_data_device_manager_create(self->wl_display);
   wlr_renderer_init_wl_display(wlr_renderer, self->wl_display);
 
   self->compositor = wlr_compositor_create(self->wl_display,
@@ -307,8 +260,6 @@ phoc_server_dispose (GObject *object)
     self->backend = NULL;
   }
 
-  g_clear_signal_handler (&self->render_shield_id, self->renderer);
-  g_clear_signal_handler (&self->damage_shield_id, self->renderer);
   g_clear_object (&self->renderer);
 
   G_OBJECT_CLASS (phoc_server_parent_class)->dispose (object);

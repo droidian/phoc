@@ -44,7 +44,7 @@ typedef struct _PhocXdgSurface {
 
 	uint32_t pending_move_resize_configure_serial;
 
-	struct roots_xdg_toplevel_decoration *xdg_toplevel_decoration;
+	struct phoc_xdg_toplevel_decoration *xdg_toplevel_decoration;
 } PhocXdgSurface;
 
 G_DECLARE_FINAL_TYPE (PhocXdgSurface, phoc_xdg_surface, PHOC, XDG_SURFACE, PhocView)

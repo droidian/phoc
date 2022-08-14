@@ -10,6 +10,8 @@ endif
 
 ifneq ($(filter pkg.phoc.sanitizers,$(DEB_BUILD_PROFILES)),)
     MESON_OPTS += -Db_sanitize=address,undefined
+    # workaround false positives with Byzantium's GCC version
+    CFLAGS += -Wno-stringop-overflow -Wno-array-bounds -Wno-restrict
 endif
 
 %:

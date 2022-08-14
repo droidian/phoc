@@ -10,6 +10,9 @@
 
 #define G_LOG_DOMAIN "phoc-utils"
 
+#include <inttypes.h>
+#include <math.h>
+#include <wlr/util/box.h>
 #include <wlr/version.h>
 #include "utils.h"
 
@@ -66,30 +69,81 @@ phoc_utils_rotate_child_position (double *sx, double *sy, double sw, double sh,
   *sy = ry + ph/2 - sh/2;
 }
 
-
 /**
- * phoc_ease_in_cubic:
- * @t: The term
+ * phoc_utils_rotated_bounds:
  *
- * Ease in using cubic interpolation.
+ * Stores the smallest box that can contain provided box after rotating it
+ * by specified rotation into *dest.
  */
-double
-phoc_ease_in_cubic (double t)
+void
+phoc_utils_rotated_bounds (struct wlr_box *dest, const struct wlr_box *box, float rotation)
 {
-  double p = t;
-  return p * p * p;
+  if (rotation == 0) {
+    *dest = *box;
+    return;
+  }
+
+  double ox = box->x + (double) box->width / 2;
+  double oy = box->y + (double) box->height / 2;
+
+  double c = fabs (cos (rotation));
+  double s = fabs (sin (rotation));
+
+  double x1 = ox + (box->x - ox) * c + (box->y - oy) * s;
+  double x2 = ox + (box->x + box->width - ox) * c + (box->y + box->height - oy) * s;
+
+  double y1 = oy + (box->x - ox) * s + (box->y - oy) * c;
+  double y2 = oy + (box->x + box->width - ox) * s + (box->y + box->height - oy) * c;
+
+  dest->x = floor (fmin (x1, x2));
+  dest->width = ceil (fmax (x1, x2) - fmin (x1, x2));
+  dest->y = floor (fmin (y1, y2));
+  dest->height = ceil (fmax (y1, y2) - fmin (y1, y2));
 }
 
+#define MIN_WIDTH       360.0
+#define MIN_HEIGHT      540.0
+#define MAX_DPI_TARGET  180.0
+#define INCH_IN_MM      25.4
 
-/**
- * phoc_ease_out_cubic:
- * @t: The term
- *
- * Ease out using cubic interpolation
- */
-double
-phoc_ease_out_cubic (double t)
+float
+phoc_utils_compute_scale (int32_t phys_width, int32_t phys_height,
+                          int32_t width, int32_t height)
 {
-  double p = t - 1;
-  return p * p * p + 1;
+  float dpi, long_side, short_side, max_scale, scale;
+
+  if (width > height) {
+    long_side = width;
+    short_side = height;
+  } else {
+    long_side = height;
+    short_side = width;
+  }
+  // Ensure scaled resolution won't be inferior to minimum values
+  max_scale = fminf (long_side / MIN_HEIGHT, short_side / MIN_WIDTH);
+
+  /*
+   * Round the maximum scale to a sensible value:
+   *   - never use a scaling factor < 1
+   *   - round to the lower 0.25 step below 2
+   *   - round to the lower 0.5 step between 2 and 3
+   *   - round to the lower integer value over 3
+   */
+  if (max_scale < 1) {
+    max_scale = 1;
+  } else if (max_scale < 2) {
+    max_scale = 0.25 * floorf (max_scale / 0.25);
+  } else if (max_scale < 3) {
+    max_scale = 0.5 * floorf (max_scale / 0.5);
+  } else {
+    max_scale = floorf (max_scale);
+  }
+
+  dpi = (float) height / (float) phys_height * INCH_IN_MM;
+  scale = fminf (ceilf (dpi / MAX_DPI_TARGET), max_scale);
+
+  g_debug ("Output DPI is %f for mode %" PRId32 "x%" PRId32", using scale %f",
+           dpi, width, height, scale);
+
+  return scale;
 }

@@ -29,7 +29,8 @@ G_BEGIN_DECLS
 void phoc_utils_fix_transform (enum wl_output_transform *transform);
 void phoc_utils_rotate_child_position (double *sx, double *sy, double sw, double sh,
                                        double pw, double ph, float rotation);
-double     phoc_ease_in_cubic               (double t);
-double     phoc_ease_out_cubic              (double t);
+void phoc_utils_rotated_bounds (struct wlr_box *dest, const struct wlr_box *box, float rotation);
+float      phoc_utils_compute_scale         (int32_t phys_width, int32_t phys_height,
+                                             int32_t width, int32_t height);
 
 G_END_DECLS

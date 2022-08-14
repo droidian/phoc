@@ -7,16 +7,16 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <wayland-server-core.h>
-#include <wlr/types/wlr_box.h>
 #include <wlr/types/wlr_surface.h>
 #include <wlr/types/wlr_xdg_shell.h>
+#include <wlr/util/box.h>
 #include "cursor.h"
 #include "desktop.h"
 #include "input.h"
 #include "server.h"
 #include "view.h"
 
-struct roots_xdg_toplevel_decoration {
+struct phoc_xdg_toplevel_decoration {
   struct wlr_xdg_toplevel_decoration_v1 *wlr_decoration;
   PhocXdgSurface *surface;
   struct wl_listener destroy;
@@ -24,7 +24,7 @@ struct roots_xdg_toplevel_decoration {
   struct wl_listener surface_commit;
 };
 
-typedef struct roots_xdg_popup {
+typedef struct phoc_xdg_popup {
   PhocViewChild child;
   struct wlr_xdg_popup *wlr_popup;
 
@@ -38,7 +38,7 @@ static const struct phoc_view_child_interface popup_impl;
 
 static void popup_destroy(PhocViewChild *child) {
 	assert(child->impl == &popup_impl);
-	struct roots_xdg_popup *popup = (struct roots_xdg_popup *)child;
+	struct phoc_xdg_popup *popup = (struct phoc_xdg_popup *)child;
 	wl_list_remove(&popup->destroy.link);
 	wl_list_remove(&popup->new_popup.link);
 	wl_list_remove(&popup->map.link);
@@ -51,14 +51,14 @@ static const struct phoc_view_child_interface popup_impl = {
 };
 
 static void popup_handle_destroy(struct wl_listener *listener, void *data) {
-	struct roots_xdg_popup *popup =
+	struct phoc_xdg_popup *popup =
 		wl_container_of(listener, popup, destroy);
 	phoc_view_child_destroy(&popup->child);
 }
 
 static void popup_handle_map(struct wl_listener *listener, void *data) {
 	PhocServer *server = phoc_server_get_default ();
-	struct roots_xdg_popup *popup = wl_container_of(listener, popup, map);
+	struct phoc_xdg_popup *popup = wl_container_of(listener, popup, map);
 	phoc_view_child_damage_whole (&popup->child);
 	phoc_input_update_cursor_focus(server->input);
 	popup->child.mapped = true;
@@ -66,77 +66,69 @@ static void popup_handle_map(struct wl_listener *listener, void *data) {
 
 static void popup_handle_unmap(struct wl_listener *listener, void *data) {
 	PhocServer *server = phoc_server_get_default ();
-	struct roots_xdg_popup *popup = wl_container_of(listener, popup, unmap);
+	struct phoc_xdg_popup *popup = wl_container_of(listener, popup, unmap);
 	phoc_view_child_damage_whole (&popup->child);
 	phoc_input_update_cursor_focus(server->input);
 	popup->child.mapped = false;
 }
 
-static struct roots_xdg_popup *popup_create(PhocView *view,
+static struct phoc_xdg_popup *popup_create(PhocView *view,
 	struct wlr_xdg_popup *wlr_popup);
 
 static void popup_handle_new_popup(struct wl_listener *listener, void *data) {
-	struct roots_xdg_popup *popup =
+	struct phoc_xdg_popup *popup =
 		wl_container_of(listener, popup, new_popup);
 	struct wlr_xdg_popup *wlr_popup = data;
 	popup_create(popup->child.view, wlr_popup);
 }
 
-static void popup_unconstrain(struct roots_xdg_popup *popup) {
-	// get the output of the popup's positioner anchor point and convert it to
-	// the toplevel parent's coordinate system and then pass it to
-	// wlr_xdg_popup_unconstrain_from_box
-	PhocView *view = popup->child.view;
+static void popup_unconstrain (PhocXdgPopup* popup)
+{
+  // get the output of the popup's positioner anchor point and convert it to
+  // the toplevel parent's coordinate system and then pass it to
+  // wlr_xdg_popup_unconstrain_from_box
+  PhocView *view = PHOC_VIEW (popup->child.view);
+  struct wlr_output_layout *layout = view->desktop->layout;
+  struct wlr_xdg_popup *wlr_popup = popup->wlr_popup;
 
-	struct wlr_output_layout *layout = view->desktop->layout;
-	struct wlr_xdg_popup *wlr_popup = popup->wlr_popup;
+  int anchor_lx, anchor_ly;
+  wlr_xdg_popup_get_anchor_point (wlr_popup, &anchor_lx, &anchor_ly);
 
-	int anchor_lx, anchor_ly;
-	wlr_xdg_popup_get_anchor_point(wlr_popup, &anchor_lx, &anchor_ly);
+  int popup_lx, popup_ly;
+  wlr_xdg_popup_get_toplevel_coords (wlr_popup, wlr_popup->geometry.x,
+                                     wlr_popup->geometry.y, &popup_lx, &popup_ly);
+  popup_lx += view->box.x;
+  popup_ly += view->box.y;
 
-	int popup_lx, popup_ly;
-	wlr_xdg_popup_get_toplevel_coords(wlr_popup, wlr_popup->geometry.x,
-		wlr_popup->geometry.y, &popup_lx, &popup_ly);
-	popup_lx += view->box.x;
-	popup_ly += view->box.y;
+  anchor_lx += popup_lx;
+  anchor_ly += popup_ly;
 
-	anchor_lx += popup_lx;
-	anchor_ly += popup_ly;
+  struct wlr_output *output = wlr_output_layout_output_at (layout, view->box.x, view->box.y);
+  if (output == NULL)
+    return;
 
-	double dest_x = 0, dest_y = 0;
-	wlr_output_layout_closest_point(layout, NULL, anchor_lx, anchor_ly,
-		&dest_x, &dest_y);
+  struct wlr_box *output_box = wlr_output_layout_get_box (view->desktop->layout, output);
+  PhocOutput *phoc_output = PHOC_OUTPUT (output->data);
+  struct wlr_box usable_area = phoc_output->usable_area;
+  usable_area.x += output_box->x;
+  usable_area.y += output_box->y;
 
-	struct wlr_output *output =
-		wlr_output_layout_output_at(layout, dest_x, dest_y);
-	if (output == NULL) {
-		return;
-	}
+  // the output box expressed in the coordinate system of the toplevel parent
+  // of the popup
+  struct wlr_box output_toplevel_sx_box = {
+    .x = usable_area.x - view->box.x,
+    .y = usable_area.y - view->box.y,
+    .width = usable_area.width,
+    .height = usable_area.height,
+  };
 
-	struct wlr_box *output_box =
-		wlr_output_layout_get_box(view->desktop->layout, output);
-	PhocOutput *phoc_output = output->data;
-	struct wlr_box usable_area = phoc_output->usable_area;
-	usable_area.x += output_box->x;
-	usable_area.y += output_box->y;
-
-	// the output box expressed in the coordinate system of the toplevel parent
-	// of the popup
-	struct wlr_box output_toplevel_sx_box = {
-		.x = usable_area.x - view->box.x,
-		.y = usable_area.y - view->box.y,
-		.width = usable_area.width,
-		.height = usable_area.height,
-	};
-
-	wlr_xdg_popup_unconstrain_from_box(
-			popup->wlr_popup, &output_toplevel_sx_box);
+  wlr_xdg_popup_unconstrain_from_box (popup->wlr_popup, &output_toplevel_sx_box);
 }
 
-static struct roots_xdg_popup *popup_create(PhocView *view,
+static struct phoc_xdg_popup *popup_create(PhocView *view,
 		struct wlr_xdg_popup *wlr_popup) {
-	struct roots_xdg_popup *popup =
-		calloc(1, sizeof(struct roots_xdg_popup));
+	struct phoc_xdg_popup *popup =
+		calloc(1, sizeof(struct phoc_xdg_popup));
 	if (popup == NULL) {
 		return NULL;
 	}
@@ -210,7 +202,7 @@ static void handle_request_maximize(struct wl_listener *listener, void *data) {
 		return;
 	}
 
-	if (surface->toplevel->client_pending.maximized) {
+	if (surface->toplevel->requested.maximized) {
 		view_maximize(view, NULL);
 	} else {
 		view_restore(view);
@@ -244,8 +236,8 @@ static void handle_set_app_id(struct wl_listener *listener, void *data) {
 	PhocXdgSurface *phoc_xdg_surface =
 		wl_container_of(listener, phoc_xdg_surface, set_app_id);
 
-	view_set_app_id(&phoc_xdg_surface->view,
-			phoc_xdg_surface->xdg_surface->toplevel->app_id);
+	phoc_view_set_app_id(&phoc_xdg_surface->view,
+			     phoc_xdg_surface->xdg_surface->toplevel->app_id);
 }
 
 static void handle_set_parent(struct wl_listener *listener, void *data) {
@@ -261,10 +253,10 @@ static void handle_set_parent(struct wl_listener *listener, void *data) {
 }
 
 static void handle_surface_commit(struct wl_listener *listener, void *data) {
-	PhocXdgSurface *roots_surface =
-		wl_container_of(listener, roots_surface, surface_commit);
-	PhocView *view = &roots_surface->view;
-	struct wlr_xdg_surface *surface = roots_surface->xdg_surface;
+	PhocXdgSurface *phoc_surface =
+		wl_container_of(listener, phoc_surface, surface_commit);
+	PhocView *view = &phoc_surface->view;
+	struct wlr_xdg_surface *surface = phoc_surface->xdg_surface;
 
 	if (!surface->mapped) {
 		return;
@@ -277,8 +269,8 @@ static void handle_surface_commit(struct wl_listener *listener, void *data) {
 	view_update_size(view, size.width, size.height);
 
 	uint32_t pending_serial =
-		roots_surface->pending_move_resize_configure_serial;
-	if (pending_serial > 0 && pending_serial >= surface->configure_serial) {
+		phoc_surface->pending_move_resize_configure_serial;
+	if (pending_serial > 0 && pending_serial >= surface->current.configure_serial) {
 		double x = view->box.x;
 		double y = view->box.y;
 		if (view->pending_move_resize.update_x) {
@@ -299,19 +291,19 @@ static void handle_surface_commit(struct wl_listener *listener, void *data) {
 		}
 		view_update_position(view, x, y);
 
-		if (pending_serial == surface->configure_serial) {
-			roots_surface->pending_move_resize_configure_serial = 0;
+		if (pending_serial == surface->current.configure_serial) {
+			phoc_surface->pending_move_resize_configure_serial = 0;
 		}
 	}
 
 	struct wlr_box geometry;
-        phoc_xdg_surface_get_geometry (roots_surface, &geometry);
-	if (roots_surface->saved_geometry.x != geometry.x || roots_surface->saved_geometry.y != geometry.y) {
+        phoc_xdg_surface_get_geometry (phoc_surface, &geometry);
+	if (phoc_surface->saved_geometry.x != geometry.x || phoc_surface->saved_geometry.y != geometry.y) {
 		view_update_position(view,
-		                     view->box.x + (roots_surface->saved_geometry.x - geometry.x) * view->scale,
-		                     view->box.y + (roots_surface->saved_geometry.y - geometry.y) * view->scale);
+		                     view->box.x + (phoc_surface->saved_geometry.x - geometry.x) * view->scale,
+		                     view->box.y + (phoc_surface->saved_geometry.y - geometry.y) * view->scale);
 	}
-	roots_surface->saved_geometry = geometry;
+	phoc_surface->saved_geometry = geometry;
 }
 
 static void handle_new_popup(struct wl_listener *listener, void *data) {
@@ -373,20 +365,21 @@ void handle_xdg_shell_surface(struct wl_listener *listener, void *data) {
 		PhocXdgSurface *parent = surface->toplevel->parent->data;
 		view_set_parent(&phoc_surface->view, &parent->view);
 	}
-	if (surface->toplevel->client_pending.maximized) {
+
+	if (surface->toplevel->requested.maximized) {
 		view_maximize(&phoc_surface->view, NULL);
 	}
-	phoc_view_set_fullscreen(&phoc_surface->view, surface->toplevel->client_pending.fullscreen,
-		surface->toplevel->client_pending.fullscreen_output);
+	phoc_view_set_fullscreen(&phoc_surface->view, surface->toplevel->requested.fullscreen,
+		surface->toplevel->requested.fullscreen_output);
 	view_auto_maximize(&phoc_surface->view);
 	view_set_title(&phoc_surface->view, surface->toplevel->title);
 
 	// Check for app-id override coming from gtk-shell
 	PhocGtkSurface *gtk_surface = phoc_gtk_shell_get_gtk_surface_from_wlr_surface (desktop->gtk_shell, surface->surface);
-	if (gtk_surface && gtk_surface->app_id) {
-		view_set_app_id (&phoc_surface->view, gtk_surface->app_id);
+	if (gtk_surface && phoc_gtk_surface_get_app_id (gtk_surface)) {
+          phoc_view_set_app_id (&phoc_surface->view, phoc_gtk_surface_get_app_id (gtk_surface));
 	} else {
-		view_set_app_id (&phoc_surface->view, surface->toplevel->app_id);
+		phoc_view_set_app_id (&phoc_surface->view, surface->toplevel->app_id);
 	}
 
 	phoc_surface->surface_commit.notify = handle_surface_commit;
@@ -424,7 +417,7 @@ void handle_xdg_shell_surface(struct wl_listener *listener, void *data) {
 
 static void decoration_handle_destroy(struct wl_listener *listener,
 		void *data) {
-	struct roots_xdg_toplevel_decoration *decoration =
+	struct phoc_xdg_toplevel_decoration *decoration =
 		wl_container_of(listener, decoration, destroy);
 
 	decoration->surface->xdg_toplevel_decoration = NULL;
@@ -437,11 +430,11 @@ static void decoration_handle_destroy(struct wl_listener *listener,
 
 static void decoration_handle_request_mode(struct wl_listener *listener,
 		void *data) {
-	struct roots_xdg_toplevel_decoration *decoration =
+	struct phoc_xdg_toplevel_decoration *decoration =
 		wl_container_of(listener, decoration, request_mode);
 
 	enum wlr_xdg_toplevel_decoration_v1_mode mode =
-		decoration->wlr_decoration->client_pending_mode;
+		decoration->wlr_decoration->requested_mode;
 	if (mode == WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_NONE) {
 		mode = WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE;
 	}
@@ -450,10 +443,10 @@ static void decoration_handle_request_mode(struct wl_listener *listener,
 
 static void decoration_handle_surface_commit(struct wl_listener *listener,
 		void *data) {
-	struct roots_xdg_toplevel_decoration *decoration =
+	struct phoc_xdg_toplevel_decoration *decoration =
 		wl_container_of(listener, decoration, surface_commit);
 
-	bool decorated = decoration->wlr_decoration->current_mode ==
+	bool decorated = decoration->wlr_decoration->current.mode ==
 		WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE;
 	view_update_decorated(&decoration->surface->view, decorated);
 }
@@ -467,8 +460,8 @@ void handle_xdg_toplevel_decoration(struct wl_listener *listener, void *data) {
 	assert(xdg_surface != NULL);
 	struct wlr_xdg_surface *wlr_xdg_surface = xdg_surface->xdg_surface;
 
-	struct roots_xdg_toplevel_decoration *decoration =
-		calloc(1, sizeof(struct roots_xdg_toplevel_decoration));
+	struct phoc_xdg_toplevel_decoration *decoration =
+		calloc(1, sizeof(struct phoc_xdg_toplevel_decoration));
 	if (decoration == NULL) {
 		return;
 	}

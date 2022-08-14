@@ -172,14 +172,14 @@ static void
 handle_switch_toggle (struct wl_listener *listener, void *data)
 {
   PhocServer *server = phoc_server_get_default ();
-  struct roots_switch *switch_device =
+  struct phoc_switch *switch_device =
     wl_container_of (listener, switch_device, toggle);
   PhocDesktop *desktop = server->desktop;
 
   wlr_idle_notify_activity (desktop->idle, switch_device->seat->seat);
   struct wlr_event_switch_toggle *event = data;
 
-  roots_switch_handle_toggle (switch_device, event);
+  phoc_switch_handle_toggle (switch_device, event);
 }
 
 static void
@@ -802,8 +802,6 @@ phoc_drag_icon_update_position (PhocDragIcon *icon)
   assert (wlr_drag != NULL);
 
   switch (seat->seat->drag->grab_type) {
-  case WLR_DRAG_GRAB_KEYBOARD:
-    assert (false);
   case WLR_DRAG_GRAB_KEYBOARD_POINTER:;
     struct wlr_cursor *cursor = seat->cursor->cursor;
     icon->x = cursor->x;
@@ -818,6 +816,7 @@ phoc_drag_icon_update_position (PhocDragIcon *icon)
     icon->x = seat->touch_x;
     icon->y = seat->touch_y;
     break;
+  case WLR_DRAG_GRAB_KEYBOARD:
   default:
     g_error ("Invalid drag grab type %d", seat->seat->drag->grab_type);
   }
@@ -999,7 +998,7 @@ seat_add_pointer (PhocSeat                *seat,
 static void
 handle_switch_destroy (struct wl_listener *listener, void *data)
 {
-  struct roots_switch *switch_device =
+  struct phoc_switch *switch_device =
     wl_container_of (listener, switch_device, device_destroy);
   PhocSeat *seat = switch_device->seat;
 
@@ -1015,7 +1014,7 @@ seat_add_switch (PhocSeat                *seat,
                  struct wlr_input_device *device)
 {
   assert (device->type == WLR_INPUT_DEVICE_SWITCH);
-  struct roots_switch *switch_device = g_new0 (struct roots_switch, 1);
+  struct phoc_switch *switch_device = g_new0 (struct phoc_switch, 1);
 
   device->data = switch_device;
   switch_device->device = device;
@@ -1349,6 +1348,13 @@ phoc_seat_has_meta_pressed (PhocSeat *seat)
   return false;
 }
 
+
+/**
+ * phoc_seat_get_focus:
+ * @seat: The seat
+ *
+ * Returns: (nullable)(transfer none): The currently focused view
+ */
 PhocView *
 phoc_seat_get_focus (PhocSeat *seat)
 {
@@ -1427,6 +1433,13 @@ seat_add_view (PhocSeat *seat, PhocView *view)
   return seat_view;
 }
 
+/**
+ * phoc_seat_view_from_view:
+ * @seat: The seat
+ * @view: A view
+ *
+ * Returns: (nullable)(transfer none): The seat view belonging to the given view.
+ */
 PhocSeatView *
 phoc_seat_view_from_view (PhocSeat *seat, PhocView *view)
 {
@@ -1608,9 +1621,9 @@ void
 phoc_seat_set_focus_layer (PhocSeat                    *seat,
                            struct wlr_layer_surface_v1 *layer)
 {
-  PhocServer *server = phoc_server_get_default ();
   if (!layer) {
     if (seat->focused_layer) {
+      PhocOutput *output = PHOC_OUTPUT (seat->focused_layer->output->data);
       seat->focused_layer = NULL;
       if (!wl_list_empty (&seat->views)) {
         // Focus first view
@@ -1620,10 +1633,8 @@ phoc_seat_set_focus_layer (PhocSeat                    *seat,
       } else {
         phoc_seat_set_focus (seat, NULL);
       }
-      PhocOutput *output;
-      wl_list_for_each (output, &server->desktop->outputs, link) {
-        phoc_layer_shell_arrange (output);
-      }
+      phoc_layer_shell_arrange (output);
+      phoc_output_update_shell_reveal (output);
     }
     return;
   }
@@ -1652,6 +1663,7 @@ phoc_seat_set_focus_layer (PhocSeat                    *seat,
 
   phoc_cursor_update_focus (seat->cursor);
   phoc_input_method_relay_set_focus (&seat->im_relay, layer->surface);
+  phoc_output_update_shell_reveal (PHOC_OUTPUT (layer->output->data));
 }
 
 void
