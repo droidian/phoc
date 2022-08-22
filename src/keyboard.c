@@ -169,6 +169,7 @@ keyboard_execute_compositor_binding(PhocKeyboard *self,
 
     wlr_seat_pointer_end_grab(seat->seat);
     wlr_seat_keyboard_end_grab(seat->seat);
+    wlr_seat_touch_end_grab (seat->seat);
     phoc_seat_end_compositor_grab(seat);
   }
 
