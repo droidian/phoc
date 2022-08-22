@@ -1625,6 +1625,10 @@ phoc_seat_set_focus_layer (PhocSeat                    *seat,
     }
     return;
   }
+
+  // An existing keyboard grab might try to deny setting focus, so cancel it
+  wlr_seat_keyboard_end_grab (seat->seat);
+
   struct wlr_keyboard *keyboard = wlr_seat_get_keyboard (seat->seat);
 
   if (!phoc_seat_allow_input (seat, layer->resource)) {
