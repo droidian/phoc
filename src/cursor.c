@@ -70,6 +70,95 @@ should_ignore_touch_grab (PhocSeat           *seat,
 }
 
 
+static bool
+should_ignore_pointer_grab (PhocSeat           *seat,
+                            struct wlr_surface *surface)
+{
+  // ignore seat grab when interacting with layer-surface
+
+  if (!surface)
+    return false;
+
+  struct wlr_surface *root = wlr_surface_get_root_surface (surface);
+
+  // FIXME: return false if the grab comes from a xdg-popup that belongs to a layer-surface
+  return wlr_seat_pointer_has_grab (seat->seat) && wlr_surface_is_layer_surface (root);
+}
+
+
+static void
+send_pointer_enter (PhocSeat           *seat,
+                    struct wlr_surface *surface,
+                    double              sx,
+                    double              sy)
+{
+  if (should_ignore_pointer_grab (seat, surface)) {
+    wlr_seat_pointer_enter (seat->seat, surface, sx, sy);
+    return;
+  }
+
+  wlr_seat_pointer_notify_enter (seat->seat, surface, sx, sy);
+}
+
+
+static void
+send_pointer_clear_focus (PhocSeat           *seat,
+                          struct wlr_surface *surface) {
+  if (should_ignore_pointer_grab (seat, surface)) {
+    wlr_seat_pointer_clear_focus (seat->seat);
+    return;
+  }
+
+  wlr_seat_pointer_notify_clear_focus (seat->seat);
+}
+
+
+static void
+send_pointer_motion (PhocSeat           *seat,
+                     struct wlr_surface *surface,
+                     uint32_t            time,
+                     double              sx,
+                     double              sy) {
+  if (should_ignore_pointer_grab (seat, surface)) {
+    wlr_seat_pointer_send_motion (seat->seat, time, sx, sy);
+    return;
+  }
+
+  wlr_seat_pointer_notify_motion (seat->seat, time, sx, sy);
+}
+
+static void
+send_pointer_button (PhocSeat             *seat,
+                     struct wlr_surface   *surface,
+                     uint32_t              time,
+                     uint32_t              button,
+                     enum wlr_button_state state) {
+  if (should_ignore_pointer_grab (seat, surface)) {
+    wlr_seat_pointer_send_button (seat->seat, time, button, state);
+    return;
+  }
+
+  wlr_seat_pointer_notify_button (seat->seat, time, button, state);
+}
+
+
+static void
+send_pointer_axis (PhocSeat                 *seat,
+                   struct wlr_surface       *surface,
+                   uint32_t                  time,
+                   enum wlr_axis_orientation orientation,
+                   double                    value,
+                   int32_t                   value_discrete,
+                   enum wlr_axis_source      source) {
+  if (should_ignore_pointer_grab (seat, surface)) {
+    wlr_seat_pointer_send_axis (seat->seat, time, orientation, value, value_discrete, source);
+    return;
+  }
+
+  wlr_seat_pointer_notify_axis (seat->seat, time, orientation, value, value_discrete, source);
+}
+
+
 static void
 send_touch_down (PhocSeat                    *seat,
                  struct wlr_surface          *surface,
@@ -493,10 +582,10 @@ phoc_passthrough_cursor (PhocCursor *self,
   self->wlr_surface = surface;
 
   if (surface) {
-    wlr_seat_pointer_notify_enter (seat->seat, surface, sx, sy);
-    wlr_seat_pointer_notify_motion (seat->seat, time, sx, sy);
+    send_pointer_enter (seat, surface, sx, sy);
+    send_pointer_motion (seat, surface, time, sx ,sy);
   } else {
-    wlr_seat_pointer_clear_focus (seat->seat);
+    send_pointer_clear_focus (seat, seat->seat->pointer_state.focused_surface);
   }
 
   if (seat->drag_icon != NULL) {
@@ -898,7 +987,7 @@ phoc_cursor_press_button (PhocCursor *self,
   }
 
   if (!phoc_handle_shell_reveal (surface, lx, ly, PHOC_SHELL_REVEAL_POINTER_THRESHOLD) && !is_touch) {
-    wlr_seat_pointer_notify_button (seat->seat, time, button, state);
+    send_pointer_button (seat, surface, time, button, state);
   }
 }
 
@@ -1039,8 +1128,8 @@ handle_pointer_axis (struct wl_listener *listener, void *data)
   PhocDesktop *desktop = server->desktop;
 
   wlr_idle_notify_activity (desktop->idle, self->seat->seat);
-  wlr_seat_pointer_notify_axis (self->seat->seat, event->time_msec,
-                                event->orientation, event->delta, event->delta_discrete, event->source);
+  send_pointer_axis (self->seat, self->seat->seat->pointer_state.focused_surface, event->time_msec,
+                     event->orientation, event->delta, event->delta_discrete, event->source);
 }
 
 static void
@@ -1052,6 +1141,9 @@ handle_pointer_frame (struct wl_listener *listener, void *data)
 
   wlr_idle_notify_activity (desktop->idle, self->seat->seat);
   wlr_seat_pointer_notify_frame (self->seat->seat);
+
+  // make sure to always send frame events when necessary even when bypassing seat grabs
+  wlr_seat_pointer_send_frame (self->seat->seat);
 }
 
 
