@@ -195,8 +195,8 @@ static void set_fullscreen(PhocView *view, bool fullscreen) {
 static void _close(PhocView *view) {
 	struct wlr_xdg_surface *xdg_surface =
 		phoc_xdg_surface_from_view (view)->xdg_surface;
-	struct wlr_xdg_popup *popup = NULL;
-	wl_list_for_each(popup, &xdg_surface->popups, link) {
+	struct wlr_xdg_popup *popup, *tmp = NULL;
+	wl_list_for_each_safe (popup, tmp, &xdg_surface->popups, link) {
 		wlr_xdg_popup_destroy(popup->base);
 	}
 	wlr_xdg_toplevel_send_close(xdg_surface);

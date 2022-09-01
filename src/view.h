@@ -182,7 +182,7 @@ typedef struct _PhocViewChild {
 } PhocViewChild;
 
 void view_appear_activated(PhocView *view, bool activated);
-void view_activate(PhocView *view, bool activate);
+void phoc_view_activate (PhocView *view, bool activate);
 void phoc_view_apply_damage (PhocView *view);
 void phoc_view_damage_whole (PhocView *view);
 gboolean view_is_floating(const PhocView *view);
@@ -224,10 +224,12 @@ void view_for_each_surface(PhocView *view,
 	wlr_surface_iterator_func_t iterator, void *user_data);
 PhocView *phoc_view_from_wlr_surface (struct wlr_surface *wlr_surface);
 
-bool   phoc_view_is_mapped (PhocView *view);
-PhocViewDecoPart view_get_deco_part(PhocView *view, double sx, double sy);
-void     phoc_view_set_scale_to_fit (PhocView *self, gboolean enable);
-gboolean phoc_view_get_scale_to_fit (PhocView *self);
+bool                 phoc_view_is_mapped (PhocView *view);
+PhocViewDecoPart     view_get_deco_part(PhocView *view, double sx, double sy);
+void                 phoc_view_set_scale_to_fit (PhocView *self, gboolean enable);
+gboolean             phoc_view_get_scale_to_fit (PhocView *self);
+void                 phoc_view_set_activation_token (PhocView *self, const char* token);
+const char          *phoc_view_get_activation_token (PhocView *self);
 
 void phoc_view_child_init(PhocViewChild *child,
                           const struct phoc_view_child_interface *impl,

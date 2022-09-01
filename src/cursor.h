@@ -133,3 +133,6 @@ void        phoc_cursor_handle_event             (PhocCursor                    
 void        phoc_cursor_add_gesture              (PhocCursor                             *self,
                                                   PhocGesture                            *gesture);
 GSList     *phoc_cursor_get_gestures             (PhocCursor                             *self);
+
+gboolean    phoc_cursor_is_active_touch_id       (PhocCursor                             *self,
+                                                  int                                     touch_id);

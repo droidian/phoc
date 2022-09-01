@@ -522,28 +522,35 @@ view_render_iterator (struct wlr_surface *surface, int sx, int sy, void *_data)
 
   PhocServer *server = phoc_server_get_default ();
   PhocRenderer *self = phoc_server_get_renderer (server);
-  struct wlr_texture *view_texture = wlr_surface_get_texture (surface);
+  struct wlr_texture *texture = wlr_surface_get_texture (surface);
 
   struct view_render_data *data = _data;
   PhocView *view = data->view;
 
-  struct wlr_box box;
-  view_get_box (view, &box);
-
   struct wlr_box geo;
   view_get_geometry (view, &geo);
 
-  float mat[16];
-  wlr_matrix_identity (mat);
+  float scale = fmin (data->width / (float)geo.width,
+                      data->height / (float)geo.height);
 
-  float scale = fmin(data->width / (float)geo.width,
-                     data->height / (float)geo.height);
+  float proj[9];
+  wlr_matrix_identity (proj);
+  wlr_matrix_scale (proj, scale, scale);
+  wlr_matrix_translate (proj, -geo.x, -geo.y);
 
-  wlr_matrix_scale (mat, scale, scale);
-  wlr_matrix_translate (mat, sx - geo.x, sy - geo.y);
-  wlr_matrix_scale (mat, 1 / (float)surface->current.scale, 1 / (float)surface->current.scale);
+  struct wlr_fbox src_box;
+  wlr_surface_get_buffer_source_box (surface, &src_box);
 
-  wlr_render_texture (self->wlr_renderer, view_texture, mat, 0, 0, 1.0);
+  struct wlr_box dst_box = {
+    .x = sx,
+    .y = sy,
+    .width = surface->current.width,
+    .height = surface->current.height,
+  };
+
+  float mat[9];
+  wlr_matrix_project_box (mat, &dst_box, wlr_output_transform_invert (surface->current.transform), 0, proj);
+  wlr_render_subtexture_with_matrix (self->wlr_renderer, texture, &src_box, mat, 1.0);
 }
 
 gboolean

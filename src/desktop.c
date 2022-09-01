@@ -138,15 +138,19 @@ static bool view_at(PhocView *view, double lx, double ly,
 		g_error("Invalid view type %d", view->type);
 	}
 	if (_surface != NULL) {
-		*sx = _sx;
-		*sy = _sy;
+		if (sx)
+			*sx = _sx;
+		if (sy)
+			*sy = _sy;
 		*surface = _surface;
 		return true;
 	}
 
 	if (view_get_deco_part(view, view_sx, view_sy)) {
-		*sx = view_sx;
-		*sy = view_sy;
+		if (sx)
+			*sx = view_sx;
+		if (sy)
+			*sy = view_sy;
 		*surface = NULL;
 		return true;
 	}

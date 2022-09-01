@@ -19,17 +19,19 @@
 enum {
   PROP_0,
   PROP_SCALE_TO_FIT,
+  PROP_ACTIVATION_TOKEN,
   PROP_LAST_PROP
 };
 static GParamSpec *props[PROP_LAST_PROP];
 
 typedef struct _PhocViewPrivate {
-  char *title;
-  char *app_id;
-  GSettings *settings;
+  char       *title;
+  char       *app_id;
+  GSettings  *settings;
 
-  gulong notify_scale_to_fit_id;
-  gboolean scale_to_fit;
+  gulong      notify_scale_to_fit_id;
+  gboolean    scale_to_fit;
+  char       *activation_token;
 } PhocViewPrivate;
 
 G_DEFINE_TYPE_WITH_PRIVATE (PhocView, phoc_view, G_TYPE_OBJECT)
@@ -221,19 +223,33 @@ view_appear_activated (PhocView *view, bool activated)
     PHOC_VIEW_GET_CLASS (view)->set_active (view, activated);
 }
 
-void view_activate(PhocView *view, bool activate) {
-	if (!view->desktop->maximize) {
-		view_appear_activated(view, activate);
-	}
+void
+phoc_view_activate (PhocView *self, bool activate)
+{
+  PhocViewPrivate *priv;
 
-	if (view->toplevel_handle) {
-		wlr_foreign_toplevel_handle_v1_set_activated(view->toplevel_handle,
-			activate);
-	}
+  g_assert (PHOC_IS_VIEW (self));
+  priv = phoc_view_get_instance_private (self);
 
-	if (activate && view_is_fullscreen (view)) {
-		phoc_output_force_shell_reveal (view->fullscreen_output, false);
-	}
+  if (!self->desktop->maximize) {
+    view_appear_activated(self, activate);
+  }
+
+  if (self->toplevel_handle) {
+    wlr_foreign_toplevel_handle_v1_set_activated(self->toplevel_handle,
+                                                 activate);
+  }
+
+  if (activate && view_is_fullscreen (self)) {
+    phoc_output_force_shell_reveal (self->fullscreen_output, false);
+  }
+
+  if (priv->activation_token) {
+    phoc_phosh_private_notify_startup_id (phoc_server_get_default()->desktop->phosh,
+                                          priv->activation_token,
+                                          PHOSH_PRIVATE_STARTUP_TRACKER_PROTOCOL_XDG_ACTIVATION);
+    phoc_view_set_activation_token (self, NULL);
+  }
 }
 
 void view_resize(PhocView *view, uint32_t width, uint32_t height) {
@@ -951,6 +967,11 @@ phoc_view_map (PhocView *view, struct wlr_surface *surface)
                               "notify::scale-to-fit",
                               G_CALLBACK (on_global_scale_to_fit_changed),
                               view);
+
+
+  /* Process pending activation */
+  if (priv->activation_token)
+    phoc_view_activate (view, TRUE);
 }
 
 void view_unmap(PhocView *view) {
@@ -1306,6 +1327,9 @@ phoc_view_set_property (GObject      *object,
   case PROP_SCALE_TO_FIT:
     phoc_view_set_scale_to_fit (self, g_value_get_boolean (value));
     break;
+  case PROP_ACTIVATION_TOKEN:
+    phoc_view_set_activation_token (self, g_value_get_string (value));
+    break;
   default:
     G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
     break;
@@ -1325,6 +1349,9 @@ phoc_view_get_property (GObject    *object,
   switch (property_id) {
   case PROP_SCALE_TO_FIT:
     g_value_set_boolean (value, priv->scale_to_fit);
+    break;
+  case PROP_ACTIVATION_TOKEN:
+    g_value_set_string (value, phoc_view_get_activation_token (self));
     break;
   default:
     G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -1366,6 +1393,7 @@ phoc_view_finalize (GObject *object)
 
   g_clear_pointer (&priv->title, g_free);
   g_clear_pointer (&priv->app_id, g_free);
+  g_clear_pointer (&priv->activation_token, g_free);
   g_clear_object (&priv->settings);
 
   G_OBJECT_CLASS (phoc_view_parent_class)->finalize (object);
@@ -1390,6 +1418,16 @@ phoc_view_class_init (PhocViewClass *klass)
     g_param_spec_boolean ("scale-to-fit", "", "",
                           FALSE,
                           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS | G_PARAM_EXPLICIT_NOTIFY);
+
+  /**
+   * PhocView:activation-token:
+   *
+   * If not %NULL this token will be used to activate the view once mapped.
+   */
+  props[PROP_ACTIVATION_TOKEN] =
+    g_param_spec_string ("activation-token", "", "",
+                         NULL,
+                         G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS | G_PARAM_EXPLICIT_NOTIFY);
 
   g_object_class_install_properties (object_class, PROP_LAST_PROP, props);
 }
@@ -1528,6 +1566,8 @@ phoc_view_child_damage_whole (PhocViewChild *child)
 
 /**
  * phoc_view_set_scale_to_fit:
+ * @self: The view
+ * @enable: Whether to enable or disable scale to fit
  *
  * Turn auto scaling if oversized for this surface on (%TRUE) or off (%FALSE)
  */
@@ -1550,6 +1590,7 @@ phoc_view_set_scale_to_fit (PhocView *self, gboolean enable)
 
 /**
  * phoc_view_get_scale_to_fit:
+ * @self: The view
  *
  * Returns: %TRUE if scaling of oversized surfaces is enabled, %FALSE otherwise
  */
@@ -1561,4 +1602,47 @@ phoc_view_get_scale_to_fit (PhocView *self)
   priv = phoc_view_get_instance_private (self);
 
   return priv->scale_to_fit;
+}
+
+
+/**
+ * phoc_view_set_activation_token:
+ * @self: The view
+ * @token: The activation token to use
+ *
+ * Sets the activation token that will be used when activate the view
+ * once mapped. It will be cleared once the view got activated.
+ */
+void
+phoc_view_set_activation_token (PhocView *self, const char* token)
+{
+  PhocViewPrivate *priv;
+
+  g_return_if_fail (PHOC_IS_VIEW (self));
+  priv = phoc_view_get_instance_private (self);
+
+  if (g_strcmp0 (priv->activation_token, token) == 0)
+    return;
+
+  g_free (priv->activation_token);
+  priv->activation_token = g_strdup (token);
+  g_object_notify_by_pspec (G_OBJECT (self), props[PROP_ACTIVATION_TOKEN]);
+}
+
+/**
+ * phoc_view_get_activation_token:
+ * @self: The view
+ *
+ * Get the current activation token.
+ *
+ * Returns: The activation token
+ */
+const char *
+phoc_view_get_activation_token (PhocView *self)
+{
+  PhocViewPrivate *priv;
+
+  priv = phoc_view_get_instance_private (self);
+
+  return priv->activation_token;
 }
