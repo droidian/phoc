@@ -208,16 +208,11 @@ handle_touch_up (struct wl_listener *listener, void *data)
   PhocCursor *cursor = wl_container_of (listener, cursor, touch_up);
   struct wlr_event_touch_up *event = data;
   PhocDesktop *desktop = server->desktop;
-  PhocOutput *output = g_hash_table_lookup (desktop->input_output_map,
-                                            event->device->name);
 
-  /* handle touch up regardless of output status so events don't become stuck */
-  phoc_cursor_handle_touch_up (cursor, event);
-  if (output && !output->wlr_output->enabled) {
-    g_debug ("Touch event ignored since output '%s' is disabled.",
-             output->wlr_output->name);
+  if (!phoc_cursor_is_active_touch_id (cursor, event->touch_id)) {
     return;
   }
+  phoc_cursor_handle_touch_up (cursor, event);
   wlr_idle_notify_activity (desktop->idle, cursor->seat->seat);
 }
 
@@ -228,17 +223,11 @@ handle_touch_motion (struct wl_listener *listener, void *data)
   PhocCursor *cursor = wl_container_of (listener, cursor, touch_motion);
   struct wlr_event_touch_motion *event = data;
   PhocDesktop *desktop = server->desktop;
-  PhocOutput *output = g_hash_table_lookup (desktop->input_output_map,
-                                            event->device->name);
 
-  /* handle touch motion regardless of output status so events don't become
-     stuck */
-  phoc_cursor_handle_touch_motion (cursor, event);
-  if (output && !output->wlr_output->enabled) {
-    g_debug ("Touch event ignored since output '%s' is disabled.",
-             output->wlr_output->name);
+  if (!phoc_cursor_is_active_touch_id (cursor, event->touch_id)) {
     return;
   }
+  phoc_cursor_handle_touch_motion (cursor, event);
   wlr_idle_notify_activity (desktop->idle, cursor->seat->seat);
 }
 
@@ -1568,7 +1557,7 @@ phoc_seat_set_focus (PhocSeat *seat, PhocView *view)
 
   // Deactivate the old view if it is not focused by some other seat
   if (prev_focus != NULL && !phoc_input_view_has_focus (seat->input, prev_focus)) {
-    view_activate (prev_focus, false);
+    phoc_view_activate (prev_focus, false);
   }
 
   if (view == NULL) {
@@ -1585,7 +1574,7 @@ phoc_seat_set_focus (PhocSeat *seat, PhocView *view)
     return;
   }
 
-  view_activate (view, true);
+  phoc_view_activate (view, true);
   seat->has_focus = true;
 
   // An existing keyboard grab might try to deny setting focus, so cancel it
@@ -1646,7 +1635,7 @@ phoc_seat_set_focus_layer (PhocSeat                    *seat,
   if (seat->has_focus) {
     PhocView *prev_focus = phoc_seat_get_focus (seat);
     wlr_seat_keyboard_clear_focus (seat->seat);
-    view_activate (prev_focus, false);
+    phoc_view_activate (prev_focus, false);
   }
   seat->has_focus = false;
   if (layer->current.layer >= ZWLR_LAYER_SHELL_V1_LAYER_TOP) {

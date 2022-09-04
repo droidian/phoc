@@ -309,8 +309,28 @@ phoc_layer_shell_update_focus (void)
   PhocOutput *output;
   wl_list_for_each (output, &server->desktop->outputs, link) {
     for (size_t i = 0; i < G_N_ELEMENTS(layers_above_shell); ++i) {
-      wl_list_for_each(layer_surface, &output->layer_surfaces, link) {
+      wl_list_for_each_reverse (layer_surface, &output->layer_surfaces, link) {
         if (layer_surface->layer != layers_above_shell[i])
+          continue;
+
+        if (layer_surface->layer_surface->current.exclusive_zone <= 0)
+          continue;
+
+        if (layer_surface->layer_surface->current.keyboard_interactive &&
+            layer_surface->layer_surface->mapped) {
+          topmost = layer_surface;
+          break;
+        }
+      }
+
+      if (topmost != NULL)
+        break;
+
+      wl_list_for_each (layer_surface, &output->layer_surfaces, link) {
+        if (layer_surface->layer != layers_above_shell[i])
+          continue;
+
+        if (layer_surface->layer_surface->current.exclusive_zone > 0)
           continue;
 
         if (layer_surface->layer_surface->current.keyboard_interactive &&

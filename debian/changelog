@@ -1,3 +1,23 @@
+phoc (0.21.1) byzantium; urgency=medium
+
+  [ Guido Günther ]
+  * xdg-surface: Fix crash on close with open popups
+  * view: Improve doc strings for {get,set}_scale_to_fit
+  * view: Allow to set activation token
+  * view: Reindent and prefix view_activated
+  * xdg-activation: Delay token submission
+
+  [ Joerg ]
+  * seat: Check if touch point is valid (Closes: #278)
+
+  [ Sebastian Krzyszkowiak ]
+  * desktop: Allow to pass NULL as sx and sy to view_at
+  * render: Handle viewports and transforms when rendering to buffer
+  * cursor: Consider root surface for layer-shell check in handle_touch_down
+  * layer-shell: Adjust focus order to match rendering and input
+
+ -- Sebastian Krzyszkowiak <sebastian.krzyszkowiak@puri.sm>  Thu, 01 Sep 2022 10:54:22 +0200
+
 phoc (0.21.0) byzantium; urgency=medium
 
   [ Guido Günther ]
