@@ -405,6 +405,7 @@ phoc_output_initable_init (GInitable    *initable,
   self->wlr_output->data = self;
   wl_list_insert (&self->desktop->outputs, &self->link);
 
+#if WLR_VERSION_MAJOR == 0 && WLR_VERSION_MINOR > 12
   if (!wlr_output_init_render (self->wlr_output,
                                phoc_renderer_get_wlr_allocator (renderer),
                                phoc_renderer_get_wlr_renderer (renderer))) {
@@ -413,6 +414,7 @@ phoc_output_initable_init (GInitable    *initable,
 		 "Could not create renderer");
     return FALSE;
   }
+#endif
 
   self->damage = wlr_output_damage_create (self->wlr_output);
 
@@ -423,9 +425,8 @@ phoc_output_initable_init (GInitable    *initable,
   self->mode.notify = phoc_output_handle_mode;
   wl_signal_add (&self->wlr_output->events.mode, &self->mode);
   self->commit.notify = phoc_output_handle_commit;
-#if WLR_VERSION_MAJOR == 0 && WLR_VERSION_MINOR > 12
   wl_signal_add (&self->wlr_output->events.commit, &self->commit);
-#else
+#if WLR_VERSION_MAJOR == 0 && WLR_VERSION_MINOR <= 12
   wl_signal_add (&self->wlr_output->events.transform, &self->commit);
 #endif
 

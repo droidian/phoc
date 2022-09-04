@@ -8,6 +8,10 @@
 #include <glib-object.h>
 
 #include <wlr/render/wlr_renderer.h>
+#include <wlr/version.h>
+#if WLR_VERSION_MAJOR == 0 && WLR_VERSION_MINOR <= 12
+#include <wlr/backend.h>
+#endif
 
 G_BEGIN_DECLS
 

@@ -38,7 +38,9 @@
 #include <wlr/types/wlr_linux_dmabuf_v1.h>
 #include <wlr/util/region.h>
 #include <wlr/version.h>
+#if WLR_VERSION_MAJOR == 0 && WLR_VERSION_MINOR > 12
 #include <wlr/render/allocator.h>
+#endif
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
 
@@ -169,7 +171,15 @@ static void scissor_output(struct wlr_output *wlr_output,
 		wlr_output_transform_invert(wlr_output->transform);
 	wlr_box_transform(&box, &box, transform, ow, oh);
 
+#if WLR_VERSION_MAJOR == 0 && WLR_VERSION_MINOR > 12
 	wlr_renderer_scissor(wlr_output->renderer, &box);
+#else
+	struct wlr_renderer *renderer =
+		wlr_backend_get_renderer(wlr_output->backend);
+	assert(renderer);
+
+	wlr_renderer_scissor(renderer, &box);
+#endif
 }
 
 static void render_texture(struct wlr_output *wlr_output,
@@ -177,6 +187,12 @@ static void render_texture(struct wlr_output *wlr_output,
 		const struct wlr_fbox *src_box, const struct wlr_box *dst_box,
 		const float matrix[static 9],
 		float rotation, float alpha) {
+#if WLR_VERSION_MAJOR == 0 && WLR_VERSION_MINOR <= 12
+	struct wlr_renderer *renderer =
+		wlr_backend_get_renderer(wlr_output->backend);
+	assert(renderer);
+#endif
+
 	struct wlr_box rotated;
 	phoc_utils_rotated_bounds(&rotated, dst_box, rotation);
 
@@ -196,11 +212,19 @@ static void render_texture(struct wlr_output *wlr_output,
 		scissor_output(wlr_output, &rects[i]);
 
 		if (src_box != NULL) {
+#if WLR_VERSION_MAJOR == 0 && WLR_VERSION_MINOR > 12
 			wlr_render_subtexture_with_matrix(wlr_output->renderer,
                                                           texture, src_box, matrix, alpha);
+#else
+			wlr_render_subtexture_with_matrix(renderer, texture, src_box, matrix, alpha);
+#endif
 		} else {
+#if WLR_VERSION_MAJOR == 0 && WLR_VERSION_MINOR > 12
 			wlr_render_texture_with_matrix(wlr_output->renderer,
                                                        texture, matrix, alpha);
+#else
+			wlr_render_texture_with_matrix(renderer, texture, matrix, alpha);
+#endif
 		}
 	}
 
@@ -269,6 +293,11 @@ static void render_surface_iterator(PhocOutput *output,
 
 static void render_decorations(PhocOutput *output,
 		PhocView *view, struct render_data *data) {
+#if WLR_VERSION_MAJOR == 0 && WLR_VERSION_MINOR <= 12
+	struct wlr_renderer *renderer =
+		wlr_backend_get_renderer(output->wlr_output->backend);
+	assert(renderer);
+#endif
 	if (!view->decorated || !phoc_view_is_mapped (view)) {
 		return;
 	}
@@ -296,7 +325,11 @@ static void render_decorations(PhocOutput *output,
 		pixman_region32_rectangles(&damage, &nrects);
 	for (int i = 0; i < nrects; ++i) {
 		scissor_output(output->wlr_output, &rects[i]);
+#if WLR_VERSION_MAJOR == 0 && WLR_VERSION_MINOR > 12
 		wlr_render_quad_with_matrix(output->wlr_output->renderer, color, matrix);
+#else
+		wlr_render_quad_with_matrix(renderer, color, matrix);
+#endif
 	}
 
 buffer_damage_finish:
@@ -458,7 +491,12 @@ render_touch_point_cb (gpointer data, gpointer user_data)
 
   PhocOutput *output = user_data;
   struct wlr_output *wlr_output = output->wlr_output;
+#if WLR_VERSION_MAJOR == 0 && WLR_VERSION_MINOR > 12
   struct wlr_renderer *wlr_renderer = wlr_output->renderer;
+#else
+  struct wlr_renderer *wlr_renderer = wlr_backend_get_renderer(wlr_output->backend);
+  assert(wlr_renderer);
+#endif
 
   int size = TOUCH_POINT_SIZE * wlr_output->scale;
   struct wlr_box point_box = wlr_box_from_touch_point (touch_point, size, size);
@@ -536,7 +574,15 @@ view_render_iterator (struct wlr_surface *surface, int sx, int sy, void *_data)
 
   float proj[9];
   wlr_matrix_identity (proj);
+
+#if WLR_VERSION_MAJOR == 0 && WLR_VERSION_MINOR > 12
   wlr_matrix_scale (proj, scale, scale);
+#else
+  wlr_matrix_translate (proj, -1, -1);
+  wlr_matrix_scale (proj, 2, 2);
+  wlr_matrix_scale (proj, 1 / (float)geo.width, 1 / (float)geo.height);
+#endif
+
   wlr_matrix_translate (proj, -geo.x, -geo.y);
 
   struct wlr_fbox src_box;
@@ -598,7 +644,6 @@ phoc_renderer_render_view_to_buffer (PhocRenderer *self,
   wlr_drm_format_set_finish (&fmt_set);
 
   return true;
-}
 #else
   struct wlr_surface *surface = view->wlr_surface;
   struct wlr_egl *egl = wlr_gles2_renderer_get_egl (self->wlr_renderer);
@@ -648,8 +693,8 @@ phoc_renderer_render_view_to_buffer (PhocRenderer *self,
   wlr_egl_unset_current (egl);
 
   return true;
-}
 #endif
+}
 
 static void surface_send_frame_done_iterator(PhocOutput *output,
 		struct wlr_surface *surface, struct wlr_box *box, float rotation,
@@ -859,10 +904,13 @@ phoc_renderer_initable_init (GInitable    *initable,
                              GCancellable *cancellable,
                              GError      **error)
 {
-#if WLR_VERSION_MAJOR == 0 && WLR_VERSION_MINOR > 12
   PhocRenderer *self = PHOC_RENDERER (initable);
 
+#if WLR_VERSION_MAJOR == 0 && WLR_VERSION_MINOR > 12
   self->wlr_renderer = wlr_renderer_autocreate (self->wlr_backend);
+#else
+  self->wlr_renderer = wlr_backend_get_renderer (self->wlr_backend);
+#endif
   if (self->wlr_renderer == NULL) {
     g_set_error (error,
                  G_FILE_ERROR, G_FILE_ERROR_FAILED,
@@ -870,6 +918,7 @@ phoc_renderer_initable_init (GInitable    *initable,
     return FALSE;
   }
 
+#if WLR_VERSION_MAJOR == 0 && WLR_VERSION_MINOR > 12
   self->wlr_allocator = wlr_allocator_autocreate (self->wlr_backend,
                                                   self->wlr_renderer);
   if (self->wlr_allocator == NULL) {
@@ -878,9 +927,9 @@ phoc_renderer_initable_init (GInitable    *initable,
 		 "Could not create allocator");
     return FALSE;
   }
+#endif
 
   return TRUE;
-#endif
 }
 
 
@@ -980,6 +1029,9 @@ struct wlr_allocator *
 phoc_renderer_get_wlr_allocator (PhocRenderer *self)
 {
   g_assert (PHOC_IS_RENDERER (self));
-
+#if WLR_VERSION_MAJOR == 0 && WLR_VERSION_MINOR > 12
   return self->wlr_allocator;
+#else
+  return NULL;
+#endif
 }
