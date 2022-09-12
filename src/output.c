@@ -426,9 +426,6 @@ phoc_output_initable_init (GInitable    *initable,
   wl_signal_add (&self->wlr_output->events.mode, &self->mode);
   self->commit.notify = phoc_output_handle_commit;
   wl_signal_add (&self->wlr_output->events.commit, &self->commit);
-#if WLR_VERSION_MAJOR == 0 && WLR_VERSION_MINOR <= 12
-  wl_signal_add (&self->wlr_output->events.transform, &self->commit);
-#endif
 
   self->damage_frame.notify = phoc_output_damage_handle_frame;
   wl_signal_add (&self->damage->events.frame, &self->damage_frame);
