@@ -10,3 +10,6 @@ debian/tmp
 debian/*.debhelper.log
 debian/*.substvars
 obj-*/
+
+# Added by Droidian
+!.circleci/
