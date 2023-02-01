@@ -9,7 +9,7 @@
 
 #define G_LOG_DOMAIN "phoc-keyboard"
 
-#include "config.h"
+#include "phoc-config.h"
 #include "server.h"
 
 #include <assert.h>

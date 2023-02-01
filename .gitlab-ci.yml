@@ -83,11 +83,14 @@ unit-test-with-xwayland-debian-bookworm:
     - build-with-xwayland-debian-bookworm
   before_script: *before_script_debian
   script:
-    - ${XVFB_RUN} meson test --print-errorlogs -C _build
+    - WLR_RENDERER=pixman ${XVFB_RUN} meson test --print-errorlogs -C _build
     - ninja -C _build coverage
   coverage: '/^\s+lines\.+:\s+([\d.]+\%)\s+/'
   artifacts:
     when: always
+    reports:
+      junit:
+        - _build/meson-logs/testlog.junit.xml
     paths:
       - _build
   except:
@@ -142,4 +145,4 @@ pages:
     paths:
       - public
   only:
-    - master
+    - main 

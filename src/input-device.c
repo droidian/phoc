@@ -8,7 +8,7 @@
 
 #define G_LOG_DOMAIN "phoc-input-device"
 
-#include "config.h"
+#include "phoc-config.h"
 
 #include "input-device.h"
 #include "seat.h"

@@ -7,7 +7,7 @@
 
 #define G_LOG_DOMAIN "phoc-xdg-activation-v1"
 
-#include "config.h"
+#include "phoc-config.h"
 #include "view.h"
 #include "phosh-private.h"
 #include "server.h"

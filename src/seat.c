@@ -6,7 +6,7 @@
 
 #define G_LOG_DOMAIN "phoc-seat"
 
-#include "config.h"
+#include "phoc-config.h"
 
 #define _POSIX_C_SOURCE 200112L
 #include <assert.h>

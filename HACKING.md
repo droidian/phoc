@@ -57,5 +57,5 @@ Callbacks for GObject signals should be prefixed with `on_`.
                             seat);
 ```
 
-[1]: https://source.puri.sm/Librem5/libhandy/blob/master/HACKING.md
-[2]: https://github.com/swaywm/wlroots/blob/master/CONTRIBUTING.md
+[1]: https://source.puri.sm/Librem5/libhandy/blob/main/HACKING.md
+[2]: https://github.com/swaywm/wlroots/blob/main/CONTRIBUTING.md

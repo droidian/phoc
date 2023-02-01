@@ -25,12 +25,10 @@ typedef struct _PhocView PhocView;
 PhocRenderer *phoc_renderer_new (struct wlr_backend *wlr_backend, GError **error);
 
 void          phoc_renderer_render_output (PhocRenderer *self, PhocOutput *output);
-gboolean      phoc_renderer_render_view_to_buffer (PhocRenderer *self,
-                                                   PhocView     *view,
+gboolean      phoc_renderer_render_view_to_buffer (PhocRenderer           *self,
+                                                   PhocView               *view,
                                                    enum wl_shm_format shm_fmt,
-                                                   int           width,
-                                                   int           height,
-                                                   int           stride,
-                                                   uint32_t     *flags,
-                                                   void         *data);
+                                                   struct wl_shm_buffer   *data,
+                                                   uint32_t               *flags);
+
 G_END_DECLS

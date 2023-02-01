@@ -8,7 +8,7 @@
 
 #define G_LOG_DOMAIN "phoc-property-easer"
 
-#include "config.h"
+#include "phoc-config.h"
 
 #include "easing.h"
 #include "property-easer.h"

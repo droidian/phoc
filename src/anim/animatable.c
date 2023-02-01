@@ -8,7 +8,7 @@
 
 #define G_LOG_DOMAIN "phoc-animatable"
 
-#include "config.h"
+#include "phoc-config.h"
 
 #include "animatable.h"
 

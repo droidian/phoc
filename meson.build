@@ -1,5 +1,5 @@
 project('phoc', 'c',
-          version: '0.21.1',
+          version: '0.24.0',
           license: 'GPLv3+',
     meson_version: '>= 0.54.0',
   default_options: [
@@ -129,6 +129,18 @@ add_project_arguments(
 
 gnome = import('gnome')
 
+
+config_h = configuration_data()
+config_h.set_quoted('PHOC_VERSION', meson.project_version())
+config_h.set('PHOC_XWAYLAND', have_xwayland)
+config_h.set('PHOC_HAVE_WLR_SEAT_TOUCH_NOTIFY_CANCEL', have_wlr_seat_touch_notify_cancel)
+
+phoc_config_h = configure_file(
+  input: 'phoc-config.h.in',
+  output: 'phoc-config.h',
+  configuration: config_h,
+)
+
 meson.add_install_script(
   join_paths('build-aux', 'post_install.py'),
   join_paths(get_option('prefix'), get_option('datadir'))
@@ -154,18 +166,6 @@ summary = [
         ''
 ]
 message('\n'.join(summary))
-
-
-config_h = configuration_data()
-config_h.set_quoted('PHOC_VERSION', meson.project_version())
-config_h.set('PHOC_XWAYLAND', have_xwayland)
-config_h.set('PHOC_HAVE_WLR_SEAT_TOUCH_NOTIFY_CANCEL', have_wlr_seat_touch_notify_cancel)
-
-configure_file(
-  input: 'config.h.in',
-  output: 'config.h',
-  configuration: config_h,
-)
 
 run_data = configuration_data()
 run_data.set('ABS_BUILDDIR', meson.current_build_dir())

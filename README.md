@@ -1,6 +1,6 @@
 Phone compositor
 ================
-[![Code coverage](https://source.puri.sm/Librem5/phoc/badges/master/coverage.svg)](https://source.puri.sm/Librem5/phoc/commits/master)
+[![Code coverage](https://source.puri.sm/Librem5/phoc/badges/main/coverage.svg)](https://source.puri.sm/Librem5/phoc/commits/main)
 
 [wlroots][1] based Phone compositor as used on the Librem5.
 

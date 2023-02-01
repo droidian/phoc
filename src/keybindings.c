@@ -5,7 +5,7 @@
  *
  * Keybindings stored in gsettings
  */
-#include "config.h"
+#include "phoc-config.h"
 #include "keybindings.h"
 #include "seat.h"
 #include "keyboard.h"
@@ -513,34 +513,6 @@ phoc_add_keybinding (PhocKeybindings *self, GSettings *settings,
 }
 
 static void
-phoc_keybindings_set_property (GObject *object,
-			       guint property_id,
-			       const GValue *value,
-			       GParamSpec *pspec)
-{
-  switch (property_id) {
-  default:
-    G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
-    break;
-  }
-}
-
-
-static void
-phoc_keybindings_get_property (GObject *object,
-			       guint property_id,
-			       GValue *value,
-			       GParamSpec *pspec)
-{
-  switch (property_id) {
-  default:
-    G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
-    break;
-  }
-}
-
-
-static void
 phoc_keybindings_dispose (GObject *object)
 {
   PhocKeybindings *self = PHOC_KEYBINDINGS (object);
@@ -600,8 +572,6 @@ phoc_keybindings_constructed (GObject *object)
 		       "toggle-tiled-left", handle_tile_left);
   phoc_add_keybinding (self, self->mutter_settings,
 		       "toggle-tiled-right", handle_tile_right);
-
-  G_OBJECT_CLASS (phoc_keybindings_parent_class)->constructed (object);
 }
 
 
@@ -613,8 +583,6 @@ phoc_keybindings_class_init (PhocKeybindingsClass *klass)
   object_class->constructed = phoc_keybindings_constructed;
   object_class->dispose = phoc_keybindings_dispose;
   object_class->finalize = phoc_keybindings_finalize;
-  object_class->set_property = phoc_keybindings_set_property;
-  object_class->get_property = phoc_keybindings_get_property;
 }
 
 

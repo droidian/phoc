@@ -1,6 +1,6 @@
 #define G_LOG_DOMAIN "phoc-xdg-shell"
 
-#include "config.h"
+#include "phoc-config.h"
 #include "xdg-surface.h"
 
 #include <assert.h>

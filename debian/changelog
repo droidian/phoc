@@ -1,3 +1,81 @@
+phoc (0.24.0) experimental; urgency=medium
+
+  * doc: Add small getting started document.
+    Add some hints how to run phoc from sources on constrained
+    devices like phones.
+  * server: Align enum valus at '='
+    This matches what we e.g. do in view.h.
+  * layer-shell-effects: Use wlr_layer_surface consistently.
+    This is similar in spirit than 88b1550aff32c639b1056ee76207295cb46723f5
+    and helps to identify the types in use.
+  * layer-shell: Remove unused parameter
+  * layer-surface: Fix names for output list.
+    The list members are PhocLayerSurface and on the output it's
+    called layer_surfaces.
+    Fixes: afae4a3a ("output: Use a single list for all layer surfaces")
+  * layer-shell: Allow to dump layer-surfaces.
+    Add a debug option to figure out the current layer surfaces, their order
+    and margins.
+    This will become more useful with
+    https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/352
+    but as it's off by default we can have it right now.
+  * layer-shell-effects: Don't assert on NULL layer-surface.
+    Don't abort the compositor when the client already destroyed the layer
+    surface but not yet the drag surface.
+    Except for phoc_draggable_layer_surface_slide the functions
+    don't actually access the layer-surface but it's easier to be
+    consistent in case we need to access it later on when adding new
+    features.
+  * layer-shell-effects: Don't access data before asserts.
+    Check the data before accessing it. Also clarifies some comments
+    related to data access.
+  * phoc-layer-shell-effects: Fix argument name.
+    We set mode, not state
+    Fixes 0820da00 ("Add layer-shell-effects protocol")
+  * output: Allow to remove frame callbacks by animatable
+  * layer-surface: Remove all frame callbacks on finalize.
+    When the object goes away we want to drop all animations. This frees
+    users of the animatable interface to worry about when the surface goes
+    away since the difference between the wlr-layer-surface's destroy
+    signal and finalize can be tricky to track.
+
+ -- Guido Günther <agx@sigxcpu.org>  Sat, 28 Jan 2023 16:26:17 +0100
+
+phoc (0.23.0) experimental; urgency=medium
+
+  * build: Add configure file to generated sources.
+    Closes: https://gitlab.gnome.org/World/Phosh/phoc/-/issues/310
+  * Rename config.h to phoc-config.h.
+    This makes sure we don't accidentally include a config.h from another
+    project - e.g. when include paths aren't set up correcty.
+  * gitignore: Remove copy / paste artifact.
+    Fixes: c960805d9f87c157b4d9b0ae0fadd6cfdad5459b
+  * Switch development branch to main (Closes: #256)
+  * keybindings: Remove unused property getter / setter
+  * keybindings: Don't chain up to contruct twice.
+    We already do so at the top of phoc_keybindings_constructed
+  * ci: Collect junit reports.
+    Phosh added this about 1y ago, let phoc catch up
+  * render: Pass wl_shm_buffer to phoc_renderer_render_view_to_buffer.
+    So far only the pointer to the data was passed. This is error prone as
+    the data pointer is constrained by wl_shm access restrictions. We also
+    reduce the number of parameters passed around.
+  * render: Don't access interleaving shm buffers
+    wl_shm_buffer_{begin,end}_access docs say
+    It is safe to nest calls to these functions as long as the nested calls
+    are all accessing the same buffer.
+    So let's not access interleaving buffers.
+    This fixes the pixman renderer. (Closes: #290)
+  * tests: Run thumbnail test when using pixman renderer.
+    When we're pretty certain we're using pixman we can enable the
+    thumbnail tests.
+  * ci: Use pixman renderer for tests.
+    This allows us to run the thumbnail tests again
+  * d/gbp.conf: Bump meson version automatically.
+    Less manual work
+
+ -- Guido Günther <agx@sigxcpu.org>  Thu, 12 Jan 2023 11:24:10 +0100
+
 phoc (0.21.1) byzantium; urgency=medium
 
   [ Guido Günther ]

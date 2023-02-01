@@ -8,7 +8,7 @@
 
 #define G_LOG_DOMAIN "phoc-output-shield"
 
-#include "config.h"
+#include "phoc-config.h"
 
 #include "phoc-animation.h"
 #include "server.h"

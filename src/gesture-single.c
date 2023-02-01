@@ -13,7 +13,7 @@
 
 #define G_LOG_DOMAIN "phoc-gesture-single"
 
-#include "config.h"
+#include "phoc-config.h"
 
 #include "gesture.h"
 #include "gesture-single.h"

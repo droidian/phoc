@@ -1,6 +1,6 @@
 #pragma once
 
-#include "config.h"
+#include "phoc-config.h"
 #include "gtk-shell.h"
 #include "layer-shell-effects.h"
 #include "phosh-private.h"

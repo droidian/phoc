@@ -1,7 +1,6 @@
 .clang_complete
 _build/
 wayland-*-protocol.*
-On branch master
 debian/.debhelper/
 debian/debhelper-build-stamp
 debian/files

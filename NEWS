@@ -1,0 +1,11 @@
+phoc 0.24.0
+-----------
+Released January 2023
+* LayerSurface(effects) robustness
+
+phoc 0.23.0
+-----------
+Released January 2023
+* Fix pixman renderer
+* Contributors:
+	Guido Günther

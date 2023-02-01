@@ -6,7 +6,7 @@
 
 #define G_LOG_DOMAIN "phoc-server"
 
-#include "config.h"
+#include "phoc-config.h"
 #include "render.h"
 #include "render-private.h"
 #include "utils.h"

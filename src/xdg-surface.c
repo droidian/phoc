@@ -8,7 +8,7 @@
 
 #define G_LOG_DOMAIN "phoc-xdg-surface"
 
-#include "config.h"
+#include "phoc-config.h"
 
 #include "xdg-surface.h"
 

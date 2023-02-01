@@ -10,7 +10,7 @@
  * Author(s): Carlos Garnacho <carlosg@gnome.org>
  */
 
-#include "config.h"
+#include "phoc-config.h"
 
 #include "gesture-zoom.h"
 

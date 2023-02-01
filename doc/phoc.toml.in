@@ -24,7 +24,12 @@ show_class_hierarchy = true
 
 [source-location]
 # The base URL for the web UI
-base_url = "https://gitlab.gnome.org/World/Phosh/phoc/-/tree/master"
+base_url = "https://gitlab.gnome.org/World/Phosh/phoc/-/tree/main"
 # The format for links, using "filename" and "line" for the format
 file_format = "{filename}#L{line}"
+
+[extra]
+content_files = [
+  "@CONTENT_FILES@",
+]
 

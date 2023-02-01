@@ -7,7 +7,7 @@
 
 #define G_LOG_DOMAIN "phoc-layer-shell-effects"
 
-#include "config.h"
+#include "phoc-config.h"
 #include "layers.h"
 #include "layer-shell-effects.h"
 #include "phoc-animation.h"
@@ -122,10 +122,12 @@ handle_draggable_layer_surface_set_margins (struct wl_client   *client,
   PhocDraggableLayerSurface *drag_surface = wl_resource_get_user_data (resource);
 
   g_assert (drag_surface);
-  g_assert (PHOC_IS_LAYER_SURFACE (drag_surface->layer_surface));
 
   g_debug ("Draggable Layer surface margins for %p: %d,%d", drag_surface,
            margin_folded, margin_unfolded);
+
+  if (drag_surface->layer_surface == NULL)
+    return;
 
   if (margin_unfolded <= margin_folded) {
     wl_resource_post_error (resource, ZPHOC_LAYER_SHELL_EFFECTS_V1_ERROR_BAD_MARGIN,
@@ -160,7 +162,11 @@ handle_draggable_layer_surface_set_exclusive (struct wl_client   *client,
 {
   PhocDraggableLayerSurface *drag_surface = wl_resource_get_user_data (resource);
 
-  g_assert (PHOC_IS_LAYER_SURFACE (drag_surface->layer_surface));
+  g_assert (drag_surface);
+  g_debug ("Draggable Layer surface exclusive for %p: %u", drag_surface, exclusive);
+  if (drag_surface->layer_surface == NULL)
+    return;
+
   drag_surface->pending.exclusive = exclusive;
 }
 
@@ -173,10 +179,12 @@ handle_draggable_layer_surface_set_threshold (struct wl_client   *client,
   PhocDraggableLayerSurface *drag_surface = wl_resource_get_user_data (resource);
   double threshold;
 
-  g_assert (PHOC_IS_LAYER_SURFACE (drag_surface->layer_surface));
-
+  g_assert (drag_surface);
   threshold = wl_fixed_to_double (threshold_f);
   g_debug ("Draggable Layer surface threshold for %p: %f", drag_surface, threshold);
+  if (drag_surface->layer_surface == NULL)
+    return;
+
   threshold = (threshold < 1.0) ? threshold : 1.0;
   threshold = (threshold > 0.0) ? threshold : 0.0;
 
@@ -191,8 +199,10 @@ handle_draggable_layer_surface_set_drag_mode (struct wl_client   *client,
 {
   PhocDraggableLayerSurface *drag_surface = wl_resource_get_user_data (resource);
 
-  g_assert (PHOC_IS_LAYER_SURFACE (drag_surface->layer_surface));
+  g_assert (drag_surface);
   g_debug ("Draggable Layer surface drag-mode for %p: %d", drag_surface, drag_mode);
+  if (drag_surface->layer_surface == NULL)
+    return;
 
   drag_surface->pending.drag_mode = drag_mode;
 }
@@ -205,8 +215,10 @@ handle_draggable_layer_surface_set_drag_handle (struct wl_client   *client,
 {
   PhocDraggableLayerSurface *drag_surface = wl_resource_get_user_data (resource);
 
-  g_assert (PHOC_IS_LAYER_SURFACE (drag_surface->layer_surface));
+  g_assert (drag_surface);
   g_debug ("Draggable Layer surface drag-handle for %p: %d", drag_surface, drag_handle);
+  if (drag_surface->layer_surface == NULL)
+    return;
 
   drag_surface->pending.drag_handle = drag_handle;
 }
@@ -220,7 +232,9 @@ handle_draggable_layer_surface_set_state (struct wl_client *client,
   PhocDraggableLayerSurface *drag_surface = wl_resource_get_user_data (resource);
   PhocAnimDir dir;
 
-  g_assert (drag_surface->layer_surface);
+  g_assert (drag_surface);
+  if (drag_surface->layer_surface == NULL)
+    return;
 
   switch (state) {
   case ZPHOC_DRAGGABLE_LAYER_SURFACE_V1_DRAG_END_STATE_FOLDED:
@@ -271,6 +285,7 @@ phoc_draggable_layer_surface_destroy (PhocDraggableLayerSurface *drag_surface)
   layer_shell_effects = PHOC_LAYER_SHELL_EFFECTS (drag_surface->layer_shell_effects);
   g_assert (PHOC_IS_LAYER_SHELL_EFFECTS (layer_shell_effects));
 
+  /* End any ongoing animations */
   if (drag_surface->drag.anim_id && drag_surface->layer_surface) {
     phoc_animatable_remove_frame_callback (PHOC_ANIMATABLE (drag_surface->layer_surface),
                                            drag_surface->drag.anim_id);
@@ -286,6 +301,7 @@ phoc_draggable_layer_surface_destroy (PhocDraggableLayerSurface *drag_surface)
   layer_shell_effects->drag_surfaces = g_slist_remove (layer_shell_effects->drag_surfaces,
                                                        drag_surface);
 
+  drag_surface->layer_surface = NULL;
   wl_resource_set_user_data (drag_surface->resource, NULL);
   g_free (drag_surface);
 }
@@ -316,10 +332,12 @@ layer_surface_handle_destroy (struct wl_listener *listener, void *data)
   PhocDraggableLayerSurface *drag_surface =
     wl_container_of(listener, drag_surface, layer_surface_handle_destroy);
 
-  /* Remove from the hash table as long as we have a valid layer_surface */
+  /* Drop the gone layer-surface form the layer-surface -> drag-surface mapping */
   layer_shell_effects = PHOC_LAYER_SHELL_EFFECTS (drag_surface->layer_shell_effects);
   g_hash_table_remove (layer_shell_effects->drag_surfaces_by_layer_sufrace,
                        drag_surface->layer_surface);
+
+  /* The layer-surface is unusable for us now */
   drag_surface->layer_surface = NULL;
 }
 
@@ -329,10 +347,10 @@ surface_handle_commit (struct wl_listener *listener, void *data)
 {
   PhocDraggableLayerSurface *drag_surface =
     wl_container_of(listener, drag_surface, surface_handle_commit);
-  PhocLayerSurface *layer = drag_surface->layer_surface;
+  PhocLayerSurface *wlr_layer_surface = drag_surface->layer_surface;
   gboolean changed = FALSE;
 
-  if (layer == NULL)
+  if (wlr_layer_surface == NULL)
     return;
 
   if (drag_surface->current.folded != drag_surface->pending.folded) {
@@ -354,13 +372,13 @@ surface_handle_commit (struct wl_listener *listener, void *data)
   /* TODO: cancel related gestures on drag mode changes */
 
   /* Keep in sync with layer surface geometry changes */
-  if (memcmp (&drag_surface->geo, &layer->geo, sizeof (drag_surface->geo)) == 0)
+  if (memcmp (&drag_surface->geo, &wlr_layer_surface->geo, sizeof (drag_surface->geo)) == 0)
     return;
 
   g_debug ("Geometry changed %d,%d %dx%d",
-           layer->geo.x, layer->geo.y,
-           layer->geo.width, layer->geo.height);
-  drag_surface->geo = layer->geo;
+           wlr_layer_surface->geo.x, wlr_layer_surface->geo.y,
+           wlr_layer_surface->geo.width, wlr_layer_surface->geo.height);
+  drag_surface->geo = wlr_layer_surface->geo;
 }
 
 
@@ -407,9 +425,9 @@ handle_get_draggable_layer_surface (struct wl_client   *client,
                             "Layer surface not yet committed");
     return;
   }
-  drag_surface->layer_surface = PHOC_LAYER_SURFACE (wlr_layer_surface->data);
 
-  g_assert (PHOC_IS_LAYER_SURFACE (drag_surface->layer_surface));
+  g_assert (PHOC_IS_LAYER_SURFACE (wlr_layer_surface->data));
+  drag_surface->layer_surface = PHOC_LAYER_SURFACE (wlr_layer_surface->data);
 
   drag_surface->surface_handle_commit.notify = surface_handle_commit;
   wl_signal_add (&wlr_surface->events.commit, &drag_surface->surface_handle_commit);
@@ -512,35 +530,35 @@ phoc_layer_shell_effects_new (void)
 static void
 apply_margin (PhocDraggableLayerSurface *drag_surface, double margin)
 {
-  struct wlr_layer_surface_v1 *layer = drag_surface->layer_surface->layer_surface;
+  struct wlr_layer_surface_v1 *wlr_layer_surface = drag_surface->layer_surface->layer_surface;
 
   /* The client is not supposed to update margin or exclusive zone so
    * keep current and pending in sync */
   g_debug ("%s: margin: %f %f", __func__, drag_surface->drag.anim_t, margin);
-  switch (layer->current.anchor) {
+  switch (wlr_layer_surface->current.anchor) {
   case PHOC_LAYER_SHELL_EFFECT_DRAG_FROM_TOP:
-    layer->current.margin.top = (int32_t)margin;
+    wlr_layer_surface->current.margin.top = (int32_t)margin;
     break;
   case PHOC_LAYER_SHELL_EFFECT_DRAG_FROM_BOTTOM:
-    layer->current.margin.bottom = (int32_t)margin;
+    wlr_layer_surface->current.margin.bottom = (int32_t)margin;
     break;
   case PHOC_LAYER_SHELL_EFFECT_DRAG_FROM_LEFT:
-    layer->current.margin.left = (int32_t)margin;
+    wlr_layer_surface->current.margin.left = (int32_t)margin;
     break;
   case PHOC_LAYER_SHELL_EFFECT_DRAG_FROM_RIGHT:
-    layer->current.margin.right = (int32_t)margin;
+    wlr_layer_surface->current.margin.right = (int32_t)margin;
     break;
   default:
     g_assert_not_reached ();
     break;
   }
-  layer->current.exclusive_zone = -margin + drag_surface->current.exclusive;
+  wlr_layer_surface->current.exclusive_zone = -margin + drag_surface->current.exclusive;
 
-  layer->pending.margin.top = layer->current.margin.top;
-  layer->pending.margin.bottom = layer->current.margin.bottom;
-  layer->pending.margin.left = layer->current.margin.left;
-  layer->pending.margin.right = layer->current.margin.right;
-  layer->pending.exclusive_zone = layer->current.exclusive_zone;
+  wlr_layer_surface->pending.margin.top = wlr_layer_surface->current.margin.top;
+  wlr_layer_surface->pending.margin.bottom = wlr_layer_surface->current.margin.bottom;
+  wlr_layer_surface->pending.margin.left = wlr_layer_surface->current.margin.left;
+  wlr_layer_surface->pending.margin.right = wlr_layer_surface->current.margin.right;
+  wlr_layer_surface->pending.exclusive_zone = wlr_layer_surface->current.exclusive_zone;
 }
 
 
@@ -556,33 +574,38 @@ static gboolean
 on_output_frame_callback (PhocAnimatable *animatable, guint64 last_frame, gpointer user_data)
 
 {
-  PhocLayerSurface *layer_surface = PHOC_LAYER_SURFACE (animatable);
   PhocDraggableLayerSurface *drag_surface = user_data;
+  PhocLayerSurface *layer_surface;
   PhocOutput *output;
-  struct wlr_layer_surface_v1 *layer = layer_surface->layer_surface;
+  struct wlr_layer_surface_v1 *wlr_layer_surface;
   double margin, distance;
   bool done;
 
-  g_assert (PHOC_IS_LAYER_SURFACE (layer_surface));
   g_assert (drag_surface);
+  g_assert (PHOC_IS_LAYER_SURFACE (animatable));
+
+  layer_surface = PHOC_LAYER_SURFACE (animatable);
+  g_assert (layer_surface == drag_surface->layer_surface);
+
   g_assert (drag_surface->state == PHOC_DRAGGABLE_SURFACE_STATE_ANIMATING);
+  wlr_layer_surface = drag_surface->layer_surface->layer_surface;
   output = phoc_layer_surface_get_output (layer_surface);
 
   if (output == NULL)
     return G_SOURCE_REMOVE;
 
-  switch (layer->current.anchor) {
+  switch (wlr_layer_surface->current.anchor) {
   case PHOC_LAYER_SHELL_EFFECT_DRAG_FROM_TOP:
-    margin = (int32_t)layer->current.margin.top;
+    margin = (int32_t)wlr_layer_surface->current.margin.top;
     break;
   case PHOC_LAYER_SHELL_EFFECT_DRAG_FROM_BOTTOM:
-    margin = (int32_t)layer->current.margin.bottom;
+    margin = (int32_t)wlr_layer_surface->current.margin.bottom;
     break;
   case PHOC_LAYER_SHELL_EFFECT_DRAG_FROM_LEFT:
-    margin = (int32_t)layer->current.margin.left;
+    margin = (int32_t)wlr_layer_surface->current.margin.left;
     break;
   case PHOC_LAYER_SHELL_EFFECT_DRAG_FROM_RIGHT:
-    margin = (int32_t)layer->current.margin.right;
+    margin = (int32_t)wlr_layer_surface->current.margin.right;
     break;
   default:
     g_assert_not_reached ();
@@ -641,25 +664,31 @@ on_output_frame_callback (PhocAnimatable *animatable, guint64 last_frame, gpoint
 void
 phoc_draggable_layer_surface_slide (PhocDraggableLayerSurface *drag_surface, PhocAnimDir anim_dir)
 {
-  struct wlr_layer_surface_v1 *layer = drag_surface->layer_surface->layer_surface;
+  struct wlr_layer_surface_v1 *wlr_layer_surface;
   double margin;
-  struct wlr_output *wlr_output = layer->output;
+  struct wlr_output *wlr_output;
+
+  if (drag_surface->layer_surface == NULL)
+    return;
+
+  wlr_layer_surface = drag_surface->layer_surface->layer_surface;
+  wlr_output = wlr_layer_surface->output;
 
   if (wlr_output == NULL)
     return;
 
-  switch (layer->current.anchor) {
+  switch (wlr_layer_surface->current.anchor) {
   case PHOC_LAYER_SHELL_EFFECT_DRAG_FROM_TOP:
-    margin = (double)(int32_t)layer->current.margin.top;
+    margin = (double)(int32_t)wlr_layer_surface->current.margin.top;
     break;
   case PHOC_LAYER_SHELL_EFFECT_DRAG_FROM_BOTTOM:
-    margin = (double)(int32_t)layer->current.margin.bottom;
+    margin = (double)(int32_t)wlr_layer_surface->current.margin.bottom;
     break;
   case PHOC_LAYER_SHELL_EFFECT_DRAG_FROM_LEFT:
-    margin = (double)(int32_t)layer->current.margin.left;
+    margin = (double)(int32_t)wlr_layer_surface->current.margin.left;
     break;
   case PHOC_LAYER_SHELL_EFFECT_DRAG_FROM_RIGHT:
-    margin = (double)(int32_t)layer->current.margin.right;
+    margin = (double)(int32_t)wlr_layer_surface->current.margin.right;
     break;
   default:
     g_assert_not_reached ();
@@ -711,8 +740,8 @@ accept_drag (PhocDraggableLayerSurface *drag_surface,
              double                     off_x,
              double                     off_y)
 {
-  struct wlr_layer_surface_v1 *layer = drag_surface->layer_surface->layer_surface;
-  struct wlr_output *wlr_output = layer->output;
+  struct wlr_layer_surface_v1 *wlr_layer_surface = drag_surface->layer_surface->layer_surface;
+  struct wlr_output *wlr_output = wlr_layer_surface->output;
   PhocOutput *output;
   uint32_t *target;
   int32_t margin = 0;
@@ -720,21 +749,21 @@ accept_drag (PhocDraggableLayerSurface *drag_surface,
   output = PHOC_OUTPUT (wlr_output->data);
   g_assert (PHOC_IS_OUTPUT (output));
 
-  switch (layer->current.anchor) {
+  switch (wlr_layer_surface->current.anchor) {
   case PHOC_LAYER_SHELL_EFFECT_DRAG_FROM_TOP:
-    target = &layer->current.margin.top;
+    target = &wlr_layer_surface->current.margin.top;
     margin = drag_surface->drag.start_margin + off_y;
     break;
   case PHOC_LAYER_SHELL_EFFECT_DRAG_FROM_BOTTOM:
-    target = &layer->current.margin.bottom;
+    target = &wlr_layer_surface->current.margin.bottom;
     margin = drag_surface->drag.start_margin - off_y;
     break;
   case PHOC_LAYER_SHELL_EFFECT_DRAG_FROM_LEFT:
-    target = &layer->current.margin.left;
+    target = &wlr_layer_surface->current.margin.left;
     margin = drag_surface->drag.start_margin + off_x;
     break;
   case PHOC_LAYER_SHELL_EFFECT_DRAG_FROM_RIGHT:
-    target = &layer->current.margin.right;
+    target = &wlr_layer_surface->current.margin.right;
     margin = drag_surface->drag.start_margin - off_x;
     break;
   default:
@@ -751,13 +780,13 @@ accept_drag (PhocDraggableLayerSurface *drag_surface,
     margin = drag_surface->current.folded;
 
   *target = margin;
-  layer->current.exclusive_zone = -margin + drag_surface->current.exclusive;
+  wlr_layer_surface->current.exclusive_zone = -margin + drag_surface->current.exclusive;
 
-  layer->pending.margin.top = layer->current.margin.top;
-  layer->pending.margin.bottom = layer->current.margin.bottom;
-  layer->pending.margin.left = layer->current.margin.left;
-  layer->pending.margin.right = layer->current.margin.right;
-  layer->pending.exclusive_zone = layer->current.exclusive_zone;
+  wlr_layer_surface->pending.margin.top = wlr_layer_surface->current.margin.top;
+  wlr_layer_surface->pending.margin.bottom = wlr_layer_surface->current.margin.bottom;
+  wlr_layer_surface->pending.margin.left = wlr_layer_surface->current.margin.left;
+  wlr_layer_surface->pending.margin.right = wlr_layer_surface->current.margin.right;
+  wlr_layer_surface->pending.exclusive_zone = wlr_layer_surface->current.exclusive_zone;
 
   zphoc_draggable_layer_surface_v1_send_dragged (drag_surface->resource, margin);
   phoc_layer_shell_arrange (output);
@@ -773,8 +802,8 @@ PhocDraggableSurfaceState
 phoc_draggable_layer_surface_drag_start (PhocDraggableLayerSurface *drag_surface, double lx, double ly)
 {
   PhocServer *server = phoc_server_get_default ();
-  struct wlr_layer_surface_v1 *layer = drag_surface->layer_surface->layer_surface;
-  struct wlr_box *output_box = wlr_output_layout_get_box (server->desktop->layout, layer->output);
+  struct wlr_layer_surface_v1 *wlr_layer_surface = drag_surface->layer_surface->layer_surface;
+  struct wlr_box *output_box = wlr_output_layout_get_box (server->desktop->layout, wlr_layer_surface->output);
   double sx = lx - drag_surface->geo.x - output_box->x;
   double sy = ly - drag_surface->geo.y - output_box->y;
   bool is_handle = false;
@@ -783,21 +812,21 @@ phoc_draggable_layer_surface_drag_start (PhocDraggableLayerSurface *drag_surface
   if (drag_surface->current.drag_mode == ZPHOC_DRAGGABLE_LAYER_SURFACE_V1_DRAG_MODE_NONE)
     return PHOC_DRAGGABLE_SURFACE_STATE_REJECTED;
 
-  switch (layer->current.anchor) {
+  switch (wlr_layer_surface->current.anchor) {
   case PHOC_LAYER_SHELL_EFFECT_DRAG_FROM_TOP:
-    start_margin = (int32_t)layer->current.margin.top;
+    start_margin = (int32_t)wlr_layer_surface->current.margin.top;
     is_handle = sy > drag_surface->current.drag_handle;
     break;
   case PHOC_LAYER_SHELL_EFFECT_DRAG_FROM_BOTTOM:
-    start_margin = (int32_t)layer->current.margin.bottom;
+    start_margin = (int32_t)wlr_layer_surface->current.margin.bottom;
     is_handle = sy < drag_surface->current.drag_handle;
     break;
   case PHOC_LAYER_SHELL_EFFECT_DRAG_FROM_LEFT:
-    start_margin = (int32_t)layer->current.margin.left;
+    start_margin = (int32_t)wlr_layer_surface->current.margin.left;
     is_handle = sx > drag_surface->current.drag_handle;
     break;
   case PHOC_LAYER_SHELL_EFFECT_DRAG_FROM_RIGHT:
-    start_margin = (int32_t)layer->current.margin.right;
+    start_margin = (int32_t)wlr_layer_surface->current.margin.right;
     is_handle = sx < drag_surface->current.drag_handle;
     break;
   default:
@@ -839,9 +868,9 @@ phoc_draggable_layer_surface_drag_start (PhocDraggableLayerSurface *drag_surface
 static gboolean
 phoc_draggable_surface_is_vertical (PhocDraggableLayerSurface *drag_surface)
 {
-  struct wlr_layer_surface_v1 *layer = drag_surface->layer_surface->layer_surface;
+  struct wlr_layer_surface_v1 *wlr_layer_surface = drag_surface->layer_surface->layer_surface;
 
-  switch (layer->current.anchor) {
+  switch (wlr_layer_surface->current.anchor) {
   case PHOC_LAYER_SHELL_EFFECT_DRAG_FROM_TOP:
   case PHOC_LAYER_SHELL_EFFECT_DRAG_FROM_BOTTOM:
     return TRUE;
@@ -859,8 +888,8 @@ phoc_draggable_layer_surface_drag_update (PhocDraggableLayerSurface *drag_surfac
                                           double                     off_x,
                                           double                     off_y)
 {
-  struct wlr_layer_surface_v1 *layer = drag_surface->layer_surface->layer_surface;
-  struct wlr_output *wlr_output = layer->output;
+  struct wlr_layer_surface_v1 *wlr_layer_surface = drag_surface->layer_surface->layer_surface;
+  struct wlr_output *wlr_output = wlr_layer_surface->output;
   bool accept;
 
   if (drag_surface->state != PHOC_DRAGGABLE_SURFACE_STATE_PENDING &&
@@ -895,18 +924,18 @@ phoc_draggable_layer_surface_drag_update (PhocDraggableLayerSurface *drag_surfac
     return drag_surface->state;
   }
 
-  switch (layer->current.anchor) {
+  switch (wlr_layer_surface->current.anchor) {
   case PHOC_LAYER_SHELL_EFFECT_DRAG_FROM_TOP:
-    accept = (layer->current.margin.top == drag_surface->current.unfolded) ? off_y < 0 : true;
+    accept = (wlr_layer_surface->current.margin.top == drag_surface->current.unfolded) ? off_y < 0 : true;
     break;
   case PHOC_LAYER_SHELL_EFFECT_DRAG_FROM_BOTTOM:
-    accept = (layer->current.margin.bottom == drag_surface->current.unfolded) ? off_y > 0 : true;
+    accept = (wlr_layer_surface->current.margin.bottom == drag_surface->current.unfolded) ? off_y > 0 : true;
     break;
   case PHOC_LAYER_SHELL_EFFECT_DRAG_FROM_LEFT:
-    accept = (layer->current.margin.left == drag_surface->current.unfolded) ? off_x < 0 : true;
+    accept = (wlr_layer_surface->current.margin.left == drag_surface->current.unfolded) ? off_x < 0 : true;
     break;
   case PHOC_LAYER_SHELL_EFFECT_DRAG_FROM_RIGHT:
-    accept = (layer->current.margin.right == drag_surface->current.unfolded) ? off_x > 0 : true;
+    accept = (wlr_layer_surface->current.margin.right == drag_surface->current.unfolded) ? off_x > 0 : true;
     break;
   default:
     g_assert_not_reached ();
@@ -931,7 +960,7 @@ hit_threshold (PhocDraggableLayerSurface *drag_surface)
   int distance, start;
   int max_distance = ABS (drag_surface->current.folded - drag_surface->current.unfolded);
   float threshold = max_distance * drag_surface->current.threshold;
-  struct wlr_layer_surface_v1 *layer = drag_surface->layer_surface->layer_surface;
+  struct wlr_layer_surface_v1 *wlr_layer_surface = drag_surface->layer_surface->layer_surface;
 
   switch (drag_surface->drag.last_state) {
   case ZPHOC_DRAGGABLE_LAYER_SURFACE_V1_DRAG_END_STATE_FOLDED:
@@ -944,18 +973,18 @@ hit_threshold (PhocDraggableLayerSurface *drag_surface)
     g_return_val_if_reached (FALSE);
   }
 
-  switch (layer->current.anchor) {
+  switch (wlr_layer_surface->current.anchor) {
   case PHOC_LAYER_SHELL_EFFECT_DRAG_FROM_TOP:
-    distance = (int32_t)layer->current.margin.top - start;
+    distance = (int32_t)wlr_layer_surface->current.margin.top - start;
     break;
   case PHOC_LAYER_SHELL_EFFECT_DRAG_FROM_BOTTOM:
-    distance = (int32_t)layer->current.margin.bottom - start;
+    distance = (int32_t)wlr_layer_surface->current.margin.bottom - start;
     break;
   case PHOC_LAYER_SHELL_EFFECT_DRAG_FROM_LEFT:
-    distance = (int32_t)layer->current.margin.left - start;
+    distance = (int32_t)wlr_layer_surface->current.margin.left - start;
     break;
   case PHOC_LAYER_SHELL_EFFECT_DRAG_FROM_RIGHT:
-    distance = (int32_t)layer->current.margin.right - start;
+    distance = (int32_t)wlr_layer_surface->current.margin.right - start;
     break;
   default:
     g_assert_not_reached ();
@@ -973,8 +1002,8 @@ phoc_draggable_layer_surface_drag_end (PhocDraggableLayerSurface *drag_surface,
 {
   PhocOutput *output;
   PhocAnimDir dir;
-  struct wlr_layer_surface_v1 *layer = drag_surface->layer_surface->layer_surface;
-  struct wlr_output *wlr_output = layer->output;
+  struct wlr_layer_surface_v1 *wlr_layer_surface = drag_surface->layer_surface->layer_surface;
+  struct wlr_output *wlr_output = wlr_layer_surface->output;
 
   if (!wlr_output)
     return;

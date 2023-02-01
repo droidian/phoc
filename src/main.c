@@ -1,6 +1,6 @@
 #define G_LOG_DOMAIN "phoc"
 
-#include "config.h"
+#include "phoc-config.h"
 
 #define _POSIX_C_SOURCE 200112L
 #include <assert.h>
@@ -73,6 +73,9 @@ static GDebugKey debug_keys[] =
  },
  { .key = "touch-points",
    .value = PHOC_SERVER_DEBUG_FLAG_TOUCH_POINTS,
+ },
+ { .key = "layer-shell",
+   .value = PHOC_SERVER_DEBUG_FLAG_LAYER_SHELL,
  },
 };
 

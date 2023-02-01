@@ -1,6 +1,6 @@
 #define G_LOG_DOMAIN "phoc-settings"
 
-#include "config.h"
+#include "phoc-config.h"
 
 #ifndef _POSIX_C_SOURCE
 #define _POSIX_C_SOURCE 200809L

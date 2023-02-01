@@ -7,7 +7,7 @@
 
 #define G_LOG_DOMAIN "phoc-phosh-private"
 
-#include "config.h"
+#include "phoc-config.h"
 #include "phoc-enums.h"
 #include "phosh-private.h"
 
@@ -436,17 +436,12 @@ thumbnail_frame_handle_copy (struct wl_client   *wl_client,
   wl_list_remove (&frame->view_destroy.link);
   frame->view = NULL;
 
-  wl_shm_buffer_begin_access (frame->buffer);
-  void *data = wl_shm_buffer_get_data (frame->buffer);
-
   uint32_t renderer_flags = 0;
-  if (!phoc_renderer_render_view_to_buffer (self, view, fmt, width, height, stride, &renderer_flags, data)) {
-    wl_shm_buffer_end_access (frame->buffer);
+  if (!phoc_renderer_render_view_to_buffer (self, view, fmt, frame->buffer, &renderer_flags)) {
     zwlr_screencopy_frame_v1_send_failed (frame->resource);
     return;
   }
   enum zwlr_screencopy_frame_v1_flags flags = (renderer_flags & WLR_RENDERER_READ_PIXELS_Y_INVERT) ? ZWLR_SCREENCOPY_FRAME_V1_FLAGS_Y_INVERT : 0;
-  wl_shm_buffer_end_access (frame->buffer);
 
   zwlr_screencopy_frame_v1_send_flags (frame->resource, flags);
 

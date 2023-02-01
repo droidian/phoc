@@ -1,6 +1,6 @@
 #define G_LOG_DOMAIN "phoc-tablet"
 
-#include "config.h"
+#include "phoc-config.h"
 
 #include "input-device.h"
 #include "tablet.h"
