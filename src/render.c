@@ -604,21 +604,22 @@ view_render_iterator (struct wlr_surface *surface, int sx, int sy, void *_data)
 gboolean
 phoc_renderer_render_view_to_buffer (PhocRenderer         *self,
                                      PhocView             *view,
-                                     enum wl_shm_format shm_fmt,
                                      struct wl_shm_buffer *shm_buffer,
                                      uint32_t             *flags)
 {
+  g_return_val_if_fail (shm_buffer, false);
+
+  enum wl_shm_format shm_fmt = wl_shm_buffer_get_format (shm_buffer);
+  int32_t width = wl_shm_buffer_get_width (shm_buffer);
+  int32_t height = wl_shm_buffer_get_height (shm_buffer);
+  int32_t stride = wl_shm_buffer_get_stride (shm_buffer);
+
 #if WLR_VERSION_MAJOR == 0 && WLR_VERSION_MINOR > 12
   struct wlr_surface *surface = view->wlr_surface;
   struct wlr_buffer *buffer;
 
   g_return_val_if_fail (surface, false);
   g_return_val_if_fail (self->wlr_allocator, false);
-  g_return_val_if_fail (shm_buffer, false);
-
-  int32_t width = wl_shm_buffer_get_width (shm_buffer);
-  int32_t height = wl_shm_buffer_get_height (shm_buffer);
-  int32_t stride = wl_shm_buffer_get_stride (shm_buffer);
 
   struct wlr_drm_format_set fmt_set = {};
   wlr_drm_format_set_add (&fmt_set, DRM_FORMAT_ARGB8888, DRM_FORMAT_MOD_INVALID);
@@ -693,7 +694,12 @@ phoc_renderer_render_view_to_buffer (PhocRenderer         *self,
   wlr_surface_for_each_surface (surface, view_render_iterator, &render_data);
   wlr_renderer_end (self->wlr_renderer);
 
+  wl_shm_buffer_begin_access (shm_buffer);
+  void *data = wl_shm_buffer_get_data (shm_buffer);
+
   wlr_renderer_read_pixels (self->wlr_renderer, shm_fmt, flags, stride, width, height, 0, 0, 0, 0, data);
+
+  wl_shm_buffer_end_access(shm_buffer);
 
   glDeleteFramebuffers (1, &fbo);
   glDeleteTextures (1, &tex);
