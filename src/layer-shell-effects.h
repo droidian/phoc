@@ -22,6 +22,8 @@ G_BEGIN_DECLS
  */
 typedef struct _PhocDraggableLayerSurface PhocDraggableLayerSurface;
 
+typedef struct _PhocAlphaLayerSurface PhocAlphaLayerSurface;
+
 /**
  * PhocDraggableSurfaceState:
  *
@@ -71,4 +73,11 @@ void                     phoc_draggable_layer_surface_slide       (PhocDraggable
 
 PhocDraggableSurfaceState phoc_draggable_layer_surface_get_state (PhocDraggableLayerSurface *drag_surface);
 gboolean                  phoc_draggable_layer_surface_is_unfolded (PhocDraggableLayerSurface *drag_surface);
+
+
+PhocLayerSurface         *phoc_alpha_layer_surface_get_layer_surface (PhocAlphaLayerSurface *alpha_surface);
+
+PhocAlphaLayerSurface    *phoc_layer_shell_effects_get_alpha_layer_surface_from_layer_surface (PhocLayerShellEffects *self,
+                                                                                               PhocLayerSurface *layer_surface);
+
 G_END_DECLS
