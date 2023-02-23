@@ -35,6 +35,7 @@ static struct zwlr_layer_shell_v1 *layer_shell;
 static struct zwlr_layer_surface_v1 *layer_surface;
 static struct zphoc_layer_shell_effects_v1 *layer_shell_effects;
 static struct zphoc_draggable_layer_surface_v1 *drag_surface;
+static struct zphoc_alpha_layer_surface_v1 *alpha_surface;
 static struct wl_output *wl_output;
 
 struct wl_surface *wl_surface;
@@ -50,6 +51,7 @@ static int32_t  unfolded_margin;
 static int32_t  folded_margin;
 static uint32_t exclusive;
 static double   threshold = 1.0;
+static bool     use_alpha = false;
 static bool     run_display = true;
 static int      cur_x = -1, cur_y = -1;
 static int      buttons;
@@ -402,6 +404,9 @@ drag_surface_handle_drag_end (void                                    *data,
 {
   g_assert (drag_surface_ == drag_surface);
 
+  if (alpha_surface)
+    zphoc_alpha_layer_surface_v1_set_alpha (alpha_surface, wl_fixed_from_double (1.0));
+
   if (state == 0)
     drag_state = folded;
   else
@@ -417,6 +422,14 @@ drag_surface_handle_dragged (void                                    *data,
   g_assert (drag_surface_ == drag_surface);
 
   g_debug ("Surface margin: %d", margin);
+
+  if (alpha_surface) {
+    float alpha = ABS (1.0 * margin / (unfolded_margin - folded_margin));
+    if (alpha < 0.2)
+      alpha = 0.2;
+    zphoc_alpha_layer_surface_v1_set_alpha (alpha_surface, wl_fixed_from_double (alpha));
+  }
+
   drag_state = dragged;
 }
 
@@ -448,7 +461,7 @@ handle_global (void *data, struct wl_registry *registry,
     wl_seat_add_listener (seat, &seat_listener, NULL);
   } else if (strcmp (interface, zwlr_layer_shell_v1_interface.name) == 0) {
     layer_shell = wl_registry_bind (
-      registry, name, &zwlr_layer_shell_v1_interface, 1);
+      registry, name, &zwlr_layer_shell_v1_interface, 2);
   } else if (strcmp (interface, zphoc_layer_shell_effects_v1_interface.name) == 0) {
     layer_shell_effects = wl_registry_bind (registry, name,
                                             &zphoc_layer_shell_effects_v1_interface, version);
@@ -474,7 +487,7 @@ main (int argc, char **argv)
   bool found;
   int c;
 
-  while ((c = getopt (argc, argv, "u:f:e:w:h:H:l:a:t:")) != -1) {
+  while ((c = getopt (argc, argv, "u:f:e:w:h:H:l:a:t:A")) != -1) {
     switch (c) {
     case 'u':
       unfolded_margin = atoi (optarg);
@@ -544,6 +557,9 @@ main (int argc, char **argv)
     }
     case 't':
       threshold = atof (optarg);
+      break;
+    case 'A':
+      use_alpha = true;
       break;
     default:
       break;
@@ -627,8 +643,13 @@ main (int argc, char **argv)
                                                     ZPHOC_DRAGGABLE_LAYER_SURFACE_V1_DRAG_MODE_HANDLE);
     zphoc_draggable_layer_surface_v1_set_drag_handle (drag_surface, handle);
   }
-  wl_surface_commit (wl_surface);
 
+  if (use_alpha) {
+    alpha_surface = zphoc_layer_shell_effects_v1_get_alpha_layer_surface (layer_shell_effects,
+                                                                          layer_surface);
+    g_assert (alpha_surface);
+  }
+  wl_surface_commit (wl_surface);
 
   egl_window = wl_egl_window_create (wl_surface, width, height);
   g_assert (egl_window);
