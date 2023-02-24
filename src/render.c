@@ -359,10 +359,27 @@ render_layer (PhocOutput                     *output,
 {
   struct render_data data = {
     .damage = damage,
-    .alpha = 1.0f,
   };
 
-  phoc_output_layer_for_each_surface(output, layer, render_surface_iterator, &data);
+  PhocLayerSurface *layer_surface;
+  wl_list_for_each_reverse (layer_surface, &output->layer_surfaces, link) {
+    if (layer_surface->layer != layer)
+      continue;
+
+    if (layer_surface->layer_surface->current.exclusive_zone <= 0) {
+      data.alpha = phoc_layer_surface_get_alpha (layer_surface);
+      phoc_output_layer_surface_for_each_surface (output, layer_surface, render_surface_iterator, &data);
+    }
+  }
+  wl_list_for_each (layer_surface, &output->layer_surfaces, link) {
+    if (layer_surface->layer != layer)
+      continue;
+
+    if (layer_surface->layer_surface->current.exclusive_zone > 0) {
+      data.alpha = phoc_layer_surface_get_alpha (layer_surface);
+      phoc_output_layer_surface_for_each_surface (output, layer_surface, render_surface_iterator, &data);
+    }
+  }
 }
 
 
