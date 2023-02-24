@@ -20,6 +20,7 @@ G_DECLARE_FINAL_TYPE (PhocOutput, phoc_output, PHOC, OUTPUT, GObject);
 
 typedef struct _PhocDesktop PhocDesktop;
 typedef struct _PhocInput PhocInput;
+typedef struct _PhocLayerSurface PhocLayerSurface;
 
 /**
  * PhocOutput:
@@ -87,6 +88,12 @@ void        phoc_output_layer_for_each_surface       (PhocOutput *self,
                                                       enum zwlr_layer_shell_v1_layer layer,
                                                       PhocSurfaceIterator iterator,
                                                       void *user_data);
+
+void        phoc_output_layer_surface_for_each_surface (PhocOutput          *self,
+                                                        PhocLayerSurface    *layer_surface,
+                                                        PhocSurfaceIterator  iterator,
+                                                        void                *user_data);
+
 #ifdef PHOC_XWAYLAND
 struct wlr_xwayland_surface;
 void        phoc_output_xwayland_children_for_each_surface (PhocOutput *self,
