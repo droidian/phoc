@@ -336,19 +336,21 @@ buffer_damage_finish:
 	pixman_region32_fini(&damage);
 }
 
-static void render_view(PhocOutput *output, PhocView *view,
-		struct render_data *data) {
-	// Do not render views fullscreened on other outputs
-	if (view_is_fullscreen (view) && view->fullscreen_output != output) {
-		return;
-	}
 
-	data->alpha = view->alpha;
-	if (!view_is_fullscreen (view)) {
-		render_decorations(output, view, data);
-	}
-	phoc_output_view_for_each_surface(output, view, render_surface_iterator, data);
+static void
+render_view (PhocOutput *output, PhocView *view, struct render_data *data)
+{
+  // Do not render views fullscreened on other outputs
+  if (view_is_fullscreen (view) && view->fullscreen_output != output)
+    return;
+
+  data->alpha = view->alpha;
+  if (!view_is_fullscreen (view))
+    render_decorations(output, view, data);
+
+  phoc_output_view_for_each_surface(output, view, render_surface_iterator, data);
 }
+
 
 static void
 render_layer (PhocOutput                     *output,
@@ -363,12 +365,18 @@ render_layer (PhocOutput                     *output,
   phoc_output_layer_for_each_surface(output, layer, render_surface_iterator, &data);
 }
 
-static void count_surface_iterator(PhocOutput *output,
-		struct wlr_surface *surface, struct wlr_box *box, float rotation,
-		float scale, void *data) {
-	size_t *n = data;
-	n++;
+
+static void count_surface_iterator (PhocOutput         *output,
+                                    struct wlr_surface *surface,
+                                    struct wlr_box     *box,
+                                    float               rotation,
+                                    float               scale,
+                                    void               *data)
+{
+  size_t *n = data;
+  n++;
 }
+
 
 static bool scan_out_fullscreen_view(PhocOutput *output) {
 	struct wlr_output *wlr_output = output->wlr_output;
