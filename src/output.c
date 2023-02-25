@@ -771,12 +771,12 @@ phoc_output_xwayland_children_for_each_surface (PhocOutput                  *sel
 #endif
 
 static void
-phoc_output_layer_handle_surface (PhocOutput *self, PhocLayerSurface *layer_surface,
-                                  PhocSurfaceIterator iterator, void
-                                  *user_data)
+phoc_output_layer_handle_surface (PhocOutput          *self,
+                                  PhocLayerSurface    *layer_surface,
+                                  PhocSurfaceIterator  iterator,
+                                  void                *user_data)
 {
-  struct wlr_layer_surface_v1 *wlr_layer_surface_v1 =
-    layer_surface->layer_surface;
+  struct wlr_layer_surface_v1 *wlr_layer_surface_v1 = layer_surface->layer_surface;
 
   phoc_output_surface_for_each_surface (self, wlr_layer_surface_v1->surface,
                                         layer_surface->geo.x,
@@ -784,12 +784,10 @@ phoc_output_layer_handle_surface (PhocOutput *self, PhocLayerSurface *layer_surf
                                         user_data);
 
   struct wlr_xdg_popup *state;
-
   wl_list_for_each (state, &wlr_layer_surface_v1->popups, link) {
     struct wlr_xdg_surface *popup = state->base;
-    if (!popup->configured) {
+    if (!popup->configured)
       continue;
-    }
 
     double popup_sx, popup_sy;
     popup_sx = layer_surface->geo.x;
@@ -819,22 +817,19 @@ phoc_output_layer_for_each_surface (PhocOutput          *self,
 {
   PhocLayerSurface *layer_surface;
 
-  wl_list_for_each_reverse (layer_surface, &self->layer_surfaces, link)
-  {
+  wl_list_for_each_reverse (layer_surface, &self->layer_surfaces, link) {
     if (layer_surface->layer != layer)
       continue;
 
-    if (layer_surface->layer_surface->current.exclusive_zone <= 0) {
+    if (layer_surface->layer_surface->current.exclusive_zone <= 0)
       phoc_output_layer_handle_surface (self, layer_surface, iterator, user_data);
-    }
   }
   wl_list_for_each (layer_surface, &self->layer_surfaces, link) {
     if (layer_surface->layer != layer)
       continue;
 
-    if (layer_surface->layer_surface->current.exclusive_zone > 0) {
+    if (layer_surface->layer_surface->current.exclusive_zone > 0)
       phoc_output_layer_handle_surface (self, layer_surface, iterator, user_data);
-    }
   }
 }
 
