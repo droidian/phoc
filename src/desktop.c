@@ -535,12 +535,14 @@ void handle_xwayland_remove_startup_id(struct wl_listener *listener, void *data)
 #endif /* PHOC_XWAYLAND */
 
 static void
-on_output_destroyed (PhocOutput *destroyed_output)
+on_output_destroyed (PhocDesktop *self, PhocOutput *destroyed_output)
 {
-  PhocDesktop *self = destroyed_output->desktop;
   PhocOutput *output;
   char *input_name;
   GHashTableIter iter;
+
+  g_assert (PHOC_IS_DESKTOP (self));
+  g_assert (PHOC_IS_OUTPUT (destroyed_output));
 
   g_hash_table_iter_init (&iter, self->input_output_map);
   while (g_hash_table_iter_next (&iter, (gpointer) &input_name,
@@ -567,9 +569,9 @@ handle_new_output (struct wl_listener *listener, void *data)
     return;
   }
 
-  g_signal_connect (output, "output-destroyed",
-                    G_CALLBACK (on_output_destroyed),
-                    NULL);
+  g_signal_connect_swapped (output, "output-destroyed",
+                            G_CALLBACK (on_output_destroyed),
+                            self);
 }
 
 
