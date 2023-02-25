@@ -84,11 +84,6 @@ void        phoc_output_drag_icons_for_each_surface  (PhocOutput *self,
                                                       PhocInput *input,
                                                       PhocSurfaceIterator iterator,
                                                       void *user_data);
-void        phoc_output_layer_for_each_surface       (PhocOutput *self,
-                                                      enum zwlr_layer_shell_v1_layer layer,
-                                                      PhocSurfaceIterator iterator,
-                                                      void *user_data);
-
 void        phoc_output_layer_surface_for_each_surface (PhocOutput          *self,
                                                         PhocLayerSurface    *layer_surface,
                                                         PhocSurfaceIterator  iterator,

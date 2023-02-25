@@ -818,7 +818,7 @@ phoc_output_layer_surface_for_each_surface (PhocOutput          *self,
  *
  * Iterate over [type@LayerSurface]s in a layer.
  */
-void
+static void
 phoc_output_layer_for_each_surface (PhocOutput          *self,
                                     enum zwlr_layer_shell_v1_layer layer,
                                     PhocSurfaceIterator  iterator,
