@@ -535,24 +535,24 @@ void handle_xwayland_remove_startup_id(struct wl_listener *listener, void *data)
 #endif /* PHOC_XWAYLAND */
 
 static void
-handle_output_destroy (PhocOutput *destroyed_output)
+on_output_destroyed (PhocOutput *destroyed_output)
 {
-	PhocDesktop *self = destroyed_output->desktop;
-	PhocOutput *output;
-	char *input_name;
-	GHashTableIter iter;
-	g_hash_table_iter_init (&iter, self->input_output_map);
-	while (g_hash_table_iter_next (&iter, (gpointer) &input_name,
-				       (gpointer) &output)){
-		if (destroyed_output == output){
-			g_debug ("Removing mapping for input device '%s' to output '%s'",
-				 input_name, output->wlr_output->name);
-			g_hash_table_remove (self->input_output_map, input_name);
-			break;
-		}
+  PhocDesktop *self = destroyed_output->desktop;
+  PhocOutput *output;
+  char *input_name;
+  GHashTableIter iter;
 
-	}
-	g_object_unref (destroyed_output);
+  g_hash_table_iter_init (&iter, self->input_output_map);
+  while (g_hash_table_iter_next (&iter, (gpointer) &input_name,
+                                 (gpointer) &output)) {
+    if (destroyed_output == output) {
+      g_debug ("Removing mapping for input device '%s' to output '%s'",
+               input_name, output->wlr_output->name);
+      g_hash_table_remove (self->input_output_map, input_name);
+      break;
+    }
+  }
+  g_object_unref (destroyed_output);
 }
 
 static void
@@ -568,7 +568,7 @@ handle_new_output (struct wl_listener *listener, void *data)
   }
 
   g_signal_connect (output, "output-destroyed",
-                    G_CALLBACK (handle_output_destroy),
+                    G_CALLBACK (on_output_destroyed),
                     NULL);
 }
 
