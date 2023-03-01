@@ -1,7 +1,7 @@
 project('phoc', 'c',
-          version: '0.24.0',
+          version: '0.25.0',
           license: 'GPLv3+',
-    meson_version: '>= 0.54.0',
+    meson_version: '>= 0.56.0',
   default_options: [
     'warning_level=1',
     'buildtype=debugoptimized',
@@ -11,7 +11,7 @@ project('phoc', 'c',
 
 add_project_arguments([
   '-DWLR_USE_UNSTABLE',
-  '-I' + meson.build_root(),
+  '-I' + meson.project_build_root(),
 ], language: 'c')
 
 root_inc = include_directories('.')
@@ -37,6 +37,13 @@ wayland_protos = dependency('wayland-protocols', version: '>=1.15')
 wayland_server = dependency('wayland-server')
 xkbcommon      = dependency('xkbcommon')
 math           = cc.find_library('m')
+gmobile        = subproject('gmobile',
+                   default_options: [
+                   'examples=false',
+                   'gtk_doc=false',
+                   'tests=false',
+                 ])
+gmobile_dep    = gmobile.get_variable('gmobile_dep')
 
 embed_wlroots = get_option('embed-wlroots')
 
@@ -50,10 +57,6 @@ if not embed_wlroots.disabled()
 
    if embed_wlroots.enabled() and not wlroots_proj.found()
         error('Wlroots subproject not found but enabled')
-   endif
-
-   if get_option('gtk_doc') != false
-     error('Can\'t generate docs and use embedded wlroots build')
    endif
 endif
 
@@ -153,20 +156,6 @@ subdir('data')
 subdir('doc')
 subdir('examples')
 
-summary = [
-        '',
-        '--------------------------',
-        'phoc @0@'.format(meson.project_version()),
-        '',
-        '           xwayland: @0@'.format(have_xwayland),
-        ' wlroots subproject: @0@'.format(not embed_wlroots.disabled() and wlroots_proj.found()),
-        '    wlroots version: @0@'.format(wlroots.version()),
-        '      Documentation: @0@'.format(get_option('gtk_doc')),
-        '--------------------------',
-        ''
-]
-message('\n'.join(summary))
-
 run_data = configuration_data()
 run_data.set('ABS_BUILDDIR', meson.current_build_dir())
 run_data.set('ABS_SRCDIR', meson.current_source_dir())
@@ -175,3 +164,12 @@ configure_file(
   output: 'run',
   configuration: run_data)
 
+summary({
+     'wlroots version': wlroots.version(),
+     'wlroots as submodule': not embed_wlroots.disabled() and wlroots_proj.found(),
+     'XWayland': have_xwayland,
+     'Documentation': get_option('gtk_doc'),
+  },
+  bool_yn: true,
+  section: 'Build',
+)

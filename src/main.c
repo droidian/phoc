@@ -77,6 +77,9 @@ static GDebugKey debug_keys[] =
  { .key = "layer-shell",
    .value = PHOC_SERVER_DEBUG_FLAG_LAYER_SHELL,
  },
+ { .key = "cutouts",
+   .value = PHOC_SERVER_DEBUG_FLAG_CUTOUTS,
+ },
 };
 
 

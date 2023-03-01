@@ -9,7 +9,7 @@ install_data(
 )
 
 devconf = configuration_data()
-devconf.set('compositor', meson.build_root() / 'src' / 'phoc')
+devconf.set('compositor', meson.project_build_root() / 'src' / 'phoc')
 devconf.set('devscript', meson.current_build_dir() / 'phoc-dev')
 devconf.set('devconfig', meson.current_source_dir() / 'phoc-dev.ini')
 devconf.set('devuid', get_option('dev-uid'))

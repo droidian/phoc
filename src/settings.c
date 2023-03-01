@@ -243,6 +243,7 @@ phoc_config_create (const char *config_path)
         g_clear_error (&err);
         continue;
       }
+      g_strstrip (value);
 
       config_ini_handler (config, section, key, value);
     }

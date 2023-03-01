@@ -1,3 +1,61 @@
+phoc (0.25.0) experimental; urgency=medium
+
+  * build: Untabify
+  * build: Use summary.
+    More in line with other projects and uses colors
+  * output: Add getters for scale.
+    We want to get rid of direct member access
+  * server: Use g_clear_handle_id.
+    Less code and easier to read.
+  * server: Add getter for desktop.
+    Will allow us to reduce direct member access, similar to the renderer.
+    We're not updating existing code yet to keep the diff noise under
+    control.
+  * settings: Strip whitespace from value.
+    No need to fail parsing due to this
+  * output: Move enums before type definition.
+    Just to match coding style, no functional change.
+  * build: Build static and shared lib.
+    Otherwise gir fails as it trips on the not resolved symbols from
+    gmobile.
+  * build: Drop gtk_doc vs embedded wlroots restriction.
+    With a shared libphoc this works too (see previous commit)
+  * Add gmobile as git submodule.
+    We're not using the wrap as the submodule makes
+    it simpler for distros to bundle it.
+  * server: Parse device-tree compatibles.
+    This will allow us to query display cutout information for our own
+    consumption or to provide it to client.
+  * server: Add debug flag to debug cutout information.
+    This allows us to overlay the rendering  of notches and cutouts for
+    debugging purposes.
+  * ouput: Allow to render display cutout.
+    This currently is used on all outputs but as it's for debugging
+    only that's fine for the moment.
+  * Add test data for a tiny layout.
+  * build: Bump meson dependency to 0.56.0
+  * build: Avoid deprecated get_pkgconfig_variable()
+  * build: Avoid deprecated build_root()
+  * build: Use a static dependency to link phoc.
+    Otherwise it defaults to dynamic linking and we don't want to
+    ship a libphoc atm.
+  * ci: Switch to Debian bookworm
+  * ci: Update base image.
+    It's been a while
+  * d/control: Use packaged gi-docgen.
+    It trickled into distributions.
+  * xdg-activation: Fix indentation
+  * keyboard: Minor indentation cleanup.
+    Make the 'Handle translated keysyms' part match the 'Handle raw
+    keysyms'. It took me a second to convince myself that they match.
+  * keyboard: Fix indentation.
+    We want the opening brace of a function on a new line
+  * keyboard: Check the power key after subscribed bindings.
+    This gives clients the possibility to listen to power button presses.
+    Closes: https://gitlab.gnome.org/World/Phosh/phoc/-/issues/206
+
+ -- Guido Günther <agx@sigxcpu.org>  Sun, 26 Feb 2023 09:41:46 +0100
+
 phoc (0.24.0) experimental; urgency=medium
 
   * doc: Add small getting started document.
