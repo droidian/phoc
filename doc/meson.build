@@ -1,7 +1,12 @@
 if get_option('gtk_doc')
 
+expand_content_md_files = [
+  'gettingstarted.md',
+]
+
 toml_data = configuration_data()
 toml_data.set('VERSION', meson.project_version())
+toml_data.set('CONTENT_FILES', '",\n  "'.join(expand_content_md_files))
 
 phoc_toml = configure_file(
   input: 'phoc.toml.in',
@@ -32,6 +37,7 @@ custom_target('phoc-doc',
     '--content-dir=@0@'.format(meson.current_source_dir()),
     '@INPUT1@',
   ],
+  depend_files: [ expand_content_md_files ],
   build_by_default: true,
   install: true,
   install_dir: docs_dir,

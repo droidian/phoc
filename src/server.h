@@ -24,16 +24,18 @@ G_DECLARE_FINAL_TYPE (PhocServer, phoc_server, PHOC, SERVER, GObject);
  * PHOC_SHELL_FLAG_SHELL_MODE: Expect a shell to attach
  */
 typedef enum _PhocServerFlags {
-  PHOC_SERVER_FLAG_NONE = 0,
+  PHOC_SERVER_FLAG_NONE       = 0,
   PHOC_SERVER_FLAG_SHELL_MODE = 1 << 0,
 } PhocServerFlags;
 
 typedef enum _PhocServerDebugFlags {
-  PHOC_SERVER_DEBUG_FLAG_NONE = 0,
-  PHOC_SERVER_DEBUG_FLAG_AUTO_MAXIMIZE =   1 << 0,
+  PHOC_SERVER_DEBUG_FLAG_NONE            = 0,
+  PHOC_SERVER_DEBUG_FLAG_AUTO_MAXIMIZE   = 1 << 0,
   PHOC_SERVER_DEBUG_FLAG_DAMAGE_TRACKING = 1 << 1,
-  PHOC_SERVER_DEBUG_FLAG_NO_QUIT =         1 << 2,
-  PHOC_SERVER_DEBUG_FLAG_TOUCH_POINTS =    1 << 3,
+  PHOC_SERVER_DEBUG_FLAG_NO_QUIT         = 1 << 2,
+  PHOC_SERVER_DEBUG_FLAG_TOUCH_POINTS    = 1 << 3,
+  PHOC_SERVER_DEBUG_FLAG_LAYER_SHELL     = 1 << 4,
+  PHOC_SERVER_DEBUG_FLAG_CUTOUTS         = 1 << 5,
 } PhocServerDebugFlags;
 
 /**
@@ -74,12 +76,14 @@ struct _PhocServer {
   struct wlr_data_device_manager *data_device_manager;
 };
 
-PhocServer  *phoc_server_get_default (void);
-gboolean     phoc_server_setup (PhocServer *server, const char *config_path,
-                                const char *exec, GMainLoop *mainloop,
-                                PhocServerFlags flags,
-                                PhocServerDebugFlags debug_flags);
-gint          phoc_server_get_session_exit_status (PhocServer *self);
-PhocRenderer *phoc_server_get_renderer (PhocServer *self);
+PhocServer        *phoc_server_get_default (void);
+gboolean           phoc_server_setup (PhocServer *server, const char *config_path,
+                                      const char *exec, GMainLoop *mainloop,
+                                      PhocServerFlags flags,
+                                      PhocServerDebugFlags debug_flags);
+gint               phoc_server_get_session_exit_status (PhocServer *self);
+PhocRenderer      *phoc_server_get_renderer (PhocServer *self);
+PhocDesktop       *phoc_server_get_desktop (PhocServer *self);
+const char *const *phoc_server_get_compatibles (PhocServer *self);
 
 G_END_DECLS

@@ -1,6 +1,6 @@
 #define G_LOG_DOMAIN "phoc-xwayland"
 
-#include "config.h"
+#include "phoc-config.h"
 
 #include <assert.h>
 #include <stdbool.h>

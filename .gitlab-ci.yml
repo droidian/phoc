@@ -14,7 +14,7 @@ variables:
         git meson ninja gnome-desktop-dev gobject-introspection-dev
         libinput-dev wayland-dev wayland-protocols libxkbcommon-dev wlroots-dev
   XVFB_RUN: xvfb-run -s -noreset
-  DEBIAN_IMAGE: $CI_REGISTRY/world/phosh/phoc/debian:v0.0.20220327.wlroots_0.15.1
+  DEBIAN_IMAGE: $CI_REGISTRY/world/phosh/phoc/debian:v0.0.20230219
 
 .build: &build
   script:
@@ -83,11 +83,14 @@ unit-test-with-xwayland-debian-bookworm:
     - build-with-xwayland-debian-bookworm
   before_script: *before_script_debian
   script:
-    - ${XVFB_RUN} meson test --print-errorlogs -C _build
+    - WLR_RENDERER=pixman ${XVFB_RUN} meson test --print-errorlogs -C _build
     - ninja -C _build coverage
   coverage: '/^\s+lines\.+:\s+([\d.]+\%)\s+/'
   artifacts:
     when: always
+    reports:
+      junit:
+        - _build/meson-logs/testlog.junit.xml
     paths:
       - _build
   except:
@@ -114,10 +117,9 @@ build-gtkdoc:
     variables:
       - $PKG_ONLY == "1"
 
-package-pureos-byzantium:arm64:
+package-debian-bookworm:arm64:
   variables:
-    L5_DOCKER_IMAGE: pureos/byzantium
-  before_script: *before_script_pureos
+    L5_DOCKER_IMAGE: debian:bookworm
   tags:
     - aarch64
   extends: .l5-build-debian-package
@@ -142,4 +144,4 @@ pages:
     paths:
       - public
   only:
-    - master
+    - main 

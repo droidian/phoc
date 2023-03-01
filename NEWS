@@ -1,0 +1,21 @@
+phoc 0.25.0
+-----------
+Released February 2023
+* Allow client to handle the power key
+* Allow to render notches and cutouts
+* Contributors:
+	Guido Günther
+
+phoc 0.24.0
+-----------
+Released January 2023
+* LayerSurface(effects) robustness
+* Contributors:
+	Guido Günther
+
+phoc 0.23.0
+-----------
+Released January 2023
+* Fix pixman renderer
+* Contributors:
+	Guido Günther

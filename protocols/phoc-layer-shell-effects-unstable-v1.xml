@@ -122,7 +122,7 @@
 
         Drag-mode is double-buffered, see wl_surface.commit.
       </description>
-      <arg name="state" type="uint" enum="drag_mode"/>
+      <arg name="mode" type="uint" enum="drag_mode"/>
     </request>
 
     <request name="set_drag_handle">

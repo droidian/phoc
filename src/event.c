@@ -8,7 +8,7 @@
 
 #define G_LOG_DOMAIN "phoc-event"
 
-#include "config.h"
+#include "phoc-config.h"
 
 #include "event.h"
 #include "input-device.h"

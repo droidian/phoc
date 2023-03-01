@@ -7,7 +7,7 @@
 
 #define G_LOG_DOMAIN "phoc-layer-surface"
 
-#include "config.h"
+#include "phoc-config.h"
 
 #include "anim/animatable.h"
 #include "layer-surface.h"
@@ -119,6 +119,7 @@ static void
 phoc_layer_surface_finalize (GObject *object)
 {
   PhocLayerSurface *self = PHOC_LAYER_SURFACE (object);
+  PhocOutput *output = phoc_layer_surface_get_output (self);
 
   if (self->layer_surface->mapped)
     phoc_layer_surface_unmap (self);
@@ -128,10 +129,9 @@ phoc_layer_surface_finalize (GObject *object)
   wl_list_remove (&self->map.link);
   wl_list_remove (&self->unmap.link);
   wl_list_remove (&self->surface_commit.link);
-  if (self->layer_surface->output) {
-    PhocOutput *output = phoc_layer_surface_get_output (self);
-
+  if (output) {
     g_assert (PHOC_IS_OUTPUT (output));
+    phoc_output_remove_frame_callbacks_by_animatable  (output, PHOC_ANIMATABLE (self));
     wl_list_remove (&self->output_destroy.link);
     phoc_layer_shell_arrange (output);
     phoc_layer_shell_update_focus ();

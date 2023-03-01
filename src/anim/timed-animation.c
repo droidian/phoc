@@ -10,7 +10,7 @@
  */
 #define G_LOG_DOMAIN "phoc-timed-animation"
 
-#include "config.h"
+#include "phoc-config.h"
 
 #include "animatable.h"
 #include "property-easer.h"

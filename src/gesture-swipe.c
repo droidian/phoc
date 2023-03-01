@@ -13,7 +13,7 @@
 
 #define G_LOG_DOMAIN "phoc-gesture-swipe"
 
-#include "config.h"
+#include "phoc-config.h"
 
 #include "gesture-swipe.h"
 #include "phoc-marshalers.h"

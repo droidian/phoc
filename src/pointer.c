@@ -1,6 +1,6 @@
 #define G_LOG_DOMAIN "phoc-pointer"
 
-#include "config.h"
+#include "phoc-config.h"
 
 #include "pointer.h"
 #include "seat.h"

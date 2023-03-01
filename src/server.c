@@ -6,21 +6,28 @@
 
 #define G_LOG_DOMAIN "phoc-server"
 
-#include "config.h"
+#include "phoc-config.h"
 #include "render.h"
 #include "render-private.h"
 #include "utils.h"
 #include "seat.h"
 #include "server.h"
 
+#define GMOBILE_USE_UNSTABLE_API
+#include <gmobile.h>
 #include <wlr/xwayland.h>
 
 #include <errno.h>
 
+typedef struct _PhocServerPrivate {
+  GStrv dt_compatibles;
+} PhocServerPrivate;
+
 static void phoc_server_initable_iface_init (GInitableIface *iface);
 
 G_DEFINE_TYPE_WITH_CODE (PhocServer, phoc_server, G_TYPE_OBJECT,
-			 G_IMPLEMENT_INTERFACE (G_TYPE_INITABLE, phoc_server_initable_iface_init));
+                         G_ADD_PRIVATE (PhocServer)
+                         G_IMPLEMENT_INTERFACE (G_TYPE_INITABLE, phoc_server_initable_iface_init));
 
 typedef struct {
   GSource source;
@@ -246,11 +253,10 @@ static void
 phoc_server_finalize (GObject *object)
 {
   PhocServer *self = PHOC_SERVER (object);
+  PhocServerPrivate *priv = phoc_server_get_instance_private (self);
 
-  if (self->wl_source) {
-    g_source_remove (self->wl_source);
-    self->wl_source = 0;
-  }
+  g_clear_pointer (&priv->dt_compatibles, g_strfreev);
+  g_clear_handle_id (&self->wl_source, g_source_remove);
   g_clear_object (&self->input);
   g_clear_object (&self->desktop);
   g_clear_pointer (&self->session, g_free);
@@ -279,6 +285,10 @@ phoc_server_class_init (PhocServerClass *klass)
 static void
 phoc_server_init (PhocServer *self)
 {
+  PhocServerPrivate *priv = phoc_server_get_instance_private(self);
+  g_autoptr (GError) err = NULL;
+
+  priv->dt_compatibles = gm_device_tree_get_compatibles (NULL, &err);
 }
 
 /**
@@ -405,4 +415,29 @@ phoc_server_get_renderer (PhocServer *self)
   g_assert (PHOC_IS_SERVER (self));
 
   return self->renderer;
+}
+
+/**
+ * phoc_server_get_desktop:
+ *
+ * Returns: (transfer none): The desktop
+ */
+PhocDesktop *
+phoc_server_get_desktop (PhocServer *self)
+{
+  g_assert (PHOC_IS_SERVER (self));
+
+  return self->desktop;
+}
+
+
+const char * const *
+phoc_server_get_compatibles (PhocServer *self)
+{
+  PhocServerPrivate *priv;
+
+  g_assert (PHOC_IS_SERVER (self));
+  priv = phoc_server_get_instance_private (self);
+
+  return (const char * const *)priv->dt_compatibles;
 }

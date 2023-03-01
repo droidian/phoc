@@ -1,6 +1,6 @@
 #define G_LOG_DOMAIN "phoc-settings"
 
-#include "config.h"
+#include "phoc-config.h"
 
 #ifndef _POSIX_C_SOURCE
 #define _POSIX_C_SOURCE 200809L
@@ -243,6 +243,7 @@ phoc_config_create (const char *config_path)
         g_clear_error (&err);
         continue;
       }
+      g_strstrip (value);
 
       config_ini_handler (config, section, key, value);
     }

@@ -28,7 +28,7 @@ struct _PhocLayerSurface {
     GObject parent;
 
     struct wlr_layer_surface_v1 *layer_surface;
-    struct wl_list link; // PhocOutput::layers[current]
+    struct wl_list link; // PhocOutput::layer_surfaces
 
     struct wl_listener destroy;
     struct wl_listener map;

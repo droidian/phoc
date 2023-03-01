@@ -1,6 +1,6 @@
 #define G_LOG_DOMAIN "phoc-switch"
 
-#include "config.h"
+#include "phoc-config.h"
 
 #include <stdlib.h>
 #include "switch.h"

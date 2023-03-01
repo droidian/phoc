@@ -1,6 +1,6 @@
 #define G_LOG_DOMAIN "phoc-text-input"
 
-#include "config.h"
+#include "phoc-config.h"
 
 #include <assert.h>
 #include <stdlib.h>

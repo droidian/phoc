@@ -12,7 +12,7 @@
 
 #define G_LOG_DOMAIN "phoc-gesture-drag"
 
-#include "config.h"
+#include "phoc-config.h"
 
 #include "gesture-drag.h"
 #include "phoc-marshalers.h"

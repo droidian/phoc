@@ -8,7 +8,7 @@
 
 #define G_LOG_DOMAIN "phoc-xwayland-surface"
 
-#include "config.h"
+#include "phoc-config.h"
 #include "server.h"
 #include "xwayland-surface.h"
 

@@ -9,7 +9,7 @@
 
 #define G_LOG_DOMAIN "phoc-keyboard"
 
-#include "config.h"
+#include "phoc-config.h"
 #include "server.h"
 
 #include <assert.h>
@@ -164,18 +164,29 @@ keyboard_execute_compositor_binding(PhocKeyboard *self,
     return true;
   }
 
-  if (keysym == XKB_KEY_XF86PowerDown || keysym == XKB_KEY_XF86PowerOff) {
-    g_debug ("Power button pressed");
-    phoc_desktop_toggle_output_blank (server->desktop);
-    return true;
-  }
-
   if (keysym == XKB_KEY_Escape) {
     PhocSeat *seat = phoc_input_device_get_seat (PHOC_INPUT_DEVICE (self));
 
     wlr_seat_pointer_end_grab(seat->seat);
     wlr_seat_keyboard_end_grab(seat->seat);
     phoc_seat_end_compositor_grab(seat);
+  }
+
+  return false;
+}
+
+
+static bool
+keyboard_execute_power_key (PhocKeyboard *self, const xkb_keysym_t *keysyms, size_t keysyms_len)
+{
+  PhocServer *server = phoc_server_get_default ();
+
+  for (size_t i = 0; i < keysyms_len; ++i) {
+    if (keysyms[i] == XKB_KEY_XF86PowerDown || keysyms[i] == XKB_KEY_XF86PowerOff) {
+      g_debug ("Power button pressed");
+      phoc_desktop_toggle_output_blank (server->desktop);
+      return true;
+    }
   }
 
   return false;
@@ -287,8 +298,8 @@ keyboard_keysyms_raw(PhocKeyboard *self,
 }
 
 static void
-phoc_keyboard_handle_key(PhocKeyboard *self,
-                         struct wlr_event_keyboard_key *event) {
+phoc_keyboard_handle_key (PhocKeyboard *self, struct wlr_event_keyboard_key *event)
+{
   xkb_keycode_t keycode = event->keycode + 8;
 
   bool handled = false;
@@ -297,11 +308,8 @@ phoc_keyboard_handle_key(PhocKeyboard *self,
   size_t keysyms_len;
 
   // Handle translated keysyms
-
-  keysyms_len = keyboard_keysyms_translated(self, keycode, &keysyms,
-                                            &modifiers);
-  pressed_keysyms_update(self->pressed_keysyms_translated, keysyms,
-                         keysyms_len, event->state);
+  keysyms_len = keyboard_keysyms_translated (self, keycode, &keysyms, &modifiers);
+  pressed_keysyms_update (self->pressed_keysyms_translated, keysyms, keysyms_len, event->state);
   if (event->state == WL_KEYBOARD_KEY_STATE_PRESSED) {
     handled = keyboard_execute_binding(self,
                                        self->pressed_keysyms_translated, modifiers, keysyms,
@@ -322,6 +330,11 @@ phoc_keyboard_handle_key(PhocKeyboard *self,
     handled = keyboard_execute_subscribed_binding (self,
                                                    self->pressed_keysyms_raw, modifiers,
                                                    keysyms, keysyms_len, event->time_msec);
+  }
+
+  // Check for the power button after the susbscribed bindings so clients can override it
+  if (event->state == WL_KEYBOARD_KEY_STATE_PRESSED && !handled) {
+    handled = keyboard_execute_power_key (self, keysyms, keysyms_len);
   }
 
   if (!handled) {

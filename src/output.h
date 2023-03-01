@@ -38,7 +38,7 @@ struct _PhocOutput {
   struct wl_list            link; // PhocDesktop::outputs
 
   PhocView                 *fullscreen_view;
-  struct wl_list            layer_surfaces; // layer_surface::link
+  struct wl_list            layer_surfaces; // PhocLayerSurface::link
 
   struct wlr_output_damage *damage;
   GList                    *debug_touch_points;
@@ -135,9 +135,12 @@ guint       phoc_output_add_frame_callback   (PhocOutput        *self,
                                               GDestroyNotify     notify);
 void       phoc_output_remove_frame_callback (PhocOutput        *self,
                                               guint              id);
+void       phoc_output_remove_frame_callbacks_by_animatable (PhocOutput     *self,
+                                                             PhocAnimatable *animatable);
 bool       phoc_output_has_frame_callbacks   (PhocOutput        *self);
 
 void       phoc_output_lower_shield          (PhocOutput *self);
 void       phoc_output_raise_shield          (PhocOutput *self);
+float      phoc_output_get_scale             (PhocOutput *self);
 
 G_END_DECLS

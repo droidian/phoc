@@ -6,7 +6,7 @@
 
 #define G_LOG_DOMAIN "phoc-gtk-shell"
 
-#include "config.h"
+#include "phoc-config.h"
 
 #include "server.h"
 #include "cursor.h"

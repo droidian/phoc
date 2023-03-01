@@ -7,7 +7,7 @@
 
 #define G_LOG_DOMAIN "phoc-xdg-activation-v1"
 
-#include "config.h"
+#include "phoc-config.h"
 #include "view.h"
 #include "phosh-private.h"
 #include "server.h"
@@ -44,11 +44,11 @@ phoc_xdg_activation_v1_handle_request_activate (struct wl_listener *listener,
     return;
 
   if (phoc_view_is_mapped (view)) {
-     g_debug ("Activating view %p via token '%s'", view, token->token);
-      phoc_view_activate (view, true);
-      phoc_phosh_private_notify_startup_id (server->desktop->phosh,
-                                            token->token,
-                                            PHOSH_PRIVATE_STARTUP_TRACKER_PROTOCOL_XDG_ACTIVATION);
+    g_debug ("Activating view %p via token '%s'", view, token->token);
+    phoc_view_activate (view, true);
+    phoc_phosh_private_notify_startup_id (server->desktop->phosh,
+                                          token->token,
+                                          PHOSH_PRIVATE_STARTUP_TRACKER_PROTOCOL_XDG_ACTIVATION);
   } else {
     g_debug ("Setting view %p via token '%s' as pending activation", view, token->token);
     phoc_view_set_activation_token (view, token->token);

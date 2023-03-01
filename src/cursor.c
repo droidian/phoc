@@ -6,7 +6,7 @@
 
 #define G_LOG_DOMAIN "phoc-cursor"
 
-#include "config.h"
+#include "phoc-config.h"
 #include "server.h"
 #include "gesture.h"
 #include "gesture-drag.h"

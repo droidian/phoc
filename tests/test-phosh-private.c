@@ -75,8 +75,9 @@ test_phosh_private_thumbnail_simple (void)
    .client_run = test_client_phosh_private_thumbnail_simple,
   };
 
-  if (g_getenv ("PHOC_TEST_HAVE_DRM") == NULL) {
-    g_test_skip ("PHOC_TEST_HAVE_DRM unsed");
+  /* pixman renderer can work in containers, skip tests otherwise */
+  if (g_strcmp0 (g_getenv ("WLR_RENDERER"), "pixman")) {
+    g_test_skip ("Not using pixman renderer");
     return;
   }
 
