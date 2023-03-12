@@ -1,3 +1,9 @@
+phoc 0.25.2
+-----------
+Released March 2023
+* Fix display not coming up again after fast
+  blank/unblank on some devices like PP and PPP.
+
 phoc 0.25.0
 -----------
 Released February 2023

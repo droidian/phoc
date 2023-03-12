@@ -1189,6 +1189,7 @@ phoc_output_handle_output_power_manager_set_mode (struct wl_listener *listener, 
   struct wlr_output_power_v1_set_mode_event *event = data;
   PhocOutput *self;
   bool enable = true;
+  bool current;
 
   g_return_if_fail (event && event->output && event->output->data);
   self = event->output->data;
@@ -1206,7 +1207,11 @@ phoc_output_handle_output_power_manager_set_mode (struct wl_listener *listener, 
     return;
   }
 
-  if (enable == self->wlr_output->enabled)
+  current = self->wlr_output->enabled;
+  if (self->wlr_output->pending.committed & WLR_OUTPUT_STATE_ENABLED)
+    current = self->wlr_output->pending.enabled;
+
+  if (enable == current)
     return;
 
   wlr_output_enable (self->wlr_output, enable);

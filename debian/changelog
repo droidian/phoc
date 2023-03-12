@@ -1,3 +1,13 @@
+phoc (0.25.2) experimental; urgency=medium
+
+  * output: Check enable pending state when an enable commit is pending.
+    This can happen in case of failure and we want to retry
+    it in this case.
+    Closes: https://gitlab.gnome.org/World/Phosh/phosh/-/issues/900
+    (cherry picked from commit 37542bb80be8a7746d2ccda0c02048dd92fac7af)
+
+ -- Guido Günther <agx@sigxcpu.org>  Sat, 11 Mar 2023 12:01:38 +0100
+
 phoc (0.25.0) experimental; urgency=medium
 
   * build: Untabify
