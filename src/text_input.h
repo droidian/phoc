@@ -33,7 +33,10 @@ typedef struct _PhocInputMethodRelay {
 
 	struct wl_listener input_method_new;
 	struct wl_listener input_method_commit;
+	struct wl_listener input_method_grab_keyboard;
 	struct wl_listener input_method_destroy;
+
+	struct wl_listener input_method_keyboard_grab_destroy;
 } PhocInputMethodRelay;
 
 void phoc_input_method_relay_init      (PhocSeat *seat, PhocInputMethodRelay *relay);

@@ -143,8 +143,8 @@ pressed_keysyms_update(xkb_keysym_t *pressed_keysyms,
  * Execute a built-in, hardcoded compositor binding. These are triggered from a
  * single keysym.
  *
- * Returns true if the keysym was handled by a binding and false if the event
- * should be propagated to clients.
+ * Returns `true` if the keysym was handled by a binding and `false` if the event
+ * should be propagated further.
  */
 static bool
 keyboard_execute_compositor_binding(PhocKeyboard *self,
@@ -177,9 +177,15 @@ keyboard_execute_compositor_binding(PhocKeyboard *self,
 
 
 static bool
-keyboard_execute_power_key (PhocKeyboard *self, const xkb_keysym_t *keysyms, size_t keysyms_len)
+keyboard_execute_power_key (PhocKeyboard              *self,
+                            const xkb_keysym_t        *keysyms,
+                            size_t                     keysyms_len,
+                            enum wl_keyboard_key_state state)
 {
   PhocServer *server = phoc_server_get_default ();
+
+  if (state != WL_KEYBOARD_KEY_STATE_PRESSED)
+      return false;
 
   for (size_t i = 0; i < keysyms_len; ++i) {
     if (keysyms[i] == XKB_KEY_XF86PowerDown || keysyms[i] == XKB_KEY_XF86PowerOff) {
@@ -196,17 +202,23 @@ keyboard_execute_power_key (PhocKeyboard *self, const xkb_keysym_t *keysyms, siz
  * Execute keyboard bindings. These include compositor bindings and user-defined
  * bindings.
  *
- * Returns true if the keysym was handled by a binding and false if the event
- * should be propagated to clients.
+ * Returns `true` if the keysym was handled by a binding and `false` if the event
+ * should be propagated further.
  */
 static bool
-keyboard_execute_binding(PhocKeyboard *self,
-                         xkb_keysym_t *pressed_keysyms, uint32_t modifiers,
-                         const xkb_keysym_t *keysyms, size_t keysyms_len)
+keyboard_execute_binding (PhocKeyboard              *self,
+                          xkb_keysym_t              *pressed_keysyms,
+                          uint32_t                   modifiers,
+                          const xkb_keysym_t        *keysyms,
+                          size_t                     keysyms_len,
+                          enum wl_keyboard_key_state state)
 {
   PhocServer *server = phoc_server_get_default ();
   PhocKeybindings *keybindings;
   PhocSeat *seat = phoc_input_device_get_seat (PHOC_INPUT_DEVICE (self));
+
+  if (state != WL_KEYBOARD_KEY_STATE_PRESSED)
+      return false;
 
   /* TODO: should be handled via PhocKeybindings as well */
   for (size_t i = 0; i < keysyms_len; ++i) {
@@ -228,20 +240,25 @@ keyboard_execute_binding(PhocKeyboard *self,
 /*
  * Forward keyboard bindings.
  *
- * Returns true if the keysym was handled by forwarding and false if the event
- * should be propagated to clients.
+ * Returns `true` if the keysym was handled by forwarding and `false` if the event
+ * should be propagated further.
  */
 static bool
-keyboard_execute_subscribed_binding(PhocKeyboard *self,
-                                    xkb_keysym_t *pressed_keysyms, uint32_t modifiers,
-                                    const xkb_keysym_t *keysyms, size_t keysyms_len,
-                                    uint32_t time)
+keyboard_execute_subscribed_binding (PhocKeyboard              *self,
+                                     xkb_keysym_t              *pressed_keysyms,
+                                     uint32_t                   modifiers,
+                                     const xkb_keysym_t        *keysyms,
+                                     size_t                     keysyms_len,
+                                     uint32_t                   time,
+                                     enum wl_keyboard_key_state state)
 {
   bool handled = false;
+  bool pressed;
+
+  pressed = !!(state == WL_KEYBOARD_KEY_STATE_PRESSED);
   for (size_t i = 0; i < keysyms_len; ++i) {
     PhocKeyCombo combo = { modifiers, keysyms[i] };
-    handled = handled |
-      phoc_phosh_private_forward_keysym (&combo, time);
+    handled |= phoc_phosh_private_forward_keysym (&combo, time, pressed);
   }
   return handled;
 }
@@ -297,11 +314,33 @@ keyboard_keysyms_raw(PhocKeyboard *self,
                                           keycode, layout_index, 0, keysyms);
 }
 
+static struct wlr_input_method_keyboard_grab_v2 *
+phoc_keyboard_get_grab (PhocKeyboard *self)
+{
+  PhocInputDevice *input_device = PHOC_INPUT_DEVICE (self);
+  PhocSeat *seat = phoc_input_device_get_seat (input_device);
+  struct wlr_input_device *device = phoc_input_device_get_device (input_device);
+  struct wlr_input_method_v2 *input_method = seat->im_relay.input_method;
+  struct wlr_virtual_keyboard_v1 *virtual_keyboard =
+    wlr_input_device_get_virtual_keyboard (device);
+
+  if (!input_method || !input_method->keyboard_grab)
+    return NULL;
+
+  // Do not forward virtual events back to the client that generated them
+  if (virtual_keyboard
+      && wl_resource_get_client (input_method->keyboard_grab->resource)
+      == wl_resource_get_client (virtual_keyboard->resource)) {
+    return NULL;
+  }
+
+  return input_method->keyboard_grab;
+}
+
 static void
 phoc_keyboard_handle_key (PhocKeyboard *self, struct wlr_event_keyboard_key *event)
 {
   xkb_keycode_t keycode = event->keycode + 8;
-
   bool handled = false;
   uint32_t modifiers;
   const xkb_keysym_t *keysyms;
@@ -310,41 +349,52 @@ phoc_keyboard_handle_key (PhocKeyboard *self, struct wlr_event_keyboard_key *eve
   // Handle translated keysyms
   keysyms_len = keyboard_keysyms_translated (self, keycode, &keysyms, &modifiers);
   pressed_keysyms_update (self->pressed_keysyms_translated, keysyms, keysyms_len, event->state);
-  if (event->state == WL_KEYBOARD_KEY_STATE_PRESSED) {
-    handled = keyboard_execute_binding(self,
-                                       self->pressed_keysyms_translated, modifiers, keysyms,
-                                       keysyms_len);
-  }
+  handled = keyboard_execute_binding(self,
+                                     self->pressed_keysyms_translated, modifiers, keysyms,
+                                     keysyms_len, event->state);
 
+  keysyms_len = keyboard_keysyms_raw (self, keycode, &keysyms, &modifiers);
+  pressed_keysyms_update (self->pressed_keysyms_raw, keysyms, keysyms_len,
+                          event->state);
   // Handle raw keysyms
-  keysyms_len = keyboard_keysyms_raw(self, keycode, &keysyms, &modifiers);
-  pressed_keysyms_update(self->pressed_keysyms_raw, keysyms, keysyms_len,
-                         event->state);
-  if (event->state == WL_KEYBOARD_KEY_STATE_PRESSED && !handled) {
-    handled = keyboard_execute_binding(self,
-                                       self->pressed_keysyms_raw, modifiers, keysyms, keysyms_len);
+  if (!handled) {
+    handled = keyboard_execute_binding (self,
+                                        self->pressed_keysyms_raw, modifiers, keysyms,
+                                        keysyms_len, event->state);
   }
 
   // Handle subscribed keysyms
-  if (event->state == WL_KEYBOARD_KEY_STATE_PRESSED && !handled) {
+  if (!handled) {
     handled = keyboard_execute_subscribed_binding (self,
                                                    self->pressed_keysyms_raw, modifiers,
-                                                   keysyms, keysyms_len, event->time_msec);
+                                                   keysyms, keysyms_len, event->time_msec,
+                                                   event->state);
   }
 
   // Check for the power button after the susbscribed bindings so clients can override it
-  if (event->state == WL_KEYBOARD_KEY_STATE_PRESSED && !handled) {
-    handled = keyboard_execute_power_key (self, keysyms, keysyms_len);
+  if (!handled) {
+    handled = keyboard_execute_power_key (self, keysyms, keysyms_len, event->state);
   }
 
   if (!handled) {
     PhocInputDevice *input_device = PHOC_INPUT_DEVICE (self);
-    PhocSeat *seat = phoc_input_device_get_seat (input_device);
     struct wlr_input_device *device = phoc_input_device_get_device (input_device);
+    struct wlr_input_method_keyboard_grab_v2 *grab = phoc_keyboard_get_grab (self);
 
-    wlr_seat_set_keyboard(seat->seat, device);
-    wlr_seat_keyboard_notify_key(seat->seat, event->time_msec,
-                                 event->keycode, event->state);
+    if (grab) {
+      wlr_input_method_keyboard_grab_v2_set_keyboard (grab, device->keyboard);
+      wlr_input_method_keyboard_grab_v2_send_key (grab,
+                                                  event->time_msec,
+                                                  event->keycode,
+                                                  event->state);
+    } else {
+      PhocSeat *seat = phoc_input_device_get_seat (input_device);
+      wlr_seat_set_keyboard (seat->seat, device);
+      wlr_seat_keyboard_notify_key (seat->seat,
+                                    event->time_msec,
+                                    event->keycode,
+                                    event->state);
+    }
   }
 }
 
@@ -352,11 +402,17 @@ static void
 phoc_keyboard_handle_modifiers(PhocKeyboard *self)
 {
   PhocInputDevice *input_device = PHOC_INPUT_DEVICE (self);
-  PhocSeat *seat = phoc_input_device_get_seat (input_device);
   struct wlr_input_device *device = phoc_input_device_get_device (input_device);
+  struct wlr_input_method_keyboard_grab_v2 *grab = phoc_keyboard_get_grab (self);
 
-  wlr_seat_set_keyboard(seat->seat, device);
-  wlr_seat_keyboard_notify_modifiers(seat->seat, &device->keyboard->modifiers);
+  if (grab) {
+    wlr_input_method_keyboard_grab_v2_set_keyboard (grab, device->keyboard);
+    wlr_input_method_keyboard_grab_v2_send_modifiers (grab, &device->keyboard->modifiers);
+  } else {
+    PhocSeat *seat = phoc_input_device_get_seat (input_device);
+    wlr_seat_set_keyboard (seat->seat, device);
+    wlr_seat_keyboard_notify_modifiers (seat->seat, &device->keyboard->modifiers);
+  }
 }
 
 
@@ -448,8 +504,8 @@ on_input_setting_changed (PhocKeyboard *self,
   g_debug ("Setting changed, reloading input settings");
 
   if (wlr_input_device_get_virtual_keyboard(device) != NULL) {
-	  g_debug ("Virtual keyboard in use, not switching layout");
-	  return;
+          g_debug ("Virtual keyboard in use, not switching layout");
+          return;
   }
 
   sources = g_settings_get_value(settings, "sources");

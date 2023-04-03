@@ -347,10 +347,10 @@ surface_handle_commit (struct wl_listener *listener, void *data)
 {
   PhocDraggableLayerSurface *drag_surface =
     wl_container_of(listener, drag_surface, surface_handle_commit);
-  PhocLayerSurface *wlr_layer_surface = drag_surface->layer_surface;
+  PhocLayerSurface *layer_surface = drag_surface->layer_surface;
   gboolean changed = FALSE;
 
-  if (wlr_layer_surface == NULL)
+  if (layer_surface == NULL)
     return;
 
   if (drag_surface->current.folded != drag_surface->pending.folded) {
@@ -372,13 +372,13 @@ surface_handle_commit (struct wl_listener *listener, void *data)
   /* TODO: cancel related gestures on drag mode changes */
 
   /* Keep in sync with layer surface geometry changes */
-  if (memcmp (&drag_surface->geo, &wlr_layer_surface->geo, sizeof (drag_surface->geo)) == 0)
+  if (memcmp (&drag_surface->geo, &layer_surface->geo, sizeof (drag_surface->geo)) == 0)
     return;
 
   g_debug ("Geometry changed %d,%d %dx%d",
-           wlr_layer_surface->geo.x, wlr_layer_surface->geo.y,
-           wlr_layer_surface->geo.width, wlr_layer_surface->geo.height);
-  drag_surface->geo = wlr_layer_surface->geo;
+           layer_surface->geo.x, layer_surface->geo.y,
+           layer_surface->geo.width, layer_surface->geo.height);
+  drag_surface->geo = layer_surface->geo;
 }
 
 
@@ -409,6 +409,7 @@ handle_get_draggable_layer_surface (struct wl_client   *client,
                                                version,
                                                id);
   if (drag_surface->resource == NULL) {
+    g_free (drag_surface);
     wl_client_post_no_memory(client);
     return;
   }
@@ -493,6 +494,7 @@ phoc_layer_shell_effects_finalize (GObject *object)
 {
   PhocLayerShellEffects *self = PHOC_LAYER_SHELL_EFFECTS (object);
 
+  g_clear_pointer (&self->drag_surfaces_by_layer_sufrace, g_hash_table_destroy);
   wl_global_destroy (self->global);
 
   G_OBJECT_CLASS (phoc_layer_shell_effects_parent_class)->finalize (object);

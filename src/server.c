@@ -142,8 +142,8 @@ phoc_startup_session_in_idle(PhocServer *self)
   gchar *cmd[] = { "/bin/sh", "-c", self->session, NULL };
 
   if (g_spawn_async (NULL, cmd, NULL,
-		      G_SPAWN_DO_NOT_REAP_CHILD,
-		      on_child_setup, self, &pid, &err)) {
+                      G_SPAWN_DO_NOT_REAP_CHILD,
+                      on_child_setup, self, &pid, &err)) {
     g_child_watch_add (pid, (GChildWatchFunc)on_session_exit, self);
   } else {
     g_warning ("Failed to launch session: %s", err->message);
@@ -200,8 +200,8 @@ on_shell_state_changed (PhocServer *self, GParamSpec *pspec, PhocPhoshPrivate *p
 
 static gboolean
 phoc_server_initable_init (GInitable    *initable,
-			   GCancellable *cancellable,
-			   GError      **error)
+                           GCancellable *cancellable,
+                           GError      **error)
 {
   PhocServer *self = PHOC_SERVER (initable);
   struct wlr_renderer *wlr_renderer;
@@ -210,7 +210,7 @@ phoc_server_initable_init (GInitable    *initable,
   if (self->wl_display == NULL) {
     g_set_error (error,
                  G_FILE_ERROR, G_FILE_ERROR_FAILED,
-		 "Could not create wayland display");
+                 "Could not create wayland display");
     return FALSE;
   }
 
@@ -222,7 +222,7 @@ phoc_server_initable_init (GInitable    *initable,
   if (self->backend == NULL) {
     g_set_error (error,
                  G_FILE_ERROR, G_FILE_ERROR_FAILED,
-		 "Could not create backend");
+                 "Could not create backend");
     return FALSE;
   }
 
@@ -351,9 +351,9 @@ phoc_server_get_default (void)
  */
 gboolean
 phoc_server_setup (PhocServer *self, const char *config_path,
-		   const char *session, GMainLoop *mainloop,
+                   const char *session, GMainLoop *mainloop,
                    PhocServerFlags flags,
-		   PhocServerDebugFlags debug_flags)
+                   PhocServerDebugFlags debug_flags)
 {
   g_assert (!self->inited);
 

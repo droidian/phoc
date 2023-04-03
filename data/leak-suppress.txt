@@ -1,0 +1,18 @@
+# Use via environment variable LSAN_OPTIONS=suppressions=data/leak-suppress.txt
+
+#
+# wlroots
+#
+# Leaks drm device (recheck with 0.16)
+leak:wlr_gles2_renderer_create_with_drm_fd
+
+# Timers on global removal that didn't expire on shutdown
+# See comment in wlr_global_destroy_safe and
+# https://gitlab.freedesktop.org/wayland/wayland/issues/10
+leak:wlr_global_destroy_safe
+
+# Last output buffer (recheck with 0.16)
+leak:wlr_swapchain_acquire
+
+# https://gitlab.gnome.org/GNOME/gvfs/-/issues/577
+leak:g_daemon_vfs_init

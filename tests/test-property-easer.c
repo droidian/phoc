@@ -114,7 +114,7 @@ static void
 test_phoc_property_easer_props_va_list (void)
 {
   g_autoptr (PhocTestObj) obj = phoc_test_obj_new ();
-  PhocTestObj *cmp_obj;
+  g_autoptr (PhocTestObj) cmp_obj = NULL;
   PhocEasing cmp_easing;
   float cmp_f;
   int cmp_i;

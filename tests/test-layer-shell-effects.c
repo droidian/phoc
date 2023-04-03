@@ -64,7 +64,7 @@ test_client_layer_shell_effects_drag_surface_simple (PhocTestClientGlobals *glob
   DragTestSimple drag_test = { 0 };
 
   ls_green = phoc_test_layer_surface_new (globals, 0, HEIGHT, 0xFF00FF00,
-					  ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP |
+                                          ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP |
                                           ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT |
                                           ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT,
                                           HEIGHT);
@@ -101,7 +101,7 @@ test_layer_shell_effects_drag_surface_simple (void)
 {
   PhocTestClientIface iface = { .client_run =  test_client_layer_shell_effects_drag_surface_simple };
 
-  phoc_test_client_run (3, &iface, NULL);
+  phoc_test_client_run (TEST_PHOC_CLIENT_TIMEOUT, &iface, NULL);
 }
 
 
@@ -110,8 +110,8 @@ main (gint argc, gchar *argv[])
 {
   g_test_init (&argc, &argv, NULL);
 
-  g_test_add_func("/phoc/layer-shell-effects/drag-surface/simple",
-                  test_layer_shell_effects_drag_surface_simple);
+  PHOC_TEST_ADD ("/phoc/layer-shell-effects/drag-surface/simple",
+                 test_layer_shell_effects_drag_surface_simple);
 
   return g_test_run();
 }

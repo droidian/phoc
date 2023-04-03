@@ -165,7 +165,7 @@ phoc_input_device_class_init (PhocInputDeviceClass *klass)
    */
   props[PROP_DEVICE] =
     g_param_spec_pointer ("device", "", "",
-			  G_PARAM_CONSTRUCT_ONLY | G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+                          G_PARAM_CONSTRUCT_ONLY | G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
 
   /**
    * PhocInputDevice:seat:

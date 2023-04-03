@@ -36,6 +36,8 @@ sources = files(
   'gesture-zoom.h',
   'gtk-shell.c',
   'gtk-shell.h',
+  'idle-inhibit.c',
+  'idle-inhibit.h',
   'input.c',
   'input.h',
   'input-device.c',

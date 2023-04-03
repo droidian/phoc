@@ -13,6 +13,7 @@ variables:
   ALPINE_EDGE_DEPS: |
         git meson ninja gnome-desktop-dev gobject-introspection-dev
         libinput-dev wayland-dev wayland-protocols libxkbcommon-dev wlroots-dev
+        xwayland-dev
   XVFB_RUN: xvfb-run -s -noreset
   DEBIAN_IMAGE: $CI_REGISTRY/world/phosh/phoc/debian:v0.0.20230219
 
@@ -20,9 +21,9 @@ variables:
   script:
     - export LC_ALL=C.UTF-8
     - git submodule update --init
-    - meson . _build $BUILD_ARGS
-    - ninja -C _build
-    - ninja -C _build install
+    - meson setup _build $BUILD_ARGS
+    - meson compile -C _build
+    - meson install -C _build
 
 .before_script_debian: &before_script_debian
   - rm -f ../* || true
@@ -85,7 +86,7 @@ unit-test-with-xwayland-debian-bookworm:
   script:
     - WLR_RENDERER=pixman ${XVFB_RUN} meson test --print-errorlogs -C _build
     - ninja -C _build coverage
-  coverage: '/^\s+lines\.+:\s+([\d.]+\%)\s+/'
+  coverage: '/^lines:\s+([\d.]+\%)\s+/'
   artifacts:
     when: always
     reports:
@@ -97,6 +98,21 @@ unit-test-with-xwayland-debian-bookworm:
     variables:
       - $PKG_ONLY == "1"
 
+asan-test-native-debian-bookworm:
+  stage: test+docs
+  image: ${DEBIAN_IMAGE}
+  tags: [ asan ]
+  needs: []
+  before_script: *before_script_debian
+  script:
+    - meson setup -Db_sanitize=address _build-asan
+    - ninja -C _build-asan data/gschemas.compiled
+    - WLR_RENDERER=pixman ${XVFB_RUN} meson test --verbose -C _build-asan
+  except:
+    variables:
+      - $PKG_ONLY == "1"
+  allow_failure: true
+
 build-gtkdoc:
   stage: test+docs
   image: ${DEBIAN_IMAGE}
@@ -107,7 +123,7 @@ build-gtkdoc:
     - git clean -dfx
     - 'echo "Build opts: ${BUILD_ARGS}"'
     - meson . _build $BUILD_ARGS
-    - ninja -C _build || true
+    - ninja -C _build
     - test -f _build/doc/phoc-*/index.html
     - mv _build/doc/phoc-*/ _reference/
   artifacts:
@@ -144,4 +160,4 @@ pages:
     paths:
       - public
   only:
-    - main 
+    - main

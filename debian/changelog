@@ -1,12 +1,225 @@
-phoc (0.25.2) experimental; urgency=medium
+phoc (0.26.0) experimental; urgency=medium
 
+  [ Affe Null ]
+  * Implement input method keyboard grab.
+    Based on https://github.com/swaywm/sway/pull/4932
+
+  [ Guido Günther ]
+  * layer-surface: Fix indentiation.
+    We indent by two spaces, sigh.
+  * layer-surface: Fix indent
+  * desktop: Reformat and rename signal handler.
+    Make it match coding style before we make more changes.
+  * desktop: Avoid dereferencing desktop->output.
+    This avoids another direct member access.
+  * renderer: Reformat iterators.
+    We're getting closer to have this file consistent as well.
+  * output: Tweak format of phoc_output_layer_handle_surface.
+    It's all about reading speed
+  * layer-shell-effects: Fix confusing variable name.
+    It's a PhocLayerSurface not a wlr_layer_surface
+    Fixes an overly eager replacement in
+    92f9365ba68878701902280d283f58122a6b614b
+  * xdg-shell: Use type casts.
+    It was quite a bit of work to make PhocView a parent of PhocXdgSurface
+    so lets leverage this by using GObject's generated type casts instead of
+    direct member access.
+    Enhances 83f96cfef3186a1e34f20fc61b13337990309160
+  * xwayland: Use type casts.
+    It was quite a bit of work to make PhocView a parent of PhocXwayland so
+    lets leverage this by using GObject's generated type casts instead of
+    direct member access.
+    Enhances 83f96cfef3186a1e34f20fc61b13337990309160
+  * cursor: Fix indentation in mixed tabs vs space lines
+  * input-device: Fix indentation in mixed tabs vs space lines
+  * gesture-single: Fix indentation in mixed tabs vs space lines
+  * input: Fix indentation in mixed tabs vs space lines
+  * main: Fix indentation in mixed tabs vs space lines
+  * virtual: Fix indentation in mixed tabs vs space lines
+  * xdg-surface: Fix indentation in mixed tabs vs space lines
   * output: Check enable pending state when an enable commit is pending.
     This can happen in case of failure and we want to retry
     it in this case.
     Closes: https://gitlab.gnome.org/World/Phosh/phosh/-/issues/900
-    (cherry picked from commit 37542bb80be8a7746d2ccda0c02048dd92fac7af)
+  * xdg-surface: Move all handlers out of xdg_shell.
+    This only moves the code, reformatting happens in a later commit.
+    For the moment we keep subsurface and popup handling there to keep code
+    movement under control.
+  * xdg-surface: Wrap phoc_xdg_surface_get_wlr_surface_at.
+    This way PhocDesktop doesn't have to worry about the relationship
+    between PhocXdgSurface and the resulting wlr_surface avoiding
+    direct member access.
+  * xdg-surface: Make phoc_xdg_surface_from_view static.
+    This just wraps the PHOC_XDG_SURFACE() cast making the code harder to
+    read. We can drop it in xdg-surface.c later on too.
+  * xdg-surface: Drop PhocXdgSurface definition from header
+  * view: Initialize self->desktop in init.
+    No point in letting surface specific handlers do it.
+  * xdg-surface: Simplify handle_*
+    Simplify the functions that were in xdg_shell by using `self`
+  * xdg-surface: Reindent class methods
+  * xdg-surface: Set view properties during object construction.
+    No need to do things at two places. We only leave the app id handling
+    behind so we don't leak gtk_shell1 into xdg-surface.
+  * xdg_shell: Reindent handle_xdg_shell_surface
+  * view: Nuke view type.
+    Since we have a type system we don't need to store it explicitly.  We'll
+    be able to eliminate lots of special casing later on by using class
+    virtual function fields.
+  * view: Make alpha private
+  * view: Make scale private
+  * view: Add type check asserts to public functions.
+    We want to be sure we have the right types there. As we want to use
+    phoc_view_get_instance_private we need to drop const from two public
+    functions.
+  * view: Make view decoration private.
+    The current implementation (even before these changes) is not great
+    as it hardcoded the parameters in several places but as we don't
+    want to risk any functional changes leave it like that a little longer.
+    It'll need more work once we improve decorations visually anyway.
+  * view: Reindent state getters.
+    They're one liners and we'll add more code.
+  * view: Make state private
+  * Fix indentation in mixed tabs vs space lines.
+  * helpers: Add indent test.
+    For now we test for tab instead of whitespace but keep a list of files
+    to clean up.
+  * Drop unused code in several places
+  * layer-shell-effects: Don't leak drag-surface in error path
+  * main: Use G_NORETURN.
+    Avoids a clang warning
+  * main: Don't fail on format-nonliteral.
+    There's not much we can do about the warning itself as we need
+    to pass the format on to g_logv().
+    Closes: https://gitlab.gnome.org/World/Phosh/phoc/-/issues/173
+  * build: Don't cover submodules.
+    They have their individual coverage
+  * ci: Allow doc build fail.
+    We ignored this as we hit a gi-docgen crash. This was fixed with
+    82a162004a2cef0a444cac43cb8f5ce455cdd125.
+  * ci: Use meson where possible.
+    Consistent with e.g. phosh and avoids warnings
+  * build: Set fast_unwind_on_malloc=0 in tests.
+    Makes ASAN simpler (we have that in phosh since some time) as
+    we get better backtraces of the allocations.
+  * render: Destroy wlr_renderer on finalize
+  * render: Don't forget to chain up in finalize.
+    This had no bad consequences in practice so far as the renderer class
+    doesn't do much yet.
+    This lets the `run` and `server` tests pass under ASAN.
+  * output: Avoid changing the list we iterate over.
+    This avoids an illegal access on shutdown when the compositor
+    is used with another client and phosh is started separately.
+  * event: Add function for automatic cleanup
+  * cursor: Don't leak PhocEvent.
+    Fixes a8992d3124442c19d65d1db66ba35727c80ec3f4
+  * layer-shell-effects: Don't leak hashmap
+  * tests: Add leak suppressions
+  * tests/testlib: Add a helper to update the attached buffer
+  * tests/testlib: Don't forget to cleanup the cairo surfaces in image comparisons
+  * tests/testlib: Don't leak test filename
+  * tests/testlib: Don't forget to disconnect test client from the display
+  * tests/testlib: Destroy globals on client cleanup
+  * tests/testlib: Don't leak toplevel handle
+  * tests/property-easer: Don't leak cmp_obj.
+    We get a ref from g_object_get ().
+  * tests/client: Don't leak surface
+  * tests/xdg-shell: Rename automaximize check.
+    Make it easy to distinguish from maximizing by other means
+  * tests/xdg-shell: Test maximization via foreign-toplevel
+  * tests/phosh-private: Don't leak keyboard events
+  * tests: Don't leak screencopy frames.
+    This lets the layer-shell test pass under ASAN
+  * tests: Use a single timeout.
+    We bump the timeout to 10s to pass under ASAN with
+    fast_unwind_on_malloc=0. Individual tests can bump it should
+    the need a longer one.
+  * ci: Add asan test.
+    Run tests under ASAN (based on what phosh does)
+  * ci: Add xwayland dependency for alpine.
+    Unbreaks the alpine CI pipeline
+  * ci: Fix test coverage collection
+  * gtk-shell: Include glib.h.
+    Needed for G_BEGIN_DECLS and friends
+  * leak-suppress: Add suppresson for gvfs.
+    See https://gitlab.gnome.org/GNOME/gvfs/-/issues/577. We'll
+    need this in the next commit.
+  * tests: Wrap in g_test_dbus()
+    idle-inhibit will talk to DBus and we don't want to interfere with the
+    test system. As this also clears env vars preserve/set them in the test
+    fixtures.
+  * view: Add mapped property.
+    This allows us to connect to `notify::mapped` for map state changes.
+  * view: Add "surface-destroy" signal.
+    This makes things consistent with the "input-destroy" and
+    "output-destroy" signals.
+    With that in place we can drop events.{view,destroy} in the view cleanup
+    series.
+  * Add idle-inhibit implementation.
+    This allows programs that don't talk to gnome-session to inhibit screen
+    blank (which will also inhibit suspend).
+    Closes: https://gitlab.gnome.org/World/Phosh/phoc/-/issues/143
+  * desktop: Wire up idle-inhibit.
+    Instead of adding even more to PhocDesktop's public interface add it as
+    a instance private instead.
+    This will also allow us to make more bits private (and we can drop it
+    again once the whole structure becomes private).
+    Closes: https://gitlab.gnome.org/World/Phosh/phoc/-/issues/143
+  * keybindings: Document return value
+  * keyboard: Clarify doc strings.
+    Returning `false` in case the event should be propagated further.  This
+    does not necessarily mean it's propagated to wayland clients yet.
+  * keyboard: Move state check into the individual functions.
+    Let the individual handlers decide if they want to act on key
+    press or release. This unclutters `phoc_keyboard_handle_key`
+  * phosh-private: Fix description
+  * phosh-private: Add missing comment
+  * phosh-private: Forward key release as well.
+    Forward the key release event so clients can decide whether they
+    want to react press or release and do things like long press.
+    Closes: https://gitlab.gnome.org/World/Phosh/phoc/-/issues/186
+    Closes: https://gitlab.gnome.org/World/Phosh/phoc/-/issues/248
+  * view: Clarify comment
+  * view: Reindent resize
+  * view: Remove unused variable
+  * view: Resize is not optional
+  * view: set_activate is not optional.
+    Let's drop the check and rename the public method
+  * view: Use self in view_resize ()
+  * view: Make view_resize static and prefix.
+    It's only used in PhocView
+  * view: Move resize is not optional so no need to have fallback code
+  * view: Reindent view_resize
+  * view: Prefix view_resize
+  * view: Document optional virtual methods.
+    Mark those as optional that have a fallback *and* where at least
+    one of the derived classes doesn't provide an implementation.
+  * view: Remove checks for set_maximized.
+    It's implementation is mandatory
+  * view: Add default implementation for for_each_surface.
+    Instead of checking if there is an implementation and falling back
+    provide a default implementation.
+  * view: Add default implementation for get_geometry.
+    Instead of checking if there is an implementation and falling back
+    provide a default implementation.
+  * view: Remove unused code in view_move
+  * view: Add default implementation for move.
+    Instead of checking if there is an implementation and falling back
+    provide a default implementation.
+  * view: Make tile direction private.
+    Just a matter of using the already present getter
+  * view: set_fullscreen is not optional.
+    So drop the check
+  * view: want_auto_maximize is not optional.
+    So drop the check
+  * view: Close is not optional.
+    So remove check and add prefix
+  * view: Add fallback for set_tiled virtual method
+  * view: Make required virtual functions purely virtual.
+    This makes sure we don't forget to implement them on new view types
+    of when refactoring code.
 
- -- Guido Günther <agx@sigxcpu.org>  Sat, 11 Mar 2023 12:01:38 +0100
+ -- Guido Günther <agx@sigxcpu.org>  Mon, 27 Mar 2023 12:46:52 +0200
 
 phoc (0.25.0) experimental; urgency=medium
 

@@ -19,7 +19,7 @@
 #include "settings.h"
 #include "server.h"
 
-static void
+G_NORETURN static void
 print_version (void)
 {
   printf ("Phoc %s - Phone compositor\n", PHOC_VERSION);
@@ -56,7 +56,10 @@ log_glib(enum wlr_log_importance verbosity, const char *fmt, va_list args) {
     g_assert_not_reached ();
   }
 
-  g_logv("phoc-wlroots", level, fmt, args);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-nonliteral"
+  g_logv ("phoc-wlroots", level, fmt, args);
+#pragma GCC diagnostic pop
 }
 
 
@@ -94,8 +97,8 @@ parse_debug_env (void)
     return flags;
 
   return g_parse_debug_string(debugenv,
-			      debug_keys,
-			      G_N_ELEMENTS (debug_keys));
+                              debug_keys,
+                              G_N_ELEMENTS (debug_keys));
 }
 
 

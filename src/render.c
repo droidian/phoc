@@ -298,7 +298,7 @@ static void render_decorations(PhocOutput *output,
 		wlr_backend_get_renderer(output->wlr_output->backend);
 	assert(renderer);
 #endif
-	if (!view->decorated || !phoc_view_is_mapped (view)) {
+	if (!phoc_view_is_decorated (view) || !phoc_view_is_mapped (view)) {
 		return;
 	}
 
@@ -318,7 +318,7 @@ static void render_decorations(PhocOutput *output,
 	float matrix[9];
 	wlr_matrix_project_box(matrix, &box, WL_OUTPUT_TRANSFORM_NORMAL,
 		0, output->wlr_output->transform_matrix);
-	float color[] = { 0.2, 0.2, 0.2, view->alpha };
+	float color[] = { 0.2, 0.2, 0.2, phoc_view_get_alpha (view) };
 
 	int nrects;
 	pixman_box32_t *rects =
@@ -336,19 +336,21 @@ buffer_damage_finish:
 	pixman_region32_fini(&damage);
 }
 
-static void render_view(PhocOutput *output, PhocView *view,
-		struct render_data *data) {
-	// Do not render views fullscreened on other outputs
-	if (view_is_fullscreen (view) && view->fullscreen_output != output) {
-		return;
-	}
 
-	data->alpha = view->alpha;
-	if (!view_is_fullscreen (view)) {
-		render_decorations(output, view, data);
-	}
-	phoc_output_view_for_each_surface(output, view, render_surface_iterator, data);
+static void
+render_view (PhocOutput *output, PhocView *view, struct render_data *data)
+{
+  // Do not render views fullscreened on other outputs
+  if (view_is_fullscreen (view) && view->fullscreen_output != output)
+    return;
+
+  data->alpha = phoc_view_get_alpha (view);
+  if (!view_is_fullscreen (view))
+    render_decorations(output, view, data);
+
+  phoc_output_view_for_each_surface(output, view, render_surface_iterator, data);
 }
+
 
 static void
 render_layer (PhocOutput                     *output,
@@ -363,12 +365,18 @@ render_layer (PhocOutput                     *output,
   phoc_output_layer_for_each_surface(output, layer, render_surface_iterator, &data);
 }
 
-static void count_surface_iterator(PhocOutput *output,
-		struct wlr_surface *surface, struct wlr_box *box, float rotation,
-		float scale, void *data) {
-	size_t *n = data;
-	n++;
+
+static void count_surface_iterator (PhocOutput         *output,
+                                    struct wlr_surface *surface,
+                                    struct wlr_box     *box,
+                                    float               rotation,
+                                    float               scale,
+                                    void               *data)
+{
+  size_t *n = data;
+  n++;
 }
+
 
 static bool scan_out_fullscreen_view(PhocOutput *output) {
 	struct wlr_output *wlr_output = output->wlr_output;
@@ -408,7 +416,7 @@ static bool scan_out_fullscreen_view(PhocOutput *output) {
 	}
 
 #if WLR_HAS_XWAYLAND
-	if (view->type == PHOC_XWAYLAND_VIEW) {
+	if (PHOC_IS_XWAYLAND_SURFACE (view)) {
 		PhocXWaylandSurface *xwayland_surface =
 			phoc_xwayland_surface_from_view(view);
 		if (!wl_list_empty(&xwayland_surface->xwayland_surface->children)) {
@@ -567,7 +575,7 @@ view_render_iterator (struct wlr_surface *surface, int sx, int sy, void *_data)
   PhocView *view = data->view;
 
   struct wlr_box geo;
-  view_get_geometry (view, &geo);
+  phoc_view_get_geometry (view, &geo);
 
   float scale = fmin (data->width / (float)geo.width,
                       data->height / (float)geo.height);
@@ -841,7 +849,7 @@ void phoc_renderer_render_output (PhocRenderer *self, PhocOutput *output) {
 		// because all windows are rendered. Here we only want to render
 		// the fullscreen window's children so we have to traverse the tree.
 #ifdef PHOC_XWAYLAND
-		if (view->type == PHOC_XWAYLAND_VIEW) {
+		if (PHOC_IS_XWAYLAND_SURFACE (view)) {
 			PhocXWaylandSurface *xwayland_surface =
 				phoc_xwayland_surface_from_view(view);
 			phoc_output_xwayland_children_for_each_surface(output,
@@ -953,10 +961,10 @@ phoc_renderer_finalize (GObject *object)
 {
   PhocRenderer *self = PHOC_RENDERER (object);
 #if WLR_VERSION_MAJOR == 0 && WLR_VERSION_MINOR > 12
-  if (self->wlr_allocator)
-    wlr_allocator_destroy (self->wlr_allocator);
-  /* TODO: destroy wlr_renderer */
+  g_clear_pointer (&self->wlr_allocator, wlr_allocator_destroy);
+  g_clear_pointer (&self->wlr_renderer, wlr_renderer_destroy);
 #endif
+  G_OBJECT_CLASS (phoc_renderer_parent_class)->finalize (object);
 }
 
 

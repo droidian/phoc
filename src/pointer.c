@@ -29,8 +29,8 @@ G_DEFINE_TYPE (PhocPointer, phoc_pointer, PHOC_TYPE_INPUT_DEVICE);
 
 static void
 on_mouse_settings_changed (PhocPointer *self,
-			   const gchar *key,
-			   GSettings   *settings)
+                           const gchar *key,
+                           GSettings   *settings)
 {
   struct libinput_device *ldev;
   gboolean enabled;
@@ -68,7 +68,7 @@ on_mouse_settings_changed (PhocPointer *self,
 
 static void
 on_touchpad_settings_changed (PhocPointer *self,
-			      const gchar *key)
+                              const gchar *key)
 {
   struct libinput_device *ldev;
   gboolean enabled;
@@ -94,26 +94,26 @@ on_touchpad_settings_changed (PhocPointer *self,
 
   enabled = g_settings_get_boolean (settings, "tap-to-click");
   libinput_device_config_tap_set_enabled (ldev, enabled ?
-					  LIBINPUT_CONFIG_TAP_ENABLED :
-					  LIBINPUT_CONFIG_TAP_DISABLED);
+                                          LIBINPUT_CONFIG_TAP_ENABLED :
+                                          LIBINPUT_CONFIG_TAP_DISABLED);
 
   enabled = g_settings_get_boolean (settings, "tap-and-drag");
   libinput_device_config_tap_set_drag_enabled (ldev,
-					       enabled ?
-					       LIBINPUT_CONFIG_DRAG_ENABLED :
-					       LIBINPUT_CONFIG_DRAG_DISABLED);
+                                               enabled ?
+                                               LIBINPUT_CONFIG_DRAG_ENABLED :
+                                               LIBINPUT_CONFIG_DRAG_DISABLED);
 
   enabled = g_settings_get_boolean (settings, "tap-and-drag-lock");
   libinput_device_config_tap_set_drag_lock_enabled (ldev,
-						    enabled ?
-						    LIBINPUT_CONFIG_DRAG_LOCK_ENABLED :
-						    LIBINPUT_CONFIG_DRAG_LOCK_DISABLED);
+                                                    enabled ?
+                                                    LIBINPUT_CONFIG_DRAG_LOCK_ENABLED :
+                                                    LIBINPUT_CONFIG_DRAG_LOCK_DISABLED);
 
   enabled = g_settings_get_boolean (settings, "disable-while-typing");
   libinput_device_config_dwt_set_enabled (ldev,
-					  enabled ?
-					  LIBINPUT_CONFIG_DWT_ENABLED :
-					  LIBINPUT_CONFIG_DWT_DISABLED);
+                                          enabled ?
+                                          LIBINPUT_CONFIG_DWT_ENABLED :
+                                          LIBINPUT_CONFIG_DWT_DISABLED);
 
   if (libinput_device_config_middle_emulation_is_available (ldev)) {
     enabled = g_settings_get_boolean (settings, "middle-click-emulation");
@@ -167,20 +167,20 @@ phoc_pointer_constructed (GObject *object)
     self->touchpad_settings = g_settings_new ("org.gnome.desktop.peripherals.touchpad");
 
     g_signal_connect_swapped (self->touchpad_settings,
-			      "changed",
-			      G_CALLBACK (on_touchpad_settings_changed),
-			      self);
+                              "changed",
+                              G_CALLBACK (on_touchpad_settings_changed),
+                              self);
     /* "left-handed" is read from mouse settings */
     g_signal_connect_swapped (self->mouse_settings,
-			      "changed::left-handed",
-			      G_CALLBACK (on_touchpad_settings_changed),
-			      self);
+                              "changed::left-handed",
+                              G_CALLBACK (on_touchpad_settings_changed),
+                              self);
     on_touchpad_settings_changed (self, NULL);
   } else {
     g_signal_connect_swapped (self->mouse_settings,
-			      "changed",
-			      G_CALLBACK (on_mouse_settings_changed),
-			      self);
+                              "changed",
+                              G_CALLBACK (on_mouse_settings_changed),
+                              self);
     on_mouse_settings_changed (self, NULL, self->mouse_settings);
   }
 }

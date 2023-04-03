@@ -66,7 +66,7 @@ handle_tile_right (PhocSeat *seat)
   if (!view)
     return;
 
-  if (view_is_tiled (view) && view->tile_direction == PHOC_VIEW_TILE_RIGHT)
+  if (view_is_tiled (view) && phoc_view_get_tile_direction (view) == PHOC_VIEW_TILE_RIGHT)
     view_restore (view);
   else
     view_tile (view, PHOC_VIEW_TILE_RIGHT, NULL);
@@ -81,7 +81,7 @@ handle_tile_left (PhocSeat *seat)
   if (!view)
     return;
 
-  if (view_is_tiled (view) && view->tile_direction == PHOC_VIEW_TILE_LEFT)
+  if (view_is_tiled (view) && phoc_view_get_tile_direction (view) == PHOC_VIEW_TILE_LEFT)
     view_restore (view);
   else
     view_tile (view, PHOC_VIEW_TILE_LEFT, NULL);
@@ -123,7 +123,7 @@ static void handle_close (PhocSeat *seat)
   PhocView *focus = phoc_seat_get_focus(seat);
 
   if (focus)
-    view_close(focus);
+    phoc_view_close (focus);
 }
 
 static void
@@ -280,14 +280,14 @@ static inline gboolean
 is_primary (const gchar *string)
 {
   return ((string[0] == '<') &&
-	  (string[1] == 'p' || string[1] == 'P') &&
-	  (string[2] == 'r' || string[2] == 'R') &&
-	  (string[3] == 'i' || string[3] == 'I') &&
-	  (string[4] == 'm' || string[4] == 'M') &&
-	  (string[5] == 'a' || string[5] == 'A') &&
-	  (string[6] == 'r' || string[6] == 'R') &&
-	  (string[7] == 'y' || string[7] == 'Y') &&
-	  (string[8] == '>'));
+          (string[1] == 'p' || string[1] == 'P') &&
+          (string[2] == 'r' || string[2] == 'R') &&
+          (string[3] == 'i' || string[3] == 'I') &&
+          (string[4] == 'm' || string[4] == 'M') &&
+          (string[5] == 'a' || string[5] == 'A') &&
+          (string[6] == 'r' || string[6] == 'R') &&
+          (string[7] == 'y' || string[7] == 'Y') &&
+          (string[8] == '>'));
 }
 
 static inline gboolean
@@ -316,83 +316,79 @@ parse_accelerator (const gchar *accelerator)
   while (len) {
     if (*accelerator == '<') {
       if (len >= 9 && is_control (accelerator)) {
-	  accelerator += 9;
-	  len -= 9;
-	  mods |= WLR_MODIFIER_CTRL;
+        accelerator += 9;
+        len -= 9;
+        mods |= WLR_MODIFIER_CTRL;
       } else if (len >= 7 && is_shift (accelerator)) {
-	accelerator += 7;
-	len -= 7;
-	mods |= WLR_MODIFIER_SHIFT;
+        accelerator += 7;
+        len -= 7;
+        mods |= WLR_MODIFIER_SHIFT;
       } else if (len >= 6 && is_shft (accelerator)) {
-	accelerator += 6;
-	len -= 6;
-	mods |= WLR_MODIFIER_SHIFT;
+        accelerator += 6;
+        len -= 6;
+        mods |= WLR_MODIFIER_SHIFT;
       } else if (len >= 6 && is_ctrl (accelerator)) {
-	accelerator += 6;
-	len -= 6;
-	mods |= WLR_MODIFIER_CTRL;
+        accelerator += 6;
+        len -= 6;
+        mods |= WLR_MODIFIER_CTRL;
       } else if (len >= 6 && is_modx (accelerator)) {
-	  static const guint mod_vals[] = {
-					   WLR_MODIFIER_ALT,
-					   WLR_MODIFIER_MOD2,
-					   WLR_MODIFIER_MOD3,
-					   WLR_MODIFIER_LOGO,
-					   WLR_MODIFIER_MOD5,
-	  };
+        static const guint mod_vals[] = {
+          WLR_MODIFIER_ALT,
+          WLR_MODIFIER_MOD2,
+          WLR_MODIFIER_MOD3,
+          WLR_MODIFIER_LOGO,
+          WLR_MODIFIER_MOD5,
+        };
 
-	  len -= 6;
-	  accelerator += 4;
-	  mods |= mod_vals[*accelerator - '1'];
-	  accelerator += 2;
+        len -= 6;
+        accelerator += 4;
+        mods |= mod_vals[*accelerator - '1'];
+        accelerator += 2;
       }  else if (len >= 5 && is_ctl (accelerator)) {
-	accelerator += 5;
-	len -= 5;
-	mods |= WLR_MODIFIER_CTRL;
+        accelerator += 5;
+        len -= 5;
+        mods |= WLR_MODIFIER_CTRL;
       } else if (len >= 5 && is_alt (accelerator)) {
-	accelerator += 5;
-	len -= 5;
-	mods |= WLR_MODIFIER_ALT;
+        accelerator += 5;
+        len -= 5;
+        mods |= WLR_MODIFIER_ALT;
       } else if (len >= 6 && is_meta (accelerator)) {
-	accelerator += 6;
-	len -= 6;
-	g_warning ("Unhandled modifier meta");
-	return FALSE;
+        g_warning ("Unhandled modifier meta");
+        return FALSE;
       } else if (len >= 7 && is_hyper (accelerator)) {
-	accelerator += 7;
-	len -= 7;
-	g_warning ("Unhandled modifier hyper");
-	return FALSE;
+        g_warning ("Unhandled modifier hyper");
+        return FALSE;
       } else if (len >= 7 && is_super (accelerator)) {
-	accelerator += 7;
-	len -= 7;
-	mods |= WLR_MODIFIER_LOGO;
+        accelerator += 7;
+        len -= 7;
+        mods |= WLR_MODIFIER_LOGO;
       } else {
-	gchar last_ch;
+        gchar last_ch;
 
-	last_ch = *accelerator;
-	while (last_ch && last_ch != '>') {
-	  last_ch = *accelerator;
-	  accelerator += 1;
-	  len -= 1;
-	}
+        last_ch = *accelerator;
+        while (last_ch && last_ch != '>') {
+          last_ch = *accelerator;
+          accelerator += 1;
+          len -= 1;
+        }
       }
     } else {
       if (len >= 4 && is_keycode (accelerator)) {
-	//keycode = strtoul (accelerator, NULL, 16);
-	g_warning ("Unhandled keycode accelerator'");
-	goto out;
-      }	else if (strcmp (accelerator, "Above_Tab") == 0) {
-	g_warning ("Unhandled key 'Above_Tab'");
-	return FALSE;
+        //keycode = strtoul (accelerator, NULL, 16);
+        g_warning ("Unhandled keycode accelerator'");
+        goto out;
+      } else if (strcmp (accelerator, "Above_Tab") == 0) {
+        g_warning ("Unhandled key 'Above_Tab'");
+        return FALSE;
       } else {
-	keyval = xkb_keysym_from_name (accelerator, XKB_KEYSYM_CASE_INSENSITIVE);
-	if (keyval == XKB_KEY_NoSymbol) {
-	  g_autofree gchar *with_xf86 = g_strconcat ("XF86", accelerator, NULL);
-	  keyval = xkb_keysym_from_name (with_xf86, XKB_KEYSYM_CASE_INSENSITIVE);
+        keyval = xkb_keysym_from_name (accelerator, XKB_KEYSYM_CASE_INSENSITIVE);
+        if (keyval == XKB_KEY_NoSymbol) {
+          g_autofree gchar *with_xf86 = g_strconcat ("XF86", accelerator, NULL);
+          keyval = xkb_keysym_from_name (with_xf86, XKB_KEYSYM_CASE_INSENSITIVE);
 
-	  if (keyval == XKB_KEY_NoSymbol)
-	    return FALSE;
-	}
+          if (keyval == XKB_KEY_NoSymbol)
+            return FALSE;
+        }
       }
 
       accelerator += len;
@@ -421,7 +417,7 @@ static gboolean
 key_combo_eq (const PhocKeyCombo *sym1, const PhocKeyCombo *sym2)
 {
   return (sym1->modifiers == sym2->modifiers &&
-	  sym1->keysym == sym2->keysym);
+          sym1->keysym == sym2->keysym);
 }
 
 
@@ -448,8 +444,8 @@ keybinding_by_key_combo (const PhocKeybinding *keybinding, const PhocKeyCombo *c
 
 static void
 on_keybinding_setting_changed (PhocKeybindings *self,
-			       const gchar     *key,
-			       GSettings       *settings)
+                               const gchar     *key,
+                               GSettings       *settings)
 {
   g_auto(GStrv) accelerators = NULL;
   PhocKeybinding *keybinding;
@@ -462,8 +458,8 @@ on_keybinding_setting_changed (PhocKeybindings *self,
   accelerators = g_settings_get_strv (settings, key);
 
   elem = g_slist_find_custom (self->bindings,
-			      key,
-			      (GCompareFunc)keybinding_by_name);
+                              key,
+                              (GCompareFunc)keybinding_by_name);
   if (!elem) {
     g_warning ("Changed keybinding %s not known", key);
     return;
@@ -487,7 +483,7 @@ on_keybinding_setting_changed (PhocKeybindings *self,
 
 static gboolean
 phoc_add_keybinding (PhocKeybindings *self, GSettings *settings,
-		     const gchar *name, PhocKeyHandlerFunc func)
+                     const gchar *name, PhocKeyHandlerFunc func)
 {
   g_autofree gchar *signal_name = NULL;
   PhocKeybinding *binding;
@@ -503,7 +499,7 @@ phoc_add_keybinding (PhocKeybindings *self, GSettings *settings,
 
   signal_name = g_strdup_printf ("changed::%s", name);
   g_signal_connect_swapped (settings, signal_name,
-			    G_CALLBACK (on_keybinding_setting_changed), self);
+                            G_CALLBACK (on_keybinding_setting_changed), self);
 
   self->bindings = g_slist_append (self->bindings, binding);
   /* Fill in initial values */
@@ -545,33 +541,33 @@ phoc_keybindings_constructed (GObject *object)
 
   self->settings = g_settings_new (KEYBINDINGS_SCHEMA_ID);
   phoc_add_keybinding (self, self->settings,
-		       "close", handle_close);
+                       "close", handle_close);
   phoc_add_keybinding (self, self->settings,
-		       "cycle-windows", handle_cycle_windows);
+                       "cycle-windows", handle_cycle_windows);
   phoc_add_keybinding (self, self->settings,
-		       "maximize", handle_maximize);
+                       "maximize", handle_maximize);
   phoc_add_keybinding (self, self->settings,
-		       "toggle-fullscreen", handle_toggle_fullscreen);
+                       "toggle-fullscreen", handle_toggle_fullscreen);
   phoc_add_keybinding (self, self->settings,
-		       "toggle-maximized", handle_toggle_maximized);
+                       "toggle-maximized", handle_toggle_maximized);
   phoc_add_keybinding (self, self->settings,
-		       "move-to-monitor-right", handle_move_to_monitor_right);
+                       "move-to-monitor-right", handle_move_to_monitor_right);
   phoc_add_keybinding (self, self->settings,
-		       "move-to-monitor-left", handle_move_to_monitor_left);
+                       "move-to-monitor-left", handle_move_to_monitor_left);
   /* TODO: we need a real switch-applications but ALT-TAB should do s.th.
    * useful */
   phoc_add_keybinding (self, self->settings,
-		       "switch-applications", handle_cycle_windows);
+                       "switch-applications", handle_cycle_windows);
   phoc_add_keybinding (self, self->settings,
-		       "unmaximize", handle_unmaximize);
+                       "unmaximize", handle_unmaximize);
   phoc_add_keybinding (self, self->settings,
-		       "switch-input-source", handle_switch_input_source);
+                       "switch-input-source", handle_switch_input_source);
 
   self->mutter_settings = g_settings_new (MUTTER_KEYBINDINGS_SCHEMA_ID);
   phoc_add_keybinding (self, self->mutter_settings,
-		       "toggle-tiled-left", handle_tile_left);
+                       "toggle-tiled-left", handle_tile_left);
   phoc_add_keybinding (self, self->mutter_settings,
-		       "toggle-tiled-right", handle_tile_right);
+                       "toggle-tiled-right", handle_tile_right);
 }
 
 
@@ -603,13 +599,15 @@ phoc_keybindings_new (void)
  * phoc_keybindings_handle_pressed:
  *
  * Check if a keybinding is known and run the associated action
+ *
+ * Returns: Whether the keybinding was handled.
  */
 gboolean
 phoc_keybindings_handle_pressed (PhocKeybindings *self,
-				 guint32 modifiers,
-				 xkb_keysym_t *pressed_keysyms,
-				 guint32 length,
-				 PhocSeat *seat)
+                                 guint32 modifiers,
+                                 xkb_keysym_t *pressed_keysyms,
+                                 guint32 length,
+                                 PhocSeat *seat)
 {
   PhocKeybinding *keybinding;
   GSList *elem;
@@ -622,8 +620,8 @@ phoc_keybindings_handle_pressed (PhocKeybindings *self,
   combo.modifiers = modifiers;
 
   elem = g_slist_find_custom (self->bindings,
-			      &combo,
-			      (GCompareFunc)keybinding_by_key_combo);
+                              &combo,
+                              (GCompareFunc)keybinding_by_key_combo);
   if (!elem)
     return FALSE;
 
