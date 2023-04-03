@@ -211,7 +211,7 @@ phoc_input_update_cursor_focus (PhocInput *self)
 
     g_assert (PHOC_IS_SEAT (seat));
     phoc_cursor_update_position (phoc_seat_get_cursor (seat),
-				 timespec_to_msec (&now));
+                                 timespec_to_msec (&now));
   }
 }
 

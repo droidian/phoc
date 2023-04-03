@@ -119,9 +119,9 @@ phoc_cursor_get_touch_point (PhocCursor *self, int touch_id)
 
 static void
 phoc_cursor_set_property (GObject      *object,
-			  guint         property_id,
-			  const GValue *value,
-			  GParamSpec   *pspec)
+                          guint         property_id,
+                          const GValue *value,
+                          GParamSpec   *pspec)
 {
   PhocCursor *self = PHOC_CURSOR (object);
 
@@ -138,9 +138,9 @@ phoc_cursor_set_property (GObject      *object,
 
 static void
 phoc_cursor_get_property (GObject    *object,
-			  guint       property_id,
-			  GValue     *value,
-			  GParamSpec *pspec)
+                          guint       property_id,
+                          GValue     *value,
+                          GParamSpec *pspec)
 {
   PhocCursor *self = PHOC_CURSOR (object);
 
@@ -188,9 +188,8 @@ handle_gestures_for_event_at (PhocCursor   *self,
                               gpointer      wlr_event,
                               gsize         size)
 {
-  PhocEvent *event;
+  g_autoptr (PhocEvent) event = phoc_event_new (type, wlr_event, size);
 
-  event = phoc_event_new (type, wlr_event, size);
   cursor_gestures_handle_event (self, event, lx, ly);
 }
 
@@ -499,9 +498,9 @@ phoc_cursor_class_init (PhocCursorClass *klass)
 
   props[PROP_SEAT] =
     g_param_spec_pointer ("seat",
-			  "",
-			  "",
-			  G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY);
+                          "",
+                          "",
+                          G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY);
 
   g_object_class_install_properties (object_class, PROP_LAST_PROP, props);
 }
@@ -664,7 +663,7 @@ phoc_cursor_update_position (PhocCursor *self,
     view = phoc_seat_get_focus (seat);
     if (view != NULL) {
       struct wlr_box geom;
-      view_get_geometry (view, &geom);
+      phoc_view_get_geometry (view, &geom);
       double dx = self->cursor->x - self->offs_x;
       double dy = self->cursor->y - self->offs_y;
 
@@ -683,8 +682,8 @@ phoc_cursor_update_position (PhocCursor *self,
         view_tile (view, PHOC_VIEW_TILE_RIGHT, wlr_output);
       } else {
         view_restore (view);
-        view_move (view, self->view_x + dx - geom.x * view->scale,
-                   self->view_y + dy - geom.y * view->scale);
+        phoc_view_move (view, self->view_x + dx - geom.x * phoc_view_get_scale (view),
+                        self->view_y + dy - geom.y * phoc_view_get_scale (view));
       }
     }
     break;
@@ -692,7 +691,7 @@ phoc_cursor_update_position (PhocCursor *self,
     view = phoc_seat_get_focus (seat);
     if (view != NULL) {
       struct wlr_box geom;
-      view_get_geometry (view, &geom);
+      phoc_view_get_geometry (view, &geom);
       double dx = self->cursor->x - self->offs_x;
       double dy = self->cursor->y - self->offs_y;
       double x = view->box.x;
@@ -700,7 +699,7 @@ phoc_cursor_update_position (PhocCursor *self,
       int width = self->view_width;
       int height = self->view_height;
       if (self->resize_edges & WLR_EDGE_TOP) {
-        y = self->view_y + dy - geom.y * view->scale;
+        y = self->view_y + dy - geom.y * phoc_view_get_scale (view);
         height -= dy;
         if (height < 1) {
           y += height;
@@ -709,7 +708,7 @@ phoc_cursor_update_position (PhocCursor *self,
         height += dy;
       }
       if (self->resize_edges & WLR_EDGE_LEFT) {
-        x = self->view_x + dx - geom.x * view->scale;
+        x = self->view_x + dx - geom.x * phoc_view_get_scale (view);
         width -= dx;
         if (width < 1) {
           x += width;
@@ -717,9 +716,9 @@ phoc_cursor_update_position (PhocCursor *self,
       } else if (self->resize_edges & WLR_EDGE_RIGHT) {
         width += dx;
       }
-      view_move_resize (view, x, y,
-                        width < 1 ? 1 : width,
-                        height < 1 ? 1 : height);
+      phoc_view_move_resize (view, x, y,
+                             width < 1 ? 1 : width,
+                             height < 1 ? 1 : height);
     }
     break;
   default:
@@ -1125,7 +1124,7 @@ phoc_cursor_handle_touch_motion (PhocCursor                    *self,
     } else {
       PhocView *view = phoc_view_from_wlr_surface (root);
       if (view) {
-        scale = view->scale;
+        scale = phoc_view_get_scale (view);
         sx = lx / scale - view->box.x;
         sy = ly / scale - view->box.y;
         found = true;
@@ -1272,8 +1271,8 @@ phoc_cursor_handle_constraint_commit (PhocCursor *self)
   double sx, sy;
   struct wlr_surface *surface = phoc_desktop_surface_at (desktop,
                                                          self->cursor->x,
-							 self->cursor->y,
-							 &sx, &sy, NULL);
+                                                         self->cursor->y,
+                                                         &sx, &sy, NULL);
 
   // This should never happen but views move around right when they're
   // created from (0, 0) to their actual coordinates.
@@ -1296,7 +1295,7 @@ handle_constraint_commit (struct wl_listener *listener,
 void
 phoc_cursor_constrain (PhocCursor *self,
                        struct wlr_pointer_constraint_v1 *constraint,
-		       double sx, double sy)
+                       double sx, double sy)
 {
   if (self->active_constraint == constraint)
     return;
@@ -1354,8 +1353,8 @@ PhocCursor *
 phoc_cursor_new (PhocSeat *seat)
 {
   return PHOC_CURSOR (g_object_new (PHOC_TYPE_CURSOR,
-				    "seat", seat,
-				    NULL));
+                                    "seat", seat,
+                                    NULL));
 }
 
 

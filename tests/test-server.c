@@ -27,7 +27,7 @@ test_phoc_server_setup (void)
 
   g_assert_true (phoc_server_setup(server, TEST_PHOC_INI, NULL, NULL,
                                    PHOC_SERVER_FLAG_NONE,
-				   PHOC_SERVER_DEBUG_FLAG_NONE));
+                                   PHOC_SERVER_DEBUG_FLAG_NONE));
 }
 
 static void
@@ -38,8 +38,8 @@ test_phoc_server_setup_args (void)
   g_assert_true (PHOC_IS_SERVER (server));
 
   g_assert_true (phoc_server_setup(server, TEST_PHOC_INI, "/bin/bash", NULL,
-				   PHOC_SERVER_FLAG_NONE,
-				   PHOC_SERVER_DEBUG_FLAG_NONE));
+                                   PHOC_SERVER_FLAG_NONE,
+                                   PHOC_SERVER_DEBUG_FLAG_NONE));
 
   g_assert_cmpstr (server->session, ==, "/bin/bash");
 }

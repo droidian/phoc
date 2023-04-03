@@ -245,7 +245,6 @@ phoc_xwayland_surface_class_init (PhocXWaylandSurfaceClass *klass)
 static void
 phoc_xwayland_surface_init (PhocXWaylandSurface *self)
 {
-  PHOC_VIEW (self)->type = PHOC_XWAYLAND_VIEW;
 }
 
 

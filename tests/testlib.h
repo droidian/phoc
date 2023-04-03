@@ -29,7 +29,6 @@ typedef struct _PhocTestBuffer {
 } PhocTestBuffer;
 
 typedef struct _PhocTestScreencopyFrame {
-  struct zwlr_screencopy_frame_v1 *handle;
   PhocTestBuffer buffer;
   gboolean done;
   uint32_t flags;
@@ -88,18 +87,24 @@ typedef struct _PhocTestXdgToplevelSurface
   gboolean toplevel_configured;
 } PhocTestXdgToplevelSurface;
 
+typedef struct _PhocTestFixture {
+  GTestDBus   *bus;
+  char        *tmpdir;
+} PhocTestFixture;
+
+
 /* Test client */
 void phoc_test_client_run (gint timeout, PhocTestClientIface *iface, gpointer data);
 int  phoc_test_client_create_shm_buffer (PhocTestClientGlobals *globals,
-					 PhocTestBuffer *buffer,
-					 int width, int height, guint32 format);
+                                         PhocTestBuffer *buffer,
+                                         int width, int height, guint32 format);
 PhocTestBuffer *phoc_test_client_capture_frame (PhocTestClientGlobals *globals,
-						PhocTestScreencopyFrame *frame,
-						struct zwlr_screencopy_frame_v1 *handle);
+                                                PhocTestScreencopyFrame *frame,
+                                                struct zwlr_screencopy_frame_v1 *handle);
 PhocTestBuffer *phoc_test_client_capture_output (PhocTestClientGlobals *globals,
-						 PhocTestOutput *output);
+                                                 PhocTestOutput *output);
 PhocTestForeignToplevel *phoc_test_client_get_foreign_toplevel_handle (PhocTestClientGlobals *globals,
-								       const char *title);
+                                                                       const char *title);
 
 /* Test surfaces */
 PhocTestXdgToplevelSurface *
@@ -109,6 +114,9 @@ PhocTestXdgToplevelSurface *
                                              const char                *title,
                                              guint32                    color);
 void            phoc_test_xdg_toplevel_free (PhocTestXdgToplevelSurface *xs);
+void            phoc_test_xdg_update_buffer (PhocTestClientGlobals      *globals,
+                                             PhocTestXdgToplevelSurface *xs,
+                                             guint32                     color);
 
 /* Buffers */
 gboolean phoc_test_buffer_equal (PhocTestBuffer *buf1, PhocTestBuffer *buf2);
@@ -125,15 +133,16 @@ void phoc_test_buffer_free (PhocTestBuffer *buffer);
  */
 #define phoc_assert_screenshot(g, f) G_STMT_START {                      \
     PhocTestClientGlobals *__g = (g);                                    \
-    const gchar *__f = g_test_build_filename (G_TEST_DIST, "screenshots", f, NULL); \
+    gchar *__f = g_test_build_filename (G_TEST_DIST, "screenshots", f, NULL); \
     PhocTestBuffer *__s = phoc_test_client_capture_output (__g, &__g->output); \
     if (phoc_test_buffer_matches_screenshot (__s, __f)) ; else {         \
       g_autofree gchar *__name = _phoc_test_screenshot_name(__LINE__, G_STRFUNC, 0); \
-      phoc_test_buffer_save (&__g->output.screenshot.buffer, __name);		 \
-      g_assertion_message (G_LOG_DOMAIN, __FILE__, __LINE__, G_STRFUNC,	 \
-			   "Output content does not match " #f);         \
+      phoc_test_buffer_save (&__g->output.screenshot.buffer, __name);            \
+      g_assertion_message (G_LOG_DOMAIN, __FILE__, __LINE__, G_STRFUNC,  \
+                           "Output content does not match " #f);         \
     }                                                                    \
-    phoc_test_buffer_free (__s);					 \
+    phoc_test_buffer_free (__s);                                         \
+    g_free (__f);                                                        \
   } G_STMT_END
 
 /**
@@ -145,15 +154,24 @@ void phoc_test_buffer_free (PhocTestBuffer *buffer);
  * screenshots are taken and saved as PNG.
  */
 #define phoc_assert_buffer_equal(b1, b2)    G_STMT_START { \
-    PhocTestBuffer *__b1 = (b1), *__b2 = (b2);			        \
-    if (phoc_test_buffer_equal (__b1 , __b2)) ; else {			\
+    PhocTestBuffer *__b1 = (b1), *__b2 = (b2);                          \
+    if (phoc_test_buffer_equal (__b1 , __b2)) ; else {                  \
       g_autofree gchar *__name1 = _phoc_test_screenshot_name(__LINE__, G_STRFUNC, 1); \
       g_autofree gchar *__name2 = _phoc_test_screenshot_name(__LINE__, G_STRFUNC, 2); \
       phoc_test_buffer_save (__b1, __name1);                            \
       phoc_test_buffer_save (__b2, __name2);                            \
-      g_assertion_message (G_LOG_DOMAIN, __FILE__, __LINE__, G_STRFUNC,	\
-			 "Buffer " #b1 " != " #b2);			\
+      g_assertion_message (G_LOG_DOMAIN, __FILE__, __LINE__, G_STRFUNC, \
+                         "Buffer " #b1 " != " #b2);                     \
     } \
   } G_STMT_END
+
+
+/* Test setup and fixtures */
+void phoc_test_setup (PhocTestFixture *fixture, gconstpointer data);
+void phoc_test_teardown (PhocTestFixture *fixture, gconstpointer unused);
+#define PHOC_TEST_ADD(name, func) g_test_add ((name), PhocTestFixture, NULL, \
+                                              (gpointer)phoc_test_setup,     \
+                                              (gpointer)(func),              \
+                                              (gpointer)phoc_test_teardown)
 
 G_END_DECLS

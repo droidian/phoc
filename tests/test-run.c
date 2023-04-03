@@ -4,6 +4,7 @@
  * Author: Guido Günther <agx@sigxcpu.org>
  */
 
+#include "testlib.h"
 #include "server.h"
 
 static gboolean
@@ -24,8 +25,8 @@ test_phoc_run_session_success (void)
 
   g_assert_true (phoc_server_setup(server, TEST_PHOC_INI, "/bin/true", loop,
                                    PHOC_SERVER_FLAG_NONE,
-				   PHOC_SERVER_DEBUG_FLAG_NONE));
-  g_timeout_add_seconds (3, on_timer_expired, NULL);
+                                   PHOC_SERVER_DEBUG_FLAG_NONE));
+  g_timeout_add_seconds (TEST_PHOC_CLIENT_TIMEOUT, on_timer_expired, NULL);
   g_main_loop_run (loop);
   g_assert_cmpint (phoc_server_get_session_exit_status (server), ==, 0);
 }
@@ -40,8 +41,8 @@ test_phoc_run_session_failure (void)
 
   g_assert_true (phoc_server_setup(server, TEST_PHOC_INI, "/bin/false", loop,
                                    PHOC_SERVER_FLAG_NONE,
-				   PHOC_SERVER_DEBUG_FLAG_NONE));
-  g_timeout_add_seconds (3, on_timer_expired, NULL);
+                                   PHOC_SERVER_DEBUG_FLAG_NONE));
+  g_timeout_add_seconds (TEST_PHOC_CLIENT_TIMEOUT, on_timer_expired, NULL);
   g_main_loop_run (loop);
   g_assert_cmpint (phoc_server_get_session_exit_status (server), ==, 1);
 }
@@ -51,8 +52,8 @@ main (gint argc, gchar *argv[])
 {
   g_test_init (&argc, &argv, NULL);
 
-  g_test_add_func("/phoc/run/session_success", test_phoc_run_session_success);
-  g_test_add_func("/phoc/run/session_failure", test_phoc_run_session_failure);
+  PHOC_TEST_ADD ("/phoc/run/session_success", test_phoc_run_session_success);
+  PHOC_TEST_ADD ("/phoc/run/session_failure", test_phoc_run_session_failure);
 
   return g_test_run();
 }

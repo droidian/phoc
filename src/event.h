@@ -160,4 +160,7 @@ void                       phoc_event_get_touchpad_gesture_deltas    (const Phoc
 guint                      phoc_event_get_touchpad_gesture_n_fingers (const PhocEvent *event);
 guint32                    phoc_event_get_time                       (const PhocEvent *event);
 
+
+G_DEFINE_AUTOPTR_CLEANUP_FUNC (PhocEvent, phoc_event_free)
+
 G_END_DECLS

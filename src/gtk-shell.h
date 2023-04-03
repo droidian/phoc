@@ -8,6 +8,8 @@
 #include <wlr/types/wlr_surface.h>
 #include <wayland-server-core.h>
 
+#include <glib.h>
+
 #pragma once
 
 G_BEGIN_DECLS

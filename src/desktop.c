@@ -13,13 +13,13 @@
 #include <wlr/types/wlr_data_control_v1.h>
 #include <wlr/types/wlr_export_dmabuf_v1.h>
 #include <wlr/types/wlr_gamma_control_v1.h>
-#include <wlr/types/wlr_primary_selection_v1.h>
 #include <wlr/types/wlr_idle.h>
 #include <wlr/types/wlr_input_inhibitor.h>
 #include <wlr/types/wlr_layer_shell_v1.h>
 #include <wlr/types/wlr_output_layout.h>
 #include <wlr/types/wlr_output_power_management_v1.h>
 #include <wlr/types/wlr_pointer_constraints_v1.h>
+#include <wlr/types/wlr_primary_selection_v1.h>
 #include <wlr/types/wlr_server_decoration.h>
 #include <wlr/types/wlr_tablet_v2.h>
 #include <wlr/types/wlr_viewporter.h>
@@ -33,6 +33,7 @@
 #include <wlr/util/box.h>
 #include <wlr/version.h>
 #include "cursor.h"
+#include "idle-inhibit.h"
 #include "layers.h"
 #include "output.h"
 #include "seat.h"
@@ -46,8 +47,8 @@
 #include "gesture-swipe.h"
 #include "layer-shell-effects.h"
 
-
 #include "xdg-surface.h"
+#include "xwayland-surface.h"
 
 /**
  * PhocDesktop:
@@ -63,14 +64,19 @@ enum {
 };
 static GParamSpec *props[PROP_LAST_PROP];
 
-G_DEFINE_TYPE(PhocDesktop, phoc_desktop, G_TYPE_OBJECT);
+
+typedef struct _PhocDesktopPrivate {
+  PhocIdleInhibit *idle_inhibit;
+} PhocDesktopPrivate;
+
+G_DEFINE_TYPE_WITH_PRIVATE (PhocDesktop, phoc_desktop, G_TYPE_OBJECT);
 
 
 static void
-phoc_desktop_set_property (GObject     *object,
-                          guint         property_id,
-                          const GValue *value,
-                          GParamSpec   *pspec)
+phoc_desktop_set_property (GObject      *object,
+                           guint         property_id,
+                           const GValue *value,
+                           GParamSpec   *pspec)
 {
   PhocDesktop *self = PHOC_DESKTOP (object);
 
@@ -91,9 +97,9 @@ phoc_desktop_set_property (GObject     *object,
 
 static void
 phoc_desktop_get_property (GObject    *object,
-			   guint       property_id,
-			   GValue     *value,
-			   GParamSpec *pspec)
+                           guint       property_id,
+                           GValue     *value,
+                           GParamSpec *pspec)
 {
   PhocDesktop *self = PHOC_DESKTOP (object);
 
@@ -117,25 +123,25 @@ static bool view_at(PhocView *view, double lx, double ly,
 		return false;
 	}
 
-	double view_sx = lx / view->scale - view->box.x;
-	double view_sy = ly / view->scale - view->box.y;
+	double view_sx = lx / phoc_view_get_scale (view) - view->box.x;
+	double view_sy = ly / phoc_view_get_scale (view) - view->box.y;
 
 	double _sx, _sy;
 	struct wlr_surface *_surface = NULL;
-	switch (view->type) {
-	case PHOC_XDG_SHELL_VIEW:;
-		PhocXdgSurface *xdg_surface = phoc_xdg_surface_from_view(view);
-		_surface = wlr_xdg_surface_surface_at(xdg_surface->xdg_surface,
-			view_sx, view_sy, &_sx, &_sy);
-		break;
+	if (PHOC_IS_XDG_SURFACE (view)) {
+		_surface = phoc_xdg_surface_get_wlr_surface_at (PHOC_XDG_SURFACE (view),
+								view_sx,
+								view_sy,
+								&_sx,
+								&_sy);
+
 #ifdef PHOC_XWAYLAND
-	case PHOC_XWAYLAND_VIEW:
+	} else if (PHOC_IS_XWAYLAND_SURFACE (view)) {
 		_surface = wlr_surface_surface_at(view->wlr_surface,
 			view_sx, view_sy, &_sx, &_sy);
-		break;
 #endif
-	default:
-		g_error("Invalid view type %d", view->type);
+	} else {
+		g_error ("Invalid view type");
 	}
 	if (_surface != NULL) {
 		if (sx)
@@ -330,7 +336,7 @@ phoc_desktop_view_is_visible (PhocDesktop *desktop, PhocView *view)
   // XWayland parent relations can be complicated and aren't described by PhocView
   // relationships very well at the moment, so just make all XWayland windows visible
   // when some XWayland window is active for now
-  if (view->type == PHOC_XWAYLAND_VIEW && top_view->type == PHOC_XWAYLAND_VIEW) {
+  if (PHOC_IS_XWAYLAND_SURFACE (view) && PHOC_IS_XWAYLAND_SURFACE (top_view)) {
     return true;
   }
 #endif
@@ -375,7 +381,7 @@ handle_layout_change (struct wl_listener *listener, void *data)
 
     if (wlr_output_layout_intersects (self->layout, NULL, &box))
       continue;
-    view_move (view, center_x - box.width / 2, center_y - box.height / 2);
+    phoc_view_move (view, center_x - box.width / 2, center_y - box.height / 2);
   }
 
   /* Damage all outputs since the move above damaged old layout space */
@@ -398,8 +404,6 @@ static void input_inhibit_activate(struct wl_listener *listener, void *data) {
 }
 
 static void input_inhibit_deactivate(struct wl_listener *listener, void *data) {
-	PhocDesktop *desktop = wl_container_of(
-			listener, desktop, input_inhibit_deactivate);
 	PhocServer *server = phoc_server_get_default ();
 
 	for (GSList *elem = phoc_input_get_seats (server->input); elem; elem = elem->next) {
@@ -535,24 +539,26 @@ void handle_xwayland_remove_startup_id(struct wl_listener *listener, void *data)
 #endif /* PHOC_XWAYLAND */
 
 static void
-handle_output_destroy (PhocOutput *destroyed_output)
+on_output_destroyed (PhocDesktop *self, PhocOutput *destroyed_output)
 {
-	PhocDesktop *self = destroyed_output->desktop;
-	PhocOutput *output;
-	char *input_name;
-	GHashTableIter iter;
-	g_hash_table_iter_init (&iter, self->input_output_map);
-	while (g_hash_table_iter_next (&iter, (gpointer) &input_name,
-				       (gpointer) &output)){
-		if (destroyed_output == output){
-			g_debug ("Removing mapping for input device '%s' to output '%s'",
-				 input_name, output->wlr_output->name);
-			g_hash_table_remove (self->input_output_map, input_name);
-			break;
-		}
+  PhocOutput *output;
+  char *input_name;
+  GHashTableIter iter;
 
-	}
-	g_object_unref (destroyed_output);
+  g_assert (PHOC_IS_DESKTOP (self));
+  g_assert (PHOC_IS_OUTPUT (destroyed_output));
+
+  g_hash_table_iter_init (&iter, self->input_output_map);
+  while (g_hash_table_iter_next (&iter, (gpointer) &input_name,
+                                 (gpointer) &output)) {
+    if (destroyed_output == output) {
+      g_debug ("Removing mapping for input device '%s' to output '%s'",
+               input_name, output->wlr_output->name);
+      g_hash_table_remove (self->input_output_map, input_name);
+      break;
+    }
+  }
+  g_object_unref (destroyed_output);
 }
 
 static void
@@ -567,9 +573,9 @@ handle_new_output (struct wl_listener *listener, void *data)
     return;
   }
 
-  g_signal_connect (output, "output-destroyed",
-                    G_CALLBACK (handle_output_destroy),
-                    NULL);
+  g_signal_connect_swapped (output, "output-destroyed",
+                            G_CALLBACK (on_output_destroyed),
+                            self);
 }
 
 
@@ -627,6 +633,7 @@ static void
 phoc_desktop_constructed (GObject *object)
 {
   PhocDesktop *self = PHOC_DESKTOP (object);
+  PhocDesktopPrivate *priv = phoc_desktop_get_instance_private (self);
   PhocServer *server = phoc_server_get_default ();
 
   G_OBJECT_CLASS (phoc_desktop_parent_class)->constructed (object);
@@ -686,6 +693,7 @@ phoc_desktop_constructed (GObject *object)
 
   self->text_input = wlr_text_input_manager_v3_create(server->wl_display);
 
+  priv->idle_inhibit = phoc_idle_inhibit_create (self->idle);
   self->gtk_shell = phoc_gtk_shell_create(self, server->wl_display);
   self->phosh = phoc_phosh_private_new ();
 
@@ -765,6 +773,7 @@ static void
 phoc_desktop_finalize (GObject *object)
 {
   PhocDesktop *self = PHOC_DESKTOP (object);
+  PhocDesktopPrivate *priv = phoc_desktop_get_instance_private (self);
 
   /* TODO: currently destroys the backend before the desktop */
   //wl_list_remove (&self->new_output.link);
@@ -796,6 +805,7 @@ phoc_desktop_finalize (GObject *object)
   g_clear_pointer (&self->xwayland, wlr_xwayland_destroy);
 #endif
 
+  g_clear_pointer (&priv->idle_inhibit, phoc_idle_inhibit_destroy);
   g_clear_object (&self->phosh);
   g_clear_pointer (&self->gtk_shell, phoc_gtk_shell_destroy);
   g_clear_object (&self->layer_shell_effects);
@@ -917,14 +927,16 @@ phoc_desktop_set_auto_maximize (PhocDesktop *self, gboolean enable)
 
   /* Disabling auto-maximize leaves all views in their current position */
   if (!enable) {
+    PhocInput *input = phoc_server_get_default()->input;
+
     wl_list_for_each (view, &self->views, link)
-      view_appear_activated (view, phoc_input_view_has_focus (phoc_server_get_default()->input, view));
+      phoc_view_appear_activated (view, phoc_input_view_has_focus (input, view));
     return;
   }
 
   wl_list_for_each (view, &self->views, link) {
     view_auto_maximize (view);
-    view_appear_activated (view, true);
+    phoc_view_appear_activated (view, true);
   }
 }
 

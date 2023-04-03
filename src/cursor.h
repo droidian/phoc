@@ -122,8 +122,8 @@ void        phoc_cursor_update_position (PhocCursor                             
 void        phoc_cursor_update_focus (PhocCursor                                         *self);
 void        phoc_cursor_constrain (PhocCursor                                            *self,
                                    struct wlr_pointer_constraint_v1                      *constraint,
-				   double                                                 sx,
-				   double                                                 sy);
+                                   double                                                 sx,
+                                   double                                                 sy);
 void        phoc_maybe_set_cursor (PhocCursor                                            *self);
 void        phoc_cursor_handle_event             (PhocCursor                             *self,
                                                   PhocEventType                           type,

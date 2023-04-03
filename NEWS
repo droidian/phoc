@@ -1,8 +1,23 @@
-phoc 0.25.2
+phoc 0.26.0
 -----------
 Released March 2023
+* Implement input method keyboard grab
 * Fix display not coming up again after fast
   blank/unblank on some devices like PP and PPP.
+* Forward key releases for grabbed keys to phosh as well
+* Lots of internal rework for consistency and in
+  preparation for upcoming changes
+* Lots of test suite cleanups that allow to pass
+  it under ASAN.
+* Issues fixed
+    https://gitlab.gnome.org/World/Phosh/phoc/-/issues/143
+    https://gitlab.gnome.org/World/Phosh/phoc/-/issues/173
+    https://gitlab.gnome.org/World/Phosh/phoc/-/issues/186
+    https://gitlab.gnome.org/World/Phosh/phoc/-/issues/248
+    https://gitlab.gnome.org/World/Phosh/phosh/-/issues/900
+* Contributors:
+    * Affe Null
+    * Guido Günther
 
 phoc 0.25.0
 -----------

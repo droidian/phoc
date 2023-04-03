@@ -30,13 +30,14 @@ typedef struct _PhocTestKeyboardEvent
 
 static PhocTestScreencopyFrame *
 phoc_test_get_thumbnail (PhocTestClientGlobals *globals,
-			   guint32 max_width, guint32 max_height, PhocTestForeignToplevel *toplevel)
+                           guint32 max_width, guint32 max_height, PhocTestForeignToplevel *toplevel)
 {
   PhocTestScreencopyFrame *thumbnail = g_malloc0 (sizeof(PhocTestScreencopyFrame));
 
   struct zwlr_screencopy_frame_v1 *handle = phosh_private_get_thumbnail (globals->phosh, toplevel->handle, max_width, max_height);
   phoc_test_client_capture_frame (globals, thumbnail, handle);
 
+  zwlr_screencopy_frame_v1_destroy (handle);
   return thumbnail;
 }
 
@@ -44,7 +45,6 @@ static void
 phoc_test_thumbnail_free (PhocTestScreencopyFrame *frame)
 {
   phoc_test_buffer_free (&frame->buffer);
-  zwlr_screencopy_frame_v1_destroy (frame->handle);
   g_free (frame);
 }
 
@@ -81,7 +81,7 @@ test_phosh_private_thumbnail_simple (void)
     return;
   }
 
-  phoc_test_client_run (3, &iface, GINT_TO_POINTER (FALSE));
+  phoc_test_client_run (TEST_PHOC_CLIENT_TIMEOUT, &iface, GINT_TO_POINTER (FALSE));
 }
 
 static void
@@ -122,7 +122,7 @@ static PhocTestKeyboardEvent *
 phoc_test_keyboard_event_new (PhocTestClientGlobals *globals,
                               char* title)
 {
-  PhocTestKeyboardEvent *kbe = g_malloc0 (sizeof (PhocTestKeyboardEvent));
+  PhocTestKeyboardEvent *kbe = g_new0 (PhocTestKeyboardEvent, 1);
 
   g_assert (phosh_private_get_version (globals->phosh) >= 5);
 
@@ -134,7 +134,18 @@ phoc_test_keyboard_event_new (PhocTestClientGlobals *globals,
   return kbe;
 }
 
+
+static void
+phoc_test_keyboard_event_free (PhocTestKeyboardEvent *event)
+{
+  phosh_private_keyboard_event_destroy (event->kbevent);
+  g_free (event);
+}
+
 #define RAISE_VOL_KEY "XF86AudioRaiseVolume"
+
+
+
 
 static gboolean
 test_client_phosh_private_kbevent_simple (PhocTestClientGlobals *globals, gpointer unused)
@@ -146,10 +157,10 @@ test_client_phosh_private_kbevent_simple (PhocTestClientGlobals *globals, gpoint
   test2 = phoc_test_keyboard_event_new (globals, "test-invalid-grabbing");
 
   phosh_private_keyboard_event_grab_accelerator_request (test1->kbevent,
-							 "XF86AudioLowerVolume");
+                                                         "XF86AudioLowerVolume");
   /* Not allowed to bind this one: */
   phosh_private_keyboard_event_grab_accelerator_request (test2->kbevent,
-							 "F9");
+                                                         "F9");
   wl_display_dispatch (globals->display);
   wl_display_roundtrip (globals->display);
 
@@ -160,10 +171,10 @@ test_client_phosh_private_kbevent_simple (PhocTestClientGlobals *globals, gpoint
   test2->grab_status = GRAB_STATUS_UNKNOWN;
 
   phosh_private_keyboard_event_grab_accelerator_request (test1->kbevent,
-							 RAISE_VOL_KEY);
+                                                         RAISE_VOL_KEY);
   /* Can't bind same key twice: */
   phosh_private_keyboard_event_grab_accelerator_request (test2->kbevent,
-							 RAISE_VOL_KEY);
+                                                         RAISE_VOL_KEY);
   wl_display_dispatch (globals->display);
   wl_display_roundtrip (globals->display);
 
@@ -175,7 +186,7 @@ test_client_phosh_private_kbevent_simple (PhocTestClientGlobals *globals, gpoint
 
   /* Allowing to bind a already bound key with an additional accelerator is o.k. */
   phosh_private_keyboard_event_grab_accelerator_request (test1->kbevent,
-							 "<SHIFT>" RAISE_VOL_KEY);
+                                                         "<SHIFT>" RAISE_VOL_KEY);
   wl_display_dispatch (globals->display);
   wl_display_roundtrip (globals->display);
 
@@ -187,15 +198,16 @@ test_client_phosh_private_kbevent_simple (PhocTestClientGlobals *globals, gpoint
 
   /* Binding non existing key must fail */
   phosh_private_keyboard_event_grab_accelerator_request (test2->kbevent,
-							 "does-not-exist");
+                                                         "does-not-exist");
   wl_display_dispatch (globals->display);
   wl_display_roundtrip (globals->display);
 
   g_assert_cmpint (test1->grab_status, ==, GRAB_STATUS_UNKNOWN);
   g_assert_cmpint (test2->grab_status, ==, GRAB_STATUS_FAILED);
 
-  phosh_private_keyboard_event_destroy (test1->kbevent);
-  phosh_private_keyboard_event_destroy (test2->kbevent);
+  phoc_test_keyboard_event_free (test1);
+  phoc_test_keyboard_event_free (test2);
+
   return TRUE;
 }
 
@@ -206,7 +218,7 @@ test_phosh_private_kbevents_simple (void)
    .client_run = test_client_phosh_private_kbevent_simple,
   };
 
-  phoc_test_client_run (3, &iface, NULL);
+  phoc_test_client_run (TEST_PHOC_CLIENT_TIMEOUT, &iface, NULL);
 }
 
 static void
@@ -280,7 +292,7 @@ test_phosh_private_startup_tracker_simple (void)
    .client_run = test_client_phosh_private_startup_tracker_simple,
   };
 
-  phoc_test_client_run (3, &iface, NULL);
+  phoc_test_client_run (TEST_PHOC_CLIENT_TIMEOUT, &iface, NULL);
 }
 
 gint
@@ -288,8 +300,8 @@ main (gint argc, gchar *argv[])
 {
   g_test_init (&argc, &argv, NULL);
 
-  g_test_add_func ("/phoc/phosh/thumbnail/simple", test_phosh_private_thumbnail_simple);
-  g_test_add_func ("/phoc/phosh/kbevents/simple", test_phosh_private_kbevents_simple);
-  g_test_add_func ("/phoc/phosh/startup-tracker/simple", test_phosh_private_startup_tracker_simple);
+  PHOC_TEST_ADD ("/phoc/phosh/thumbnail/simple", test_phosh_private_thumbnail_simple);
+  PHOC_TEST_ADD ("/phoc/phosh/kbevents/simple", test_phosh_private_kbevents_simple);
+  PHOC_TEST_ADD ("/phoc/phosh/startup-tracker/simple", test_phosh_private_startup_tracker_simple);
   return g_test_run ();
 }

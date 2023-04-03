@@ -1501,7 +1501,7 @@ phoc_seat_set_focus (PhocSeat *seat, PhocView *view)
   bool unfullscreen = true;
 
 #ifdef PHOC_XWAYLAND
-  if (view && view->type == PHOC_XWAYLAND_VIEW) {
+  if (view && PHOC_IS_XWAYLAND_SURFACE (view)) {
     PhocXWaylandSurface *xwayland_surface =
       phoc_xwayland_surface_from_view (view);
     if (xwayland_surface->xwayland_surface->override_redirect) {
@@ -1534,7 +1534,7 @@ phoc_seat_set_focus (PhocSeat *seat, PhocView *view)
   }
 
 #ifdef PHOC_XWAYLAND
-  if (view && view->type == PHOC_XWAYLAND_VIEW) {
+  if (view && PHOC_IS_XWAYLAND_SURFACE (view)) {
     PhocXWaylandSurface *xwayland_surface =
       phoc_xwayland_surface_from_view (view);
     if (!wlr_xwayland_or_surface_wants_focus (
@@ -1738,7 +1738,7 @@ phoc_seat_begin_move (PhocSeat *seat, PhocView *view)
   cursor->offs_y = cursor->cursor->y;
   struct wlr_box geom;
 
-  view_get_geometry (view, &geom);
+  phoc_view_get_geometry (view, &geom);
   if (view_is_maximized (view) || view_is_tiled (view)) {
     // calculate normalized (0..1) position of cursor in maximized window
     // and make it stay the same after restoring saved size
@@ -1750,8 +1750,8 @@ phoc_seat_begin_move (PhocSeat *seat, PhocView *view)
     view->saved.y = cursor->view_y;
     view_restore (view);
   } else {
-    cursor->view_x = view->box.x + geom.x * view->scale;
-    cursor->view_y = view->box.y + geom.y * view->scale;
+    cursor->view_x = view->box.x + geom.x * phoc_view_get_scale (view);
+    cursor->view_y = view->box.y + geom.y * phoc_view_get_scale (view);
   }
   wlr_seat_pointer_clear_focus (seat->seat);
 
@@ -1775,17 +1775,17 @@ phoc_seat_begin_resize (PhocSeat *seat, PhocView *view,
   cursor->offs_y = cursor->cursor->y;
   struct wlr_box geom;
 
-  view_get_geometry (view, &geom);
+  phoc_view_get_geometry (view, &geom);
   if (view_is_maximized (view) || view_is_tiled (view)) {
-    view->saved.x = view->box.x + geom.x * view->scale;
-    view->saved.y = view->box.y + geom.y * view->scale;
+    view->saved.x = view->box.x + geom.x * phoc_view_get_scale (view);
+    view->saved.y = view->box.y + geom.y * phoc_view_get_scale (view);
     view->saved.width = view->box.width;
     view->saved.height = view->box.height;
     view_restore (view);
   }
 
-  cursor->view_x = view->box.x + geom.x * view->scale;
-  cursor->view_y = view->box.y + geom.y * view->scale;
+  cursor->view_x = view->box.x + geom.x * phoc_view_get_scale (view);
+  cursor->view_y = view->box.y + geom.y * phoc_view_get_scale (view);
   struct wlr_box box;
 
   view_get_box (view, &box);
@@ -1812,10 +1812,13 @@ phoc_seat_end_compositor_grab (PhocSeat *seat)
   switch (cursor->mode) {
   case PHOC_CURSOR_MOVE:
     if (!view_is_fullscreen (view))
-      view_move (view, cursor->view_x, cursor->view_y);
+      phoc_view_move (view, cursor->view_x, cursor->view_y);
     break;
   case PHOC_CURSOR_RESIZE:
-    view_move_resize (view, cursor->view_x, cursor->view_y, cursor->view_width, cursor->view_height);
+    phoc_view_move_resize (view, cursor->view_x,
+                           cursor->view_y,
+                           cursor->view_width,
+                           cursor->view_height);
     break;
   case PHOC_CURSOR_PASSTHROUGH:
     break;

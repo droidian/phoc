@@ -442,7 +442,7 @@ phoc_output_initable_init (GInitable    *initable,
                                phoc_renderer_get_wlr_renderer (renderer))) {
     g_set_error (error,
                  G_FILE_ERROR, G_FILE_ERROR_FAILED,
-		 "Could not create renderer");
+                 "Could not create renderer");
     return FALSE;
   }
 
@@ -550,7 +550,7 @@ phoc_output_finalize (GObject *object)
   wl_list_remove (&self->commit.link);
   wl_list_remove (&self->output_destroy.link);
   g_clear_list (&self->debug_touch_points, g_free);
-  /* Remove all frame callbacks, this will also free associzted user data */
+  /* Remove all frame callbacks, this will also free associated user data */
   g_clear_slist (&priv->frame_callbacks,
                  (GDestroyNotify)phoc_output_frame_callback_info_free);
 
@@ -723,10 +723,10 @@ phoc_output_view_for_each_surface (PhocOutput          *self,
     .width = view->box.width,
     .height = view->box.height,
     .rotation = 0,
-    .scale = view->scale
+    .scale = phoc_view_get_scale (view)
   };
 
-  view_for_each_surface (view, phoc_output_for_each_surface_iterator, &data);
+  phoc_view_for_each_surface (view, phoc_output_for_each_surface_iterator, &data);
 }
 
 #ifdef PHOC_XWAYLAND
@@ -768,12 +768,12 @@ phoc_output_xwayland_children_for_each_surface (PhocOutput                  *sel
 #endif
 
 static void
-phoc_output_layer_handle_surface (PhocOutput *self, PhocLayerSurface *layer_surface,
-                                  PhocSurfaceIterator iterator, void
-                                  *user_data)
+phoc_output_layer_handle_surface (PhocOutput          *self,
+                                  PhocLayerSurface    *layer_surface,
+                                  PhocSurfaceIterator  iterator,
+                                  void                *user_data)
 {
-  struct wlr_layer_surface_v1 *wlr_layer_surface_v1 =
-    layer_surface->layer_surface;
+  struct wlr_layer_surface_v1 *wlr_layer_surface_v1 = layer_surface->layer_surface;
 
   phoc_output_surface_for_each_surface (self, wlr_layer_surface_v1->surface,
                                         layer_surface->geo.x,
@@ -781,12 +781,10 @@ phoc_output_layer_handle_surface (PhocOutput *self, PhocLayerSurface *layer_surf
                                         user_data);
 
   struct wlr_xdg_popup *state;
-
   wl_list_for_each (state, &wlr_layer_surface_v1->popups, link) {
     struct wlr_xdg_surface *popup = state->base;
-    if (!popup->configured) {
+    if (!popup->configured)
       continue;
-    }
 
     double popup_sx, popup_sy;
     popup_sx = layer_surface->geo.x;
@@ -816,22 +814,19 @@ phoc_output_layer_for_each_surface (PhocOutput          *self,
 {
   PhocLayerSurface *layer_surface;
 
-  wl_list_for_each_reverse (layer_surface, &self->layer_surfaces, link)
-  {
+  wl_list_for_each_reverse (layer_surface, &self->layer_surfaces, link) {
     if (layer_surface->layer != layer)
       continue;
 
-    if (layer_surface->layer_surface->current.exclusive_zone <= 0) {
+    if (layer_surface->layer_surface->current.exclusive_zone <= 0)
       phoc_output_layer_handle_surface (self, layer_surface, iterator, user_data);
-    }
   }
   wl_list_for_each (layer_surface, &self->layer_surfaces, link) {
     if (layer_surface->layer != layer)
       continue;
 
-    if (layer_surface->layer_surface->current.exclusive_zone > 0) {
+    if (layer_surface->layer_surface->current.exclusive_zone > 0)
       phoc_output_layer_handle_surface (self, layer_surface, iterator, user_data);
-    }
   }
 }
 
@@ -897,7 +892,7 @@ phoc_output_for_each_surface (PhocOutput          *self,
     phoc_output_view_for_each_surface (self, view, iterator, user_data);
 
 #ifdef PHOC_XWAYLAND
-    if (view->type == PHOC_XWAYLAND_VIEW) {
+    if (PHOC_IS_XWAYLAND_SURFACE (view)) {
       PhocXWaylandSurface *xwayland_surface =
         phoc_xwayland_surface_from_view (view);
       phoc_output_xwayland_children_for_each_surface (self,
@@ -979,8 +974,7 @@ phoc_view_accept_damage (PhocOutput *self, PhocView  *view)
     return true;
   }
 #ifdef PHOC_XWAYLAND
-  if (self->fullscreen_view->type == PHOC_XWAYLAND_VIEW &&
-      view->type == PHOC_XWAYLAND_VIEW) {
+  if (PHOC_IS_XWAYLAND_SURFACE (self->fullscreen_view) && PHOC_IS_XWAYLAND_SURFACE (view)) {
     // Special case: accept damage from children
     struct wlr_xwayland_surface *xsurface =
       phoc_xwayland_surface_from_view (view)->xwayland_surface;
@@ -1171,8 +1165,6 @@ handle_output_manager_apply (struct wl_listener *listener, void *data)
 void
 handle_output_manager_test (struct wl_listener *listener, void *data)
 {
-  PhocDesktop *desktop =
-    wl_container_of (listener, desktop, output_manager_test);
   struct wlr_output_configuration_v1 *config = data;
 
   // TODO: implement test-only mode
@@ -1343,6 +1335,14 @@ phoc_output_remove_frame_callback  (PhocOutput *self, guint id)
 }
 
 
+static gint
+find_cb_by_animatable (PhocOutputFrameCallbackInfo *info,  PhocAnimatable *animatable)
+{
+  g_assert (PHOC_IS_ANIMATABLE (animatable));
+
+  return !(info->animatable == animatable);
+}
+
 /**
  * phoc_output_remove_frame_callbacks_by_animatable:
  * @self: The output to remove the frame callbacks from
@@ -1354,18 +1354,18 @@ void
 phoc_output_remove_frame_callbacks_by_animatable  (PhocOutput *self, PhocAnimatable *animatable)
 {
   PhocOutputPrivate *priv;
+  GSList *found;
 
   g_assert (PHOC_IS_OUTPUT (self));
   priv = phoc_output_get_instance_private (self);
 
-  for (GSList *elem = priv->frame_callbacks; elem; elem = elem->next) {
-    PhocOutputFrameCallbackInfo *cb_info = elem->data;
+  do {
+    found = g_slist_find_custom (priv->frame_callbacks, animatable,
+                                 (GCompareFunc)find_cb_by_animatable);
+    if (found)
+      priv->frame_callbacks = g_slist_delete_link (priv->frame_callbacks, found);
 
-    if (cb_info->animatable == animatable) {
-      phoc_output_frame_callback_info_free (cb_info);
-      priv->frame_callbacks = g_slist_delete_link (priv->frame_callbacks, elem);
-    }
-  }
+  } while (found);
 }
 
 

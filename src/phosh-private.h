@@ -24,7 +24,7 @@ typedef enum {
 } PhocPhoshPrivateShellState;
 
 PhocPhoshPrivate *phoc_phosh_private_new (void);
-bool              phoc_phosh_private_forward_keysym (PhocKeyCombo *combo, uint32_t timestamp);
+bool              phoc_phosh_private_forward_keysym (PhocKeyCombo *combo, uint32_t timestamp, bool pressed);
 void              phoc_phosh_private_notify_startup_id (PhocPhoshPrivate                           *self,
                                                         const char                                 *startup_id,
                                                         enum phosh_private_startup_tracker_protocol proto);

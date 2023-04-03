@@ -1,5 +1,5 @@
 project('phoc', 'c',
-          version: '0.25.2',
+          version: '0.26.0',
           license: 'GPLv3+',
     meson_version: '>= 0.56.0',
   default_options: [
@@ -152,6 +152,7 @@ meson.add_install_script(
 subdir('protocols')
 subdir('src')
 subdir('tests')
+subdir('helpers')
 subdir('data')
 subdir('doc')
 subdir('examples')

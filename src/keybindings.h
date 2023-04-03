@@ -32,9 +32,9 @@ typedef struct
 
 typedef struct _PhocSeat PhocSeat;
 gboolean         phoc_keybindings_handle_pressed (PhocKeybindings *self,
-						  guint32 modifiers,
-						  xkb_keysym_t *pressed_keysyms,
-						  guint32 length,
-						  PhocSeat *seat);
+                                                  guint32 modifiers,
+                                                  xkb_keysym_t *pressed_keysyms,
+                                                  guint32 length,
+                                                  PhocSeat *seat);
 PhocKeyCombo *parse_accelerator (const gchar * accelerator);
 G_END_DECLS

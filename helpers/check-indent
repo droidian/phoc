@@ -1,0 +1,46 @@
+#!/bin/bash
+
+# Files containing tab indented code blogs
+TO_CLEANUP="
+    src/desktop.c
+    src/desktop.h
+    src/layers.h
+    src/layer_shell.c
+    src/render.c
+    src/settings.c
+    src/settings.h
+    src/text_input.c
+    src/text_input.h
+    src/view.c
+    src/view.h
+    src/xdg_shell.c
+    src/xwayland.c
+    src/xwayland.h
+    src/xwayland-surface.c
+    src/xwayland-surface.h
+"
+
+export LC_ALL=C
+
+if [ -n "$1" ]; then
+    cd "$1"
+fi
+
+if [ ! -d .git ]; then
+  exit 0
+fi
+
+EXCLUDES=""
+for file in ${TO_CLEANUP}; do
+    if [ -z "$(git grep -l '^[ ]*	' -- $file )" ]; then
+	echo "ERROR: '$file' doesn't contain tab indent but is on cleanup list" 1>&2
+	exit 2
+    fi
+    EXCLUDES="${EXCLUDES} :^${file}"
+done
+
+OUT=$(git grep -l '^[ ]*	' -- src/ tests/ ${EXCLUDES})
+if [ -n "${OUT}" ]; then
+    echo "ERROR: Tab indent in '${OUT}' detected." 1>&2
+    exit 1
+fi

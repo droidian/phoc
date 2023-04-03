@@ -25,23 +25,23 @@ G_DECLARE_FINAL_TYPE (PhocLayerSurface, phoc_layer_surface, PHOC, LAYER_SURFACE,
  * For details on how to setup a layer surface see `handle_layer_shell_surface`.
  */
 struct _PhocLayerSurface {
-    GObject parent;
+  GObject parent;
 
-    struct wlr_layer_surface_v1 *layer_surface;
-    struct wl_list link; // PhocOutput::layer_surfaces
+  struct wlr_layer_surface_v1 *layer_surface;
+  struct wl_list link; // PhocOutput::layer_surfaces
 
-    struct wl_listener destroy;
-    struct wl_listener map;
-    struct wl_listener unmap;
-    struct wl_listener surface_commit;
-    struct wl_listener output_destroy;
-    struct wl_listener new_popup;
-    struct wl_listener new_subsurface;
-    struct wl_list subsurfaces; // phoc_layer_subsurface::link
+  struct wl_listener destroy;
+  struct wl_listener map;
+  struct wl_listener unmap;
+  struct wl_listener surface_commit;
+  struct wl_listener output_destroy;
+  struct wl_listener new_popup;
+  struct wl_listener new_subsurface;
+  struct wl_list subsurfaces; // phoc_layer_subsurface::link
 
-    struct wlr_box geo;
-    enum zwlr_layer_shell_v1_layer layer;
-    bool mapped;
+  struct wlr_box geo;
+  enum zwlr_layer_shell_v1_layer layer;
+  bool mapped;
 };
 
 PhocLayerSurface *phoc_layer_surface_new (struct wlr_layer_surface_v1 *layer_surface);

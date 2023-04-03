@@ -65,9 +65,9 @@ phoc_gesture_single_set_property (GObject      *object,
 
 static void
 phoc_gesture_single_get_property (GObject    *object,
-		      guint       property_id,
-		      GValue     *value,
-		      GParamSpec *pspec)
+                                  guint       property_id,
+                                  GValue     *value,
+                                  GParamSpec *pspec)
 {
   PhocGestureSingle *self = PHOC_GESTURE_SINGLE (object);
   PhocGestureSinglePrivate *priv = phoc_gesture_single_get_instance_private (self);
