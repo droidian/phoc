@@ -37,7 +37,8 @@ PhocSwitch             *phoc_switch_new                            (struct wlr_i
                                                                     PhocSeat                *seat);
 gboolean                phoc_switch_is_tablet_mode_switch          (PhocSwitch              *self);
 gboolean                phoc_switch_is_lid_switch                  (PhocSwitch              *self);
+gboolean                phoc_switch_is_keypad_slide                (PhocSwitch *self);
 gboolean                phoc_switch_is_type                        (PhocSwitch              *self,
                                                                     enum wlr_switch_type     type);
-
+gboolean                phoc_switch_get_state                      (PhocSwitch *self);
 G_END_DECLS

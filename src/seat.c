@@ -202,6 +202,8 @@ on_switch_toggled (PhocSeat *self, gboolean state, PhocSwitch *switch_)
     phoc_device_state_notify_tablet_mode_change (priv->device_state, state);
   } else if (phoc_switch_is_lid_switch (switch_)) {
     phoc_device_state_notify_lid_change (priv->device_state, state);
+  } else if (phoc_switch_is_keypad_slide (switch_)) {
+    phoc_device_state_notify_keypad_switch_change (priv->device_state, state);
   } else {
     g_assert_not_reached ();
   }
