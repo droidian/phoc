@@ -457,6 +457,15 @@ phoc_device_state_notify_lid_change (PhocDeviceState *self, gboolean closed)
   }
 }
 
+void
+phoc_device_state_notify_keypad_switch_change (PhocDeviceState *self, gboolean closed)
+{
+  g_assert (PHOC_IS_DEVICE_STATE (self));
+  PhocSwitchState state = closed ? PHOC_SWITCH_STATE_ON : PHOC_SWITCH_STATE_OFF;
+
+  phoc_phosh_private_forward_switch_event (3 /* LIBINPUT_SWITCH_KEYPAD_SLIDE */, closed);
+}
+
 
 void
 phoc_device_state_notify_tablet_mode_change (PhocDeviceState *self, gboolean enabled)
