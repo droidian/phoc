@@ -2,6 +2,8 @@
 
 #include "phoc-config.h"
 
+#include "phosh-private.h"
+
 #include "switch.h"
 
 #include <wlr/backend/libinput.h>
@@ -135,14 +137,35 @@ phoc_switch_is_lid_switch (PhocSwitch *self)
 
 
 gboolean
+phoc_switch_is_keypad_slide (PhocSwitch *self)
+{
+  struct libinput_device *ldev;
+
+  if (!phoc_input_device_get_is_libinput (PHOC_INPUT_DEVICE (self)))
+    return FALSE;
+
+  ldev = phoc_input_device_get_libinput_device_handle (PHOC_INPUT_DEVICE (self));
+
+  return libinput_device_switch_has_switch (ldev, 3 /* LIBINPUT_SWITCH_KEYPAD_SLIDE */) > 0;
+}
+
+gboolean
 phoc_switch_is_type (PhocSwitch *self, enum wlr_switch_type type)
 {
   switch (type) {
   case WLR_SWITCH_TYPE_LID:
     return phoc_switch_is_lid_switch (self);
+  case WLR_SWITCH_TYPE_KEYPAD_SLIDE:
+    return phoc_switch_is_keypad_slide (self);
   case WLR_SWITCH_TYPE_TABLET_MODE:
     return phoc_switch_is_tablet_mode_switch (self);
   default:
     g_assert_not_reached ();
   }
+}
+
+gboolean
+phoc_switch_get_state (PhocSwitch *self)
+{
+  return self->state;
 }

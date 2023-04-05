@@ -22,6 +22,8 @@ PhocDeviceState     *phoc_device_state_new                          (PhocSeat   
 void                 phoc_device_state_update_capabilities          (PhocDeviceState *self);
 void                 phoc_device_state_notify_lid_change            (PhocDeviceState *self,
                                                                      gboolean         closed);
+void                 phoc_device_state_notify_keypad_switch_change  (PhocDeviceState *self,
+                                                                     gboolean         closed);
 void                 phoc_device_state_notify_tablet_mode_change    (PhocDeviceState *self,
                                                                      gboolean         closed);
 
