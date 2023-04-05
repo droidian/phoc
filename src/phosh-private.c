@@ -17,6 +17,8 @@
 #include <wayland-server-core.h>
 #include <wlr/config.h>
 #include <wlr/types/wlr_surface.h>
+#include <wlr/types/wlr_switch.h>
+#include <wlr/util/log.h>
 #include <wlr/render/wlr_texture.h>
 #include <wlr/types/wlr_matrix.h>
 #include <phosh-private-protocol.h>
@@ -25,6 +27,7 @@
 #include "desktop.h"
 #include "render.h"
 #include "utils.h"
+#include "seat.h"
 
 /* help older (0.8.2) libxkbcommon */
 #ifndef XKB_KEY_XF86RotationLockToggle
@@ -667,6 +670,58 @@ static const struct phosh_private_interface phosh_private_impl = {
 };
 
 
+bool
+phoc_phosh_private_forward_switch_event (guint switch_type, guint switch_state)
+{
+  PhocServer *server = phoc_server_get_default ();
+  PhocPhoshPrivate *phosh_private = server->desktop->phosh;
+
+  g_debug ("Forwarding event type %d, state %d", switch_type, switch_state);
+  if (phosh_private && phosh_private->resource && switch_type > 0) {
+      phosh_private_send_switch_event (phosh_private->resource,
+                                       switch_type,
+                                       switch_state);
+
+      return true;
+  }
+
+  return false;
+}
+
+
+static void
+emit_state_changes ()
+{
+  PhocServer *server = phoc_server_get_default ();
+
+  PhocPhoshPrivate *phosh_private;
+  phosh_private = server->desktop->phosh;
+
+  PhocInput *input = server->input;
+  PhocSwitch *switch_device;
+  PhocSeat *seat;
+
+  for (GSList *elem = phoc_input_get_seats (input); elem; elem = elem->next) {
+    seat = PHOC_SEAT (elem->data);
+
+    if (!PHOC_IS_SEAT (seat))
+        continue;
+
+    g_debug ("KEYPAD: Inside one seat! %p", seat);
+    wl_list_for_each(switch_device, &seat->switches, link) {
+      uint32_t _switch_type, _switch_state;
+
+      g_object_get (switch_device, "switch-type", &_switch_type,
+                    "state", &_switch_state, NULL);
+
+      g_info ("KEYPAD: Found switch details type %d state %d", _switch_type, _switch_state);
+                
+      phoc_phosh_private_forward_switch_event (_switch_type, _switch_state);
+    }
+  }
+}
+
+
 static void
 phosh_private_bind (struct wl_client *client, void *data, uint32_t version, uint32_t id)
 {
@@ -689,6 +744,9 @@ phosh_private_bind (struct wl_client *client, void *data, uint32_t version, uint
     phosh->resource = resource;
     g_debug ("Bound client %d with version %d", id, version);
     phosh->version = version;
+
+    /* Sync switch state changes */
+    emit_state_changes ();
     return;
   }
 

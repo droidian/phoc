@@ -172,7 +172,7 @@ static void
 handle_switch_toggle (struct wl_listener *listener, void *data)
 {
   PhocServer *server = phoc_server_get_default ();
-  struct phoc_switch *switch_device =
+  PhocSwitch *switch_device =
     wl_container_of (listener, switch_device, toggle);
   PhocDesktop *desktop = server->desktop;
 
@@ -987,7 +987,7 @@ seat_add_pointer (PhocSeat                *seat,
 static void
 handle_switch_destroy (struct wl_listener *listener, void *data)
 {
-  struct phoc_switch *switch_device =
+  PhocSwitch *switch_device =
     wl_container_of (listener, switch_device, device_destroy);
   PhocSeat *seat = switch_device->seat;
 
@@ -1003,7 +1003,7 @@ seat_add_switch (PhocSeat                *seat,
                  struct wlr_input_device *device)
 {
   assert (device->type == WLR_INPUT_DEVICE_SWITCH);
-  struct phoc_switch *switch_device = g_new0 (struct phoc_switch, 1);
+  PhocSwitch *switch_device = phoc_switch_new (device, seat);
 
   device->data = switch_device;
   switch_device->device = device;
