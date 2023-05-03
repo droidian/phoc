@@ -15,7 +15,7 @@
 #include <wlr/types/wlr_idle_inhibit_v1.h>
 
 #include <gio/gio.h>
-
+#include <glib/gi18n.h>
 
 #define SCREENSAVER_BUS_NAME  "org.freedesktop.ScreenSaver"
 
@@ -67,14 +67,22 @@ on_screensaver_inhibit_finish (GObject *source, GAsyncResult *res, gpointer user
 
 
 static void
-screensaver_idle_inhibit (PhocIdleInhibit *self, PhocIdleInhibitorV1 *inhibitor)
+screensaver_idle_inhibit (PhocIdleInhibit *self, PhocIdleInhibitorV1 *inhibitor, PhocView *view)
 {
+  const char *app_id = NULL;
+
   if (!self->screensaver_proxy)
     return;
 
+  if (view)
+    app_id = phoc_view_get_app_id (view);
+
+  if (app_id == NULL)
+    app_id = PHOC_APP_ID;
+
   g_dbus_proxy_call (self->screensaver_proxy,
                      "Inhibit",
-                     g_variant_new ("(ss)", "phoc", "idle-inhibit"),
+                     g_variant_new ("(ss)", app_id, _("Inhibiting idle session")),
                      G_DBUS_CALL_FLAGS_NONE,
                      -1,
                      self->cancellable,
@@ -155,7 +163,7 @@ on_view_mapped_changed (PhocIdleInhibitorV1 *inhibitor, GParamSpec *pspec, PhocV
   g_assert (PHOC_IS_VIEW (view));
 
   if (phoc_view_is_mapped (view))
-    screensaver_idle_inhibit (inhibitor->idle_inhibit, inhibitor);
+    screensaver_idle_inhibit (inhibitor->idle_inhibit, inhibitor, view);
   else
     screensaver_idle_uninhibit (inhibitor->idle_inhibit, inhibitor);
 }
@@ -203,7 +211,7 @@ handle_idle_inhibitor_v1 (struct wl_listener *listener, void *data)
                               inhibitor);
   } else {
     /* Inhibit when we can't find a matching view */
-    screensaver_idle_inhibit (self, inhibitor);
+    screensaver_idle_inhibit (self, inhibitor, NULL);
   }
 }
 

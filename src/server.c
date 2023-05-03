@@ -123,7 +123,7 @@ on_child_setup (gpointer unused)
   sigset_t mask;
 
   /* phoc wants SIGUSR1 blocked due to wlroots/xwayland but we
-     don't want to inherit that to childs */
+     don't want to inherit that to children */
   sigemptyset(&mask);
   sigaddset(&mask, SIGUSR1);
   sigprocmask(SIG_UNBLOCK, &mask, NULL);
@@ -320,26 +320,28 @@ phoc_server_get_default (void)
 
 /**
  * phoc_server_setup:
+ * @self: The server
+ * @config:(transfer full): The configuration
+ * @session: The session name
+ * @mainloop:(transfer none): The mainloop
+ * @flags: The flags to use for spawning the server
+ * @debug_flags: The debug flags to use
  *
- * Perform wayland server intialization: parse command line and config,
+ * Perform wayland server initialization: parse command line and config,
  * create the wayland socket, setup env vars.
  *
  * Returns: %TRUE on success, %FALSE otherwise
  */
 gboolean
-phoc_server_setup (PhocServer *self, const char *config_path,
+phoc_server_setup (PhocServer *self, PhocConfig *config,
                    const char *session, GMainLoop *mainloop,
                    PhocServerFlags flags,
                    PhocServerDebugFlags debug_flags)
 {
   g_assert (!self->inited);
 
-  self->config = phoc_config_create (config_path);
-  if (!self->config) {
-    /* phoc_config_create printed an error */
-    return FALSE;
-  }
-
+  self->config = config;
+  self->flags = flags;
   self->debug_flags = debug_flags;
   self->mainloop = mainloop;
   self->exit_status = 1;
@@ -347,7 +349,6 @@ phoc_server_setup (PhocServer *self, const char *config_path,
   self->input = phoc_input_new ();
   self->session = g_strdup (session);
   self->mainloop = mainloop;
-  self->flags = flags;
 
   const char *socket = wl_display_add_socket_auto(self->wl_display);
   if (!socket) {

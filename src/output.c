@@ -462,7 +462,7 @@ phoc_output_initable_init (GInitable    *initable,
   self->damage_destroy.notify = phoc_output_damage_handle_destroy;
   wl_signal_add (&self->damage->events.destroy, &self->damage_destroy);
 
-  PhocOutputConfig *output_config = phoc_config_get_output (config, self->wlr_output);
+  PhocOutputConfig *output_config = phoc_config_get_output (config, self);
 
   struct wlr_output_mode *preferred_mode =
     wlr_output_preferred_mode (self->wlr_output);
@@ -470,11 +470,12 @@ phoc_output_initable_init (GInitable    *initable,
   if (output_config) {
     if (output_config->enable) {
       if (wlr_output_is_drm (self->wlr_output)) {
-        PhocOutputModeConfig *mode_config;
-        wl_list_for_each (mode_config, &output_config->modes, link) {
+
+        for (GSList *l = output_config->modes; l; l = l->next) {
+          PhocOutputModeConfig *mode_config = l->data;
           wlr_drm_connector_add_mode (self->wlr_output, &mode_config->info);
         }
-      } else if (!wl_list_empty (&output_config->modes)) {
+      } else if (output_config->modes != NULL) {
         g_warning ("Can only add modes for DRM backend");
       }
 
@@ -531,7 +532,7 @@ phoc_output_initable_init (GInitable    *initable,
                                                    G_CALLBACK (render_cutouts),
                                                    self);
     } else {
-      g_warning ("Could't create cutout overlay");
+      g_warning ("Could not create cutout overlay");
     }
   }
 
@@ -893,11 +894,9 @@ phoc_output_for_each_surface (PhocOutput          *self,
 
 #ifdef PHOC_XWAYLAND
     if (PHOC_IS_XWAYLAND_SURFACE (view)) {
-      PhocXWaylandSurface *xwayland_surface =
-        phoc_xwayland_surface_from_view (view);
-      phoc_output_xwayland_children_for_each_surface (self,
-                                                      xwayland_surface->xwayland_surface,
-                                                      iterator, user_data);
+      struct wlr_xwayland_surface *xsurface =
+        phoc_xwayland_surface_get_wlr_surface (PHOC_XWAYLAND_SURFACE (view));
+      phoc_output_xwayland_children_for_each_surface (self, xsurface, iterator, user_data);
     }
 #endif
   } else {
@@ -977,9 +976,9 @@ phoc_view_accept_damage (PhocOutput *self, PhocView  *view)
   if (PHOC_IS_XWAYLAND_SURFACE (self->fullscreen_view) && PHOC_IS_XWAYLAND_SURFACE (view)) {
     // Special case: accept damage from children
     struct wlr_xwayland_surface *xsurface =
-      phoc_xwayland_surface_from_view (view)->xwayland_surface;
+      phoc_xwayland_surface_get_wlr_surface (PHOC_XWAYLAND_SURFACE (view));
     struct wlr_xwayland_surface *fullscreen_xsurface =
-      phoc_xwayland_surface_from_view (self->fullscreen_view)->xwayland_surface;
+      phoc_xwayland_surface_get_wlr_surface (PHOC_XWAYLAND_SURFACE (self->fullscreen_view));
     while (xsurface != NULL) {
       if (fullscreen_xsurface == xsurface) {
         return true;
@@ -1277,7 +1276,7 @@ phoc_output_has_fullscreen_view (PhocOutput *self)
 {
   g_assert (PHOC_IS_OUTPUT (self));
 
-  return self->fullscreen_view != NULL && self->fullscreen_view->wlr_surface != NULL;
+  return phoc_view_is_mapped (self->fullscreen_view);
 }
 
 
@@ -1534,4 +1533,14 @@ phoc_output_get_scale (PhocOutput *self)
   g_assert (self->wlr_output);
 
   return self->wlr_output->scale;
+}
+
+
+const char *
+phoc_output_get_name (PhocOutput *self)
+{
+  g_assert (PHOC_IS_OUTPUT (self));
+  g_assert (self->wlr_output);
+
+  return self->wlr_output->name;
 }

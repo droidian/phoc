@@ -114,8 +114,7 @@ phoc_deps = [
 ]
 
 if have_xwayland
-  sources += ['xwayland.c',
-              'xwayland-surface.c',
+  sources += ['xwayland-surface.c',
               'xwayland-surface.h',
              ]
   phoc_deps += dependency('xcb')

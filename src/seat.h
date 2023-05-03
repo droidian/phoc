@@ -84,9 +84,6 @@ typedef struct _PhocSeatView {
   double             grab_sy;
 
   struct wl_list     link;   // PhocSeat::views
-
-  struct wl_listener view_unmap;
-  struct wl_listener view_destroy;
 } PhocSeatView;
 
 struct _PhocDragIcon {

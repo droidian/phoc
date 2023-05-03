@@ -66,7 +66,6 @@ typedef struct {
 typedef struct {
   struct wl_resource *resource, *toplevel;
   struct phosh_private *phosh;
-  struct wl_listener view_destroy;
 
   enum wl_shm_format format;
   uint32_t width;
@@ -372,19 +371,19 @@ phosh_private_screencopy_frame_handle_resource_destroy (struct wl_resource *reso
   PhocPhoshPrivateScreencopyFrame *frame = phoc_phosh_private_screencopy_frame_from_resource (resource);
 
   g_debug ("Destroying private_screencopy_frame %p (res %p)", frame, frame->resource);
-  if (frame->view) {
-      wl_list_remove (&frame->view_destroy.link);
-  }
+  if (frame->view)
+    g_signal_handlers_disconnect_by_data (frame->view, frame);
+
   free (frame);
 }
 
 
 static void
-thumbnail_view_handle_destroy (struct wl_listener *listener, void *data)
+on_surface_destroy (PhocView *view, PhocPhoshPrivateScreencopyFrame *frame)
 {
-  PhocPhoshPrivateScreencopyFrame *frame =
-    wl_container_of (listener, frame, view_destroy);
+  g_assert (PHOC_IS_VIEW (view));
 
+  g_signal_handlers_disconnect_by_data (frame->view, frame);
   frame->view = NULL;
 }
 
@@ -433,7 +432,7 @@ thumbnail_frame_handle_copy (struct wl_client   *wl_client,
   }
 
   PhocView *view = frame->view;
-  wl_list_remove (&frame->view_destroy.link);
+  g_signal_handlers_disconnect_by_data (frame->view, frame);
   frame->view = NULL;
 
   uint32_t renderer_flags = 0;
@@ -519,9 +518,7 @@ handle_get_thumbnail (struct wl_client *client,
 
   frame->toplevel = toplevel;
   frame->view = view;
-
-  frame->view_destroy.notify = thumbnail_view_handle_destroy;
-  wl_signal_add (&frame->view->events.destroy, &frame->view_destroy);
+  g_signal_connect (view, "surface-destroy", G_CALLBACK (on_surface_destroy), frame);
 
   // We hold to the current surface size even though it may change before
   // the frame is actually rendered. wlr-screencopy doesn't give much

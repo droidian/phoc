@@ -144,6 +144,9 @@
     <request name="destroy" type="destructor">
       <description summary="destroy the draggable_layer_surface">
         This request destroys the draggable layer surface.
+
+        It's a protocol error if the client destroys the layer-surface before
+        the draggable layer-surface.
       </description>
     </request>
 

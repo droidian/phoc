@@ -126,8 +126,6 @@ phoc_event_free (PhocEvent *event)
  * phoc_event_get_event_sequence:
  * @event: a `PhocEvent`
  *
- * Retuns the event sequence to which the event belongs.
- *
  * Related touch events are connected in a sequence. Other
  * events typically don't have event sequence information.
  *

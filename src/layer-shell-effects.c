@@ -290,13 +290,13 @@ phoc_draggable_layer_surface_destroy (PhocDraggableLayerSurface *drag_surface)
     phoc_animatable_remove_frame_callback (PHOC_ANIMATABLE (drag_surface->layer_surface),
                                            drag_surface->drag.anim_id);
   }
-  /* wlr signals */
-  wl_list_remove (&drag_surface->surface_handle_commit.link);
-  wl_list_remove (&drag_surface->layer_surface_handle_destroy.link);
 
   if (drag_surface->layer_surface) {
     g_hash_table_remove (layer_shell_effects->drag_surfaces_by_layer_sufrace,
                          drag_surface->layer_surface);
+    /* wlr signals */
+    wl_list_remove (&drag_surface->surface_handle_commit.link);
+    wl_list_remove (&drag_surface->layer_surface_handle_destroy.link);
   }
   layer_shell_effects->drag_surfaces = g_slist_remove (layer_shell_effects->drag_surfaces,
                                                        drag_surface);
@@ -332,7 +332,7 @@ layer_surface_handle_destroy (struct wl_listener *listener, void *data)
   PhocDraggableLayerSurface *drag_surface =
     wl_container_of(listener, drag_surface, layer_surface_handle_destroy);
 
-  /* Drop the gone layer-surface form the layer-surface -> drag-surface mapping */
+  /* Drop the gone layer-surface from the layer-surface -> drag-surface mapping */
   layer_shell_effects = PHOC_LAYER_SHELL_EFFECTS (drag_surface->layer_shell_effects);
   g_hash_table_remove (layer_shell_effects->drag_surfaces_by_layer_sufrace,
                        drag_surface->layer_surface);
@@ -726,7 +726,7 @@ phoc_draggable_layer_surface_slide (PhocDraggableLayerSurface *drag_surface, Pho
 
 /**
  * phoc_draggable_layer_surface_get_layer_surface:
- * @drag_surface: The dragable layer suface
+ * @drag_surface: The draggable layer surface
  *
  * Returns: (transfer none): The underlying layer surface
  */
@@ -836,7 +836,7 @@ phoc_draggable_layer_surface_drag_start (PhocDraggableLayerSurface *drag_surface
     break;
   }
 
-  /* The user "catched" the surface during an animation */
+  /* The user "caught" the surface during an animation */
   if (drag_surface->state == PHOC_DRAGGABLE_SURFACE_STATE_ANIMATING) {
     if (drag_surface->drag.anim_id) {
       phoc_animatable_remove_frame_callback (PHOC_ANIMATABLE (drag_surface->layer_surface),

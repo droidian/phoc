@@ -5,6 +5,7 @@
 #include "layer-shell-effects.h"
 #include "phosh-private.h"
 #include "view.h"
+#include "xwayland-surface.h"
 
 #include <time.h>
 #include <wayland-server-core.h>
@@ -34,10 +35,6 @@
 #include <gio/gio.h>
 
 #include "settings.h"
-
-#ifdef PHOC_XWAYLAND
-#include "xwayland.h"
-#endif
 
 #define PHOC_TYPE_DESKTOP (phoc_desktop_get_type())
 
@@ -138,4 +135,3 @@ phoc_desktop_get_draggable_layer_surface (PhocDesktop *self, PhocLayerSurface *l
 void handle_xdg_shell_surface(struct wl_listener *listener, void *data);
 void handle_xdg_toplevel_decoration(struct wl_listener *listener, void *data);
 void handle_layer_shell_surface(struct wl_listener *listener, void *data);
-void handle_xwayland_surface(struct wl_listener *listener, void *data);

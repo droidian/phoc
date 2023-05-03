@@ -18,7 +18,7 @@ G_BEGIN_DECLS
 /**
  * PhocDraggableSurface:
  *
- * A dragable layer surface.
+ * A draggable layer surface.
  */
 typedef struct _PhocDraggableLayerSurface PhocDraggableLayerSurface;
 

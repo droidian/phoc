@@ -307,7 +307,7 @@ static void
 render_view (PhocOutput *output, PhocView *view, struct render_data *data)
 {
   // Do not render views fullscreened on other outputs
-  if (view_is_fullscreen (view) && view->fullscreen_output != output)
+  if (view_is_fullscreen (view) && phoc_view_get_fullscreen_output (view) != output)
     return;
 
   data->alpha = phoc_view_get_alpha (view);
@@ -340,7 +340,7 @@ static void count_surface_iterator (PhocOutput         *output,
                                     void               *data)
 {
   size_t *n = data;
-  n++;
+  (*n)++;
 }
 
 
@@ -383,9 +383,9 @@ static bool scan_out_fullscreen_view(PhocOutput *output) {
 
 #if WLR_HAS_XWAYLAND
 	if (PHOC_IS_XWAYLAND_SURFACE (view)) {
-		PhocXWaylandSurface *xwayland_surface =
-			phoc_xwayland_surface_from_view(view);
-		if (!wl_list_empty(&xwayland_surface->xwayland_surface->children)) {
+		struct wlr_xwayland_surface *xsurface =
+			phoc_xwayland_surface_get_wlr_surface (PHOC_XWAYLAND_SURFACE (view));
+		if (!wl_list_empty(&xsurface->children)) {
 			return false;
 		}
 	}
@@ -745,11 +745,12 @@ void phoc_renderer_render_output (PhocRenderer *self, PhocOutput *output) {
 		// the fullscreen window's children so we have to traverse the tree.
 #ifdef PHOC_XWAYLAND
 		if (PHOC_IS_XWAYLAND_SURFACE (view)) {
-			PhocXWaylandSurface *xwayland_surface =
-				phoc_xwayland_surface_from_view(view);
+			struct wlr_xwayland_surface *xsurface =
+				phoc_xwayland_surface_get_wlr_surface (PHOC_XWAYLAND_SURFACE (view));
 			phoc_output_xwayland_children_for_each_surface(output,
-				xwayland_surface->xwayland_surface,
-				render_surface_iterator, &data);
+								       xsurface,
+								       render_surface_iterator,
+								       &data);
 		}
 #endif
 

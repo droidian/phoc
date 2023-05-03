@@ -82,7 +82,7 @@ phoc_gesture_swipe_filter_event (PhocGesture     *gesture,
 
     n_fingers = phoc_event_get_touchpad_gesture_n_fingers (event);
 
-    /* FIXEME: Let 0 fingers pass since UP events currently lack fingers */
+    /* FIXME: Let 0 fingers pass since UP events currently lack fingers */
     if (n_fingers == n_points || n_fingers == 0)
       return FALSE;
     else

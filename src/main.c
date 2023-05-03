@@ -8,6 +8,7 @@
 #include <unistd.h>
 
 #include <gio/gio.h>
+#include <glib/gi18n.h>
 
 #include <wayland-server-core.h>
 #include <wlr/backend.h>
@@ -113,7 +114,8 @@ main(int argc, char **argv)
   g_autofree gchar *exec = NULL;
   PhocServerFlags flags = PHOC_SERVER_FLAG_NONE;
   PhocServerDebugFlags debug_flags = PHOC_SERVER_DEBUG_FLAG_NONE;
-  gboolean version = FALSE, shell_mode = FALSE;
+  gboolean version = FALSE, shell_mode = FALSE, xwayland = FALSE;
+  PhocConfig *config;
 
   setup_signals();
 
@@ -124,6 +126,8 @@ main(int argc, char **argv)
      "Command (session) that will be ran at startup", NULL},
     {"shell", 'S', 0, G_OPTION_ARG_NONE, &shell_mode,
      "Whether to expect a shell to attach", NULL},
+    {"xwayland", 'X', 0, G_OPTION_ARG_NONE, &xwayland,
+     "Whether to start XWayland", NULL},
     {"version", 0, 0, G_OPTION_ARG_NONE, &version,
      "Show version information", NULL},
     { NULL, 0, 0, G_OPTION_ARG_NONE, NULL, NULL, NULL }
@@ -141,6 +145,11 @@ main(int argc, char **argv)
     print_version ();
   }
 
+  setlocale (LC_MESSAGES, "");
+  textdomain (GETTEXT_PACKAGE);
+  bind_textdomain_codeset (GETTEXT_PACKAGE, "UTF-8");
+  bindtextdomain (GETTEXT_PACKAGE, LOCALEDIR);
+
   debug_flags = parse_debug_env ();
   wlr_log_init(WLR_DEBUG, log_glib);
   server = phoc_server_get_default ();
@@ -152,9 +161,15 @@ main(int argc, char **argv)
   if (shell_mode)
     flags |= PHOC_SERVER_FLAG_SHELL_MODE;
 
+  config = phoc_config_new_from_file (config_path);
+  if (config == NULL)
+    return EXIT_FAILURE;
+  if (xwayland)
+    config->xwayland = TRUE;
+
   loop = g_main_loop_new (NULL, FALSE);
-  if (!phoc_server_setup (server, config_path, exec, loop, flags, debug_flags))
-    return 1;
+  if (!phoc_server_setup (server, config, exec, loop, flags, debug_flags))
+    return EXIT_FAILURE;
 
   g_main_loop_run (loop);
 

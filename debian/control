@@ -3,7 +3,7 @@ Priority: optional
 Maintainer: Guido Günther <agx@sigxcpu.org>
 Uploaders: Sebastian Krzyszkowiak <sebastian.krzyszkowiak@puri.sm>
 Build-Depends:
- debhelper (>= 12),
+ debhelper-compat (= 13),
  gsettings-desktop-schemas,
  gi-docgen <!nodoc>,
  libglib2.0-dev,

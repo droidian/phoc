@@ -1,3 +1,5 @@
+subdir('icons')
+
 schemas = ['sm.puri.phoc.gschema.xml']
 compiled = gnome.compile_schemas(
   build_by_default: true
@@ -6,6 +8,22 @@ compiled = gnome.compile_schemas(
 install_data(
   schemas,
   install_dir: 'share/glib-2.0/schemas'
+)
+
+desktopconf = configuration_data()
+desktopconf.set('bindir', bindir)
+desktop_file = 'sm.puri.Phoc.desktop'
+i18n.merge_file(
+  input: configure_file(
+    input: desktop_file + '.in.in',
+    output: desktop_file + '.in',
+    configuration: desktopconf
+  ),
+  output: desktop_file,
+  po_dir: '../po',
+  install: true,
+  install_dir: desktopdir,
+  type: 'desktop'
 )
 
 devconf = configuration_data()

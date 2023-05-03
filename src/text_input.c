@@ -313,7 +313,7 @@ relay_handle_text_input (struct wl_listener *listener, void *data)
   /* If the current focus surface of the seat is the same client make sure we send
      an enter event */
   PhocView *focus_view = phoc_seat_get_focus (relay->seat);
-  if (focus_view && focus_view->wlr_surface) {
+  if (phoc_view_is_mapped (focus_view)) {
     if (wl_resource_get_client (wlr_text_input->resource) ==
         wl_resource_get_client (focus_view->wlr_surface->resource))
       phoc_input_method_relay_set_focus (relay, focus_view->wlr_surface);

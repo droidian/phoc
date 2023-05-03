@@ -79,6 +79,9 @@ update_properties (PhocTimedAnimation *self, guint t)
 
   progress = (double) t / self->duration;
 
+  if (progress > 1.0)
+    progress = 1.0;
+
   phoc_property_easer_set_progress (self->prop_easer, progress);
 }
 
@@ -118,7 +121,7 @@ on_frame_callback (PhocAnimatable *animatable,
   guint t = self->elapsed_ms + ((now - last_frame) / 1000);
 
   g_debug ("t: %d/%d", t, self->duration);
-  if (t >= self->duration) {
+  if (self->elapsed_ms > self->duration) {
     self->frame_callback_id = 0;
     phoc_timed_animation_skip (self);
     return G_SOURCE_REMOVE;
@@ -291,7 +294,7 @@ phoc_timed_animation_class_init (PhocTimedAnimationClass *klass)
   /**
    * PhocAnimation::tick:
    *
-   * This signal is emitted on every tick of the frame clock that drives tha animation.
+   * This signal is emitted on every tick of the frame clock that drives the animation.
    */
   signals[TICK] =
     g_signal_new ("tick",

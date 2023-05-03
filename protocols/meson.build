@@ -6,6 +6,7 @@ wayland_scanner = find_program('wayland-scanner')
 
 server_protocols = [
         [wl_protocol_dir, 'stable/xdg-shell/xdg-shell.xml'],
+        [wl_protocol_dir, 'unstable/xdg-decoration/xdg-decoration-unstable-v1.xml'],
         [wl_protocol_dir, 'unstable/pointer-constraints/pointer-constraints-unstable-v1.xml'],
         [wl_protocol_dir, 'unstable/tablet/tablet-unstable-v2.xml'],
         ['gtk-shell.xml'],
