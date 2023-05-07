@@ -35,10 +35,18 @@ tests = [
   'phosh-private',
   'property-easer',
   'run',
+  'settings',
   'server',
   'utils',
+  'xdg-decoration',
   'xdg-shell',
 ]
+
+if have_xwayland == true
+  tests += [
+  'xwayland',
+]
+endif
 
 phoctest_sources = [
   'testlib.c',
@@ -65,4 +73,3 @@ foreach test : tests
 endforeach
 
 endif
-

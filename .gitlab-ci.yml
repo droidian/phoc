@@ -27,6 +27,8 @@ variables:
 
 .before_script_debian: &before_script_debian
   - rm -f ../* || true
+  - eatmydata apt-get -y update
+  - eatmydata apt-get -y install xwayland python3-docutils
   - dpkg -l
 
 .before_script_alpine: &before_script_alpine

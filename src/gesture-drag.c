@@ -50,7 +50,7 @@ phoc_gesture_drag_filter_event (PhocGesture       *gesture,
       guint n_fingers;
 
       g_object_get (G_OBJECT (gesture), "n-points", &n_points, NULL);
-      /* FIXME: wlr end events dont't have n_fingers so this always fails */
+      /* FIXME: wlr end events don't have n_fingers so this always fails */
       n_fingers = phoc_event_get_touchpad_gesture_n_fingers (event);
 
       if (n_fingers == n_points)

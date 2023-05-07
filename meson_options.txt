@@ -7,6 +7,9 @@ option('tests',
 option('gtk_doc',
        type: 'boolean', value: false,
        description: 'Whether to generate the API reference')
+option('man',
+       type: 'boolean', value : false,
+       description : 'generate man pages (requires rst2man)')
 option('dev-uid',
        type: 'integer', value: 1000,
        description: 'User id for phoc development')

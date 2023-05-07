@@ -1,5 +1,5 @@
 project('phoc', 'c',
-          version: '0.26.0',
+          version: '0.27.0',
           license: 'GPLv3+',
     meson_version: '>= 0.56.0',
   default_options: [
@@ -19,7 +19,10 @@ src_inc = include_directories('src')
 protocol_inc = include_directories('protocols')
 
 prefix = get_option('prefix')
+bindir = join_paths(prefix, get_option('bindir'))
 datadir = join_paths(prefix, get_option('datadir'))
+localedir = join_paths(prefix, get_option('localedir'))
+desktopdir = join_paths(datadir, 'applications')
 
 cc = meson.get_compiler('c')
 
@@ -131,15 +134,20 @@ add_project_arguments(
 )
 
 gnome = import('gnome')
-
+i18n  = import('i18n')
 
 config_h = configuration_data()
+config_h.set_quoted('GETTEXT_PACKAGE', meson.project_name())
+config_h.set_quoted('LOCALEDIR', localedir)
+config_h.set_quoted('PHOC_APP_ID', 'sm.puri.Phoc')
 config_h.set_quoted('PHOC_VERSION', meson.project_version())
-config_h.set('PHOC_XWAYLAND', have_xwayland)
-config_h.set('PHOC_HAVE_WLR_SEAT_TOUCH_NOTIFY_CANCEL', have_wlr_seat_touch_notify_cancel)
+config_h.set('PHOC_XWAYLAND', have_xwayland,
+	     description: 'Whether xwayland is enabled')
+config_h.set('PHOC_HAVE_WLR_SEAT_TOUCH_NOTIFY_CANCEL', have_wlr_seat_touch_notify_cancel,
+	     description: '''Whether we have needed functions for toch gesture cancel
+   Can be dropped with wlroots 0.16.0''')
 
 phoc_config_h = configure_file(
-  input: 'phoc-config.h.in',
   output: 'phoc-config.h',
   configuration: config_h,
 )
@@ -149,6 +157,7 @@ meson.add_install_script(
   join_paths(get_option('prefix'), get_option('datadir'))
 )
 
+subdir('po')
 subdir('protocols')
 subdir('src')
 subdir('tests')
@@ -170,6 +179,7 @@ summary({
      'wlroots as submodule': not embed_wlroots.disabled() and wlroots_proj.found(),
      'XWayland': have_xwayland,
      'Documentation': get_option('gtk_doc'),
+     'Manual pages': get_option('man'),
   },
   bool_yn: true,
   section: 'Build',

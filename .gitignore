@@ -9,6 +9,10 @@ debian/tmp
 debian/*.debhelper.log
 debian/*.substvars
 obj-*/
+po/messages.mo
+po/missing
+po/notexist
+po/phoc.pot
 
 # Added by Droidian
 !.circleci/

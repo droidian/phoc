@@ -343,7 +343,7 @@ phoc_ease_in_out_bounce (double t, double d)
  *
  * Computes easing with @easing for @value.
  *
- * @value muste be in the [0, 1] range.
+ * @value must be in the [0, 1] range.
  *
  * Returns: the easing for @value
  */

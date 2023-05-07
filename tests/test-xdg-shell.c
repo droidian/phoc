@@ -14,7 +14,7 @@ test_client_xdg_shell_normal (PhocTestClientGlobals *globals, gpointer data)
 {
   PhocTestXdgToplevelSurface *ls_green;
 
-  ls_green = phoc_test_xdg_toplevel_new (globals, 0, 0, NULL, 0xFF00FF00);
+  ls_green = phoc_test_xdg_toplevel_new_with_buffer (globals, 0, 0, NULL, 0xFF00FF00);
   g_assert_nonnull (ls_green);
   phoc_assert_screenshot (globals, "test-xdg-shell-normal-1.png");
 
@@ -29,7 +29,7 @@ test_client_xdg_shell_auto_maximized (PhocTestClientGlobals *globals, gpointer d
 {
   PhocTestXdgToplevelSurface *ls_green;
 
-  ls_green = phoc_test_xdg_toplevel_new (globals, 0, 0, NULL, 0xFF00FF00);
+  ls_green = phoc_test_xdg_toplevel_new_with_buffer (globals, 0, 0, NULL, 0xFF00FF00);
   g_assert_nonnull (ls_green);
   phoc_assert_screenshot (globals, "test-xdg-shell-maximized-1.png");
 
@@ -46,7 +46,7 @@ test_client_xdg_shell_toplevel_maximized (PhocTestClientGlobals *globals, gpoint
   PhocTestXdgToplevelSurface *xs;
   guint32 color = 0xFF00FF00;
 
-  xs = phoc_test_xdg_toplevel_new (globals, 0, 0, "to-max", color);
+  xs = phoc_test_xdg_toplevel_new_with_buffer (globals, 0, 0, "to-max", color);
   g_assert_nonnull (xs);
 
   /* Maximize */

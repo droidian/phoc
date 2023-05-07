@@ -12,12 +12,16 @@
 
 #include "cursor.h"
 #include "server.h"
+#include "view-private.h"
 #include "xdg-surface.h"
 #include "xdg-surface-private.h"
 
 #include <wlr/types/wlr_xdg_decoration_v1.h>
 #include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/util/edges.h>
+
+#include <wlr/xwayland.h>
+#include <xcb/xproto.h>
 
 enum {
   PROP_0,
@@ -81,27 +85,11 @@ phoc_xdg_surface_set_property (GObject      *object,
   }
 }
 
-/**
- * phoc_xdg_surface_from_view:
- * @view: A view
- *
- * Returns the [class@XdgSurface] associated with this
- * [type@Phoc.View]. It is a programming error if the [class@View]
- * isn't a [type@XdgSurface].
- *
- * Returns: (transfer none): Returns the [type@XdgSurface]
- */
-static PhocXdgSurface *
-phoc_xdg_surface_from_view (PhocView *view) {
-  g_assert (PHOC_IS_XDG_SURFACE (view));
-  return PHOC_XDG_SURFACE (view);
-}
-
 
 static void
 set_active (PhocView *view, bool active)
 {
-  struct wlr_xdg_surface *xdg_surface = phoc_xdg_surface_from_view (view)->xdg_surface;
+  struct wlr_xdg_surface *xdg_surface = PHOC_XDG_SURFACE (view)->xdg_surface;
 
   if (xdg_surface->role == WLR_XDG_SURFACE_ROLE_TOPLEVEL)
     wlr_xdg_toplevel_set_activated (xdg_surface, active);
@@ -133,19 +121,19 @@ apply_size_constraints (struct wlr_xdg_surface *wlr_xdg_surface,
 static void
 resize (PhocView *view, uint32_t width, uint32_t height)
 {
-  struct wlr_xdg_surface *xdg_surface = phoc_xdg_surface_from_view (view)->xdg_surface;
+  struct wlr_xdg_surface *wlr_xdg_surface = PHOC_XDG_SURFACE (view)->xdg_surface;
 
-  if (xdg_surface->role != WLR_XDG_SURFACE_ROLE_TOPLEVEL)
+  if (wlr_xdg_surface->role != WLR_XDG_SURFACE_ROLE_TOPLEVEL)
     return;
 
   uint32_t constrained_width, constrained_height;
-  apply_size_constraints (xdg_surface, width, height, &constrained_width, &constrained_height);
+  apply_size_constraints (wlr_xdg_surface, width, height, &constrained_width, &constrained_height);
 
-  if (xdg_surface->toplevel->scheduled.width == constrained_width &&
-      xdg_surface->toplevel->scheduled.height == constrained_height)
+  if (wlr_xdg_surface->toplevel->scheduled.width == constrained_width &&
+      wlr_xdg_surface->toplevel->scheduled.height == constrained_height)
     return;
 
-  wlr_xdg_toplevel_set_size (xdg_surface, constrained_width, constrained_height);
+  wlr_xdg_toplevel_set_size (wlr_xdg_surface, constrained_width, constrained_height);
 
   view_send_frame_done_if_not_visible (view);
 }
@@ -153,8 +141,8 @@ resize (PhocView *view, uint32_t width, uint32_t height)
 static void
 move_resize (PhocView *view, double x, double y, uint32_t width, uint32_t height)
 {
-  PhocXdgSurface *xdg_surface = phoc_xdg_surface_from_view (view);
-  struct wlr_xdg_surface *wlr_xdg_surface = xdg_surface->xdg_surface;
+  PhocXdgSurface *self = PHOC_XDG_SURFACE (view);
+  struct wlr_xdg_surface *wlr_xdg_surface = self->xdg_surface;
 
   if (wlr_xdg_surface->role != WLR_XDG_SURFACE_ROLE_TOPLEVEL) {
     return;
@@ -183,7 +171,7 @@ move_resize (PhocView *view, double x, double y, uint32_t width, uint32_t height
       wlr_xdg_surface->toplevel->scheduled.height == constrained_height) {
     view_update_position (view, x, y);
   } else {
-    xdg_surface->pending_move_resize_configure_serial =
+    self->pending_move_resize_configure_serial =
       wlr_xdg_toplevel_set_size (wlr_xdg_surface, constrained_width, constrained_height);
   }
 
@@ -198,7 +186,7 @@ want_scaling(PhocView *view)
 
 static bool
 want_auto_maximize(PhocView *view) {
-  struct wlr_xdg_surface *surface = phoc_xdg_surface_from_view (view)->xdg_surface;
+  struct wlr_xdg_surface *surface = PHOC_XDG_SURFACE (view)->xdg_surface;
 
   return surface->toplevel && !surface->toplevel->parent;
 }
@@ -206,7 +194,7 @@ want_auto_maximize(PhocView *view) {
 static void
 set_maximized (PhocView *view, bool maximized)
 {
-  struct wlr_xdg_surface *xdg_surface = phoc_xdg_surface_from_view (view)->xdg_surface;
+  struct wlr_xdg_surface *xdg_surface = PHOC_XDG_SURFACE (view)->xdg_surface;
 
   if (xdg_surface->role != WLR_XDG_SURFACE_ROLE_TOPLEVEL)
     return;
@@ -217,7 +205,7 @@ set_maximized (PhocView *view, bool maximized)
 static void
 set_tiled (PhocView *view, bool tiled)
 {
-  struct wlr_xdg_surface *xdg_surface = phoc_xdg_surface_from_view (view)->xdg_surface;
+  struct wlr_xdg_surface *xdg_surface = PHOC_XDG_SURFACE (view)->xdg_surface;
 
   if (xdg_surface->role != WLR_XDG_SURFACE_ROLE_TOPLEVEL)
     return;
@@ -242,7 +230,7 @@ set_tiled (PhocView *view, bool tiled)
 static void
 set_fullscreen (PhocView *view, bool fullscreen)
 {
-  struct wlr_xdg_surface *xdg_surface = phoc_xdg_surface_from_view (view)->xdg_surface;
+  struct wlr_xdg_surface *xdg_surface = PHOC_XDG_SURFACE (view)->xdg_surface;
 
   if (xdg_surface->role != WLR_XDG_SURFACE_ROLE_TOPLEVEL)
     return;
@@ -253,7 +241,7 @@ set_fullscreen (PhocView *view, bool fullscreen)
 static void
 _close(PhocView *view)
 {
-  struct wlr_xdg_surface *xdg_surface = phoc_xdg_surface_from_view (view)->xdg_surface;
+  struct wlr_xdg_surface *xdg_surface = PHOC_XDG_SURFACE (view)->xdg_surface;
   struct wlr_xdg_popup *popup, *tmp = NULL;
 
   wl_list_for_each_safe (popup, tmp, &xdg_surface->popups, link) {
@@ -269,7 +257,7 @@ for_each_surface (PhocView                    *view,
                   wlr_surface_iterator_func_t  iterator,
                   void                        *user_data)
 {
-  struct wlr_xdg_surface *xdg_surface = phoc_xdg_surface_from_view (view)->xdg_surface;
+  struct wlr_xdg_surface *xdg_surface = PHOC_XDG_SURFACE (view)->xdg_surface;
 
   wlr_xdg_surface_for_each_surface (xdg_surface, iterator, user_data);
 }
@@ -277,7 +265,7 @@ for_each_surface (PhocView                    *view,
 static void
 get_geometry (PhocView *view, struct wlr_box *geom)
 {
-  phoc_xdg_surface_get_geometry (phoc_xdg_surface_from_view (view), geom);
+  phoc_xdg_surface_get_geometry (PHOC_XDG_SURFACE (view), geom);
 }
 
 
@@ -290,6 +278,13 @@ get_size (PhocView *view, struct wlr_box *box)
   wlr_xdg_surface_get_geometry (xdg_surface, &geo_box);
   box->width = geo_box.width;
   box->height = geo_box.height;
+}
+
+
+static struct wlr_surface *
+get_wlr_surface_at (PhocView *self, double sx, double sy, double *sub_x, double *sub_y)
+{
+  return wlr_xdg_surface_surface_at (PHOC_XDG_SURFACE (self)->xdg_surface, sx, sy, sub_x, sub_y);
 }
 
 
@@ -496,7 +491,7 @@ phoc_xdg_surface_constructed (GObject *object)
 
   G_OBJECT_CLASS (phoc_xdg_surface_parent_class)->constructed (object);
 
-  // catch up with state accumulated before commiting
+  // catch up with state accumulated before committing
   if (self->xdg_surface->toplevel->parent) {
     PhocXdgSurface *parent = self->xdg_surface->toplevel->parent->data;
     view_set_parent (PHOC_VIEW (self), PHOC_VIEW (parent));
@@ -594,6 +589,7 @@ phoc_xdg_surface_class_init (PhocXdgSurfaceClass *klass)
   view_class->close = _close;
   view_class->for_each_surface = for_each_surface;
   view_class->get_geometry = get_geometry;
+  view_class->get_wlr_surface_at = get_wlr_surface_at;
 
   /**
    * PhocXdgSurface:wlr-xdg-surface:
@@ -626,20 +622,6 @@ phoc_xdg_surface_get_geometry (PhocXdgSurface *self, struct wlr_box *geom)
 {
   wlr_xdg_surface_get_geometry (self->xdg_surface, geom);
 }
-
-
-struct wlr_surface *
-phoc_xdg_surface_get_wlr_surface_at (PhocXdgSurface *self,
-                                     double           sx,
-                                     double           sy,
-                                     double          *sub_x,
-                                     double          *sub_y)
-{
-  g_assert (PHOC_IS_XDG_SURFACE (self));
-
-  return wlr_xdg_surface_surface_at (self->xdg_surface, sx, sy, sub_x, sub_y);
-}
-
 
 void
 phoc_xdg_surface_set_decoration (PhocXdgSurface            *self,

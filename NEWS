@@ -1,3 +1,21 @@
+phoch 0.27.0
+------------
+Released April 2023
+* Let idle-inhibit report the app's id
+* More cleanups around views and xwayland surfaces
+* Several crash fixes when clients misuse protocols
+* End animations at the correct frame
+* Fix fullscreen surfaces with popups
+* Fix fullscreen electron apps
+* Rework settings to make it more flexible for tests
+* Add manpage
+* Issues fixed
+    https://gitlab.gnome.org/World/Phosh/phoc/-/issues/245
+    https://gitlab.gnome.org/World/Phosh/phoc/-/issues/299
+* Contributors:
+    * Guido Günther
+    * Sam Hewitt
+
 phoc 0.26.0
 -----------
 Released March 2023

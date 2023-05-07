@@ -677,7 +677,7 @@ phoc_keyboard_class_init (PhocKeyboardClass *klass)
   /**
    * PhocKeyboard::activity
    *
-   * Emitted whenver there is input activity on this device
+   * Emitted whenever there is input activity on this device
    */
   signals[ACTIVITY] = g_signal_new ("activity",
                                     G_TYPE_FROM_CLASS (klass),

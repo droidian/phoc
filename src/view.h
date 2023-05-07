@@ -2,7 +2,6 @@
 
 #include <stdbool.h>
 #include <wlr/config.h>
-#include <wlr/types/wlr_foreign_toplevel_management_v1.h>
 #include <wlr/types/wlr_output_layout.h>
 #include <wlr/types/wlr_surface.h>
 
@@ -49,8 +48,6 @@ struct _PhocView {
 	struct wl_list parent_link; // PhocView::stack
 
 	struct wlr_box box;
-
-	PhocOutput *fullscreen_output;
 	struct wlr_box saved;
 
 	struct {
@@ -64,20 +61,6 @@ struct _PhocView {
 	struct wl_list stack; // PhocView::link
 
 	struct wlr_surface *wlr_surface; // set only when the surface is mapped
-	struct wl_list child_surfaces; // PhocViewChild::link
-
-	struct wlr_foreign_toplevel_handle_v1 *toplevel_handle;
-	struct wl_listener toplevel_handle_request_maximize;
-	struct wl_listener toplevel_handle_request_activate;
-	struct wl_listener toplevel_handle_request_fullscreen;
-	struct wl_listener toplevel_handle_request_close;
-
-	struct wl_listener surface_new_subsurface;
-
-	struct {
-		struct wl_signal unmap;
-		struct wl_signal destroy;
-	} events;
 };
 
 /**
@@ -102,6 +85,8 @@ struct _PhocView {
  *     The implementation is optional.
  * @get_geometry: This is called by `PhocView` to get a views geometry.
  *     The implementation is optional.
+ * @get_wlr_surface_at: Get the wlr_surface at the give coordinates.
+ *     The implementation is optional.
  */
 typedef struct _PhocViewClass
 {
@@ -109,8 +94,7 @@ typedef struct _PhocViewClass
 
   void (*move)               (PhocView *self, double x, double y);
   void (*resize)             (PhocView *self, uint32_t width, uint32_t height);
-  void (*move_resize)        (PhocView *self, double x, double y,
-                              uint32_t  width, uint32_t height);
+  void (*move_resize)        (PhocView *self, double x, double y, uint32_t  width, uint32_t height);
   bool (*want_scaling)       (PhocView *self);
   bool (*want_auto_maximize) (PhocView *self);
   void (*set_active)         (PhocView *self, bool active);
@@ -120,6 +104,8 @@ typedef struct _PhocViewClass
   void (*close)              (PhocView *self);
   void (*for_each_surface)   (PhocView *self, wlr_surface_iterator_func_t iterator, void *user_data);
   void (*get_geometry)       (PhocView *self, struct wlr_box *box);
+  struct wlr_surface *
+       (*get_wlr_surface_at) (PhocView *self, double sx, double sy, double *sub_x, double *sub_y);
 } PhocViewClass;
 
 
@@ -170,18 +156,12 @@ typedef struct _PhocViewChild {
 
 void phoc_view_appear_activated (PhocView *view, bool activated);
 void phoc_view_activate (PhocView *view, bool activate);
-void phoc_view_apply_damage (PhocView *view);
 void phoc_view_damage_whole (PhocView *view);
 gboolean view_is_floating(PhocView *view);
 gboolean view_is_maximized(PhocView *view);
 gboolean view_is_tiled(PhocView *view);
-gboolean view_is_fullscreen(const PhocView *view);
-void view_update_position(PhocView *view, int x, int y);
-void view_update_size(PhocView *view, int width, int height);
+gboolean view_is_fullscreen (PhocView *self);
 void view_update_decorated(PhocView *view, bool decorated);
-void view_initial_focus(PhocView *view);
-void phoc_view_map (PhocView *view, struct wlr_surface *surface);
-void view_unmap(PhocView *view);
 void view_arrange_maximized(PhocView *view, struct wlr_output *output);
 void view_arrange_tiled(PhocView *view, struct wlr_output *output);
 void view_get_box(PhocView *view, struct wlr_box *box);
@@ -199,17 +179,20 @@ void view_restore(PhocView *view);
 void phoc_view_set_fullscreen(PhocView *view, bool fullscreen, struct wlr_output *output);
 void phoc_view_close (PhocView *self);
 bool view_center(PhocView *view, struct wlr_output *output);
-void view_send_frame_done_if_not_visible (PhocView *view);
-void view_setup(PhocView *view);
-void view_set_title(PhocView *view, const char *title);
-void view_set_parent(PhocView *view, PhocView *parent);
-void phoc_view_set_app_id(PhocView *view, const char *app_id);
-void view_create_foreign_toplevel_handle(PhocView *view);
+void phoc_view_set_app_id (PhocView *view, const char *app_id);
+const char *phoc_view_get_app_id (PhocView *self);
 void view_get_deco_box(PhocView *view, struct wlr_box *box);
 void phoc_view_for_each_surface (PhocView                    *self,
                                  wlr_surface_iterator_func_t  iterator,
                                  gpointer                     user_data);
+struct wlr_surface *
+      phoc_view_get_wlr_surface_at (PhocView *self,
+                                    double    sx,
+                                    double    sy,
+                                    double   *sub_x,
+                                    double   *sub_y);
 PhocView *phoc_view_from_wlr_surface (struct wlr_surface *wlr_surface);
+
 
 bool                 phoc_view_is_mapped (PhocView *view);
 PhocViewDecoPart     view_get_deco_part(PhocView *view, double sx, double sy);
@@ -224,6 +207,7 @@ void                 phoc_view_set_decoration (PhocView *self,
                                                int       titlebar_height,
                                                int       border_width);
 gboolean             phoc_view_is_decorated (PhocView *self);
+PhocOutput          *phoc_view_get_fullscreen_output (PhocView *self);
 
 void phoc_view_child_init(PhocViewChild *child,
                           const struct phoc_view_child_interface *impl,

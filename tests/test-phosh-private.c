@@ -54,7 +54,7 @@ test_client_phosh_private_thumbnail_simple (PhocTestClientGlobals *globals, gpoi
   PhocTestXdgToplevelSurface *toplevel_green;
   PhocTestScreencopyFrame *green_thumbnail;
 
-  toplevel_green = phoc_test_xdg_toplevel_new (globals, 0, 0, "green", 0xFF00FF00);
+  toplevel_green = phoc_test_xdg_toplevel_new_with_buffer (globals, 0, 0, "green", 0xFF00FF00);
   g_assert_nonnull (toplevel_green);
   phoc_assert_screenshot (globals, "test-phosh-private-thumbnail-simple-1.png");
 

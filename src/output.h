@@ -142,5 +142,6 @@ bool       phoc_output_has_frame_callbacks   (PhocOutput        *self);
 void       phoc_output_lower_shield          (PhocOutput *self);
 void       phoc_output_raise_shield          (PhocOutput *self);
 float      phoc_output_get_scale             (PhocOutput *self);
+const char *phoc_output_get_name             (PhocOutput *self);
 
 G_END_DECLS

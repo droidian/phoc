@@ -14,5 +14,13 @@ leak:wlr_global_destroy_safe
 # Last output buffer (recheck with 0.16)
 leak:wlr_swapchain_acquire
 
+# xwm not destroyed
+# Freeing on xwayland destroy fixes this but see also
+# x11_event_handler. TODO: fix on wlroots master
+leak:xwm_create
+
+#
+# gvfs:
+#
 # https://gitlab.gnome.org/GNOME/gvfs/-/issues/577
 leak:g_daemon_vfs_init

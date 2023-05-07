@@ -1,3 +1,391 @@
+phoc (0.27.0) experimental; urgency=medium
+
+  [ Guido Günther ]
+  * xwayland: Make wlr_xwayland_signalhandlers private.
+    These should be private to the surface object.
+  * xwayland-surface: Allow to get the wlr_xwayland_surface.  PhocOutput,
+    PhocRenderer and PhocSeat access this directly atm.  Allow to get this in
+    favour of keeping the whole structure public (blocking other cleanups).
+    We'll cleanup that call sites.
+  * xwayland: Drop PhocXWaylandSurface from header
+  * xwayland-surface: Reindent according to style
+  * xwayland-surface: Use type casts directly
+  * xwayland-surface: Nuke phoc_xwayland_surface_from_view
+  * xwayland: Drop xwayland.[ch]
+    We can remove that middle layer now
+  * xwayland-surface: Use `self` instead of `phoc_surface`
+    Now that the code is moved over to the class implementation use self
+    consistently
+  * server: Set flags early. This makes sure that e.g. PhocDesktop can access
+    these during construction.
+  * server: Add a flag to start XWayland.  This allows us to enable XWayland
+    without having to modify the config file
+  * main: Add command line flag to launch XWayland.  Can be useful when
+    XWayland is disabled in the config
+  * ci: Install xwayland. Just until we updated the image
+  * tests: Allow to pass flags when creating the compositor
+  * tests: Add initial XWayland test.  This makes it simple to check that we
+    didn't break things completely.
+  * phosh-private: Use view's GObject signals
+  * seat: Use view's GObject signals
+  * view: Drop wl_signals. We use the GObject based ones now.
+  * seat: Use consistent name for seat_view
+  * view: Reindent toplevel-handle related functions.
+  * view: Make view_create_foreign_toplevel_handle static.
+  * view: Make toplevel-handle private.
+  * view: Make child_surfaces private
+  * view: Move private functions to separate header.
+    Reduce view's API surface by moving functions that are meat to be only
+    used by derived classes of view into a private header.
+  * testlib: Allow to create xdg toplevels without a buffer.
+    This is needed for finer grained tests where we want more control
+    over the attached buffer. It's also useful for toplevel-decoration
+    which wants the decoration set before the buffer is attached.
+  * testlib: Handle empty buffers graciously.  This helps when we e.g. create
+    a PhocTestXdgToplevelSurface but never fill the buffer.
+  * protocols: Generate headers for xdg-toplevel-decoration-unstable-v1
+  * tests: Bind bind xdg-toplevel-decoration-unstable-v1
+  * tests: Add test for toplevel decoration
+  * xdg-shell: Reindent according to codestyle
+  * xdg-shell: Use g_assert ()
+  * xdg-shell: Don't crash when decoration goes away before the surface.
+    This is a protocol error but we need to guard against it nevertheless.
+  * ci: Add python3-docutils. We can drop this when we update the image
+  * doc: Add a manpage.
+    Closes: https://gitlab.gnome.org/World/Phosh/phoc/-/issues/245
+  * event: Drop duplicate Return: doc
+  * timed-animation: Remove frame callback after the animation ended.
+    If we remove the callback based on the time for the next frame we fail
+    to render the last frame of the animation.
+  * layer-shell-effects: Don't remove signals when layer-surface is already gone.
+    The client should destroy the effects first but we shouldn't crash if it
+    doesn't.
+  * xdg-surface: Drop xdg_surface_from_view() Just use the type case generated
+    by glib.
+  * view: Reindent several functions according to codestyle
+  * view: Use g_free()
+  * view: Make several members private 
+  * output: Use phoc_view_is_mapped()
+  * text_input: Use phoc_view_is_mapped()
+  * view: Make get_wlr_surface_at a virtual functions.
+    This unclutters the code in PhocDesktop's view_at
+  * testlib: Fix transfer annotations
+  * settings: Reindent according to codestyle
+  * settings: Match on PhocOutput.
+    Follow the pattern that we want to pass Phoc* objects around
+    to public functions
+  * output: Allow to get the output's name
+  * settings: Avoid peeking into wlr_output for vendor/make/model
+  * settings: Use GSList for output list.
+    While at that add phoc_output_config_{new,destroy} to make
+    the code a bit more expressive.
+  * settings: Use less generic name for config loading function
+  * settings: Split config loading and path handling.
+    This will allow us to load config from e.g. memory too
+  * settings: Allow to parse data from memory
+  * server: Use config object rather than file path.
+    This allows to create servers from in memory data. We could move the
+    flags and debug_flags here too.
+  * settings: Add automatic cleanup
+  * settings: Use a GSList for the modes
+  * tests: Add config parsing tests
+  * server: Deduplicate XWayland config.
+  * build: Drop config.h template.  Makes sure we don't have to maintain
+    variables in two places
+  * build: Add an app-id for phoc
+  * build: Setup i18n. This will allow us to use translations
+  * main: Init gettext. This allows us to have translated strings in the
+    compositor
+  * view: Add getter for app-id
+  * idle-inhibit: Use app-id of inhibiting view if possible.
+    If we have an app-id for the view that inhibits idle use it's app-id
+    when requesting the inhibitor.
+    This makes sure applications listing inhibitors can print information
+    about the inhibiting application. This is e.g. the case for phosh's
+    end-session-dialog.
+  * data: Add and install desktop file
+  * packaging: Install new files. Switch to dh 13 so we detect missing files.
+  * render: Fix surface counting in count_surface_iterator.
+    We need to increment the value at the pointer location, not the pointer.
+    This fixes fullscreen views with popovers as scan_out_fullscreen_view
+    now detects these correctly.
+    Fixes: 7632c59b2b98190ced94cc261d7e24fb454d8d4b
+  * packaging: Ignore Part-Of in commits added by magit
+  * xwayland-surface: Ignore size hints < 0.
+    E.g. electron apps set this to `-1` when fullscreened.
+    Closes: https://gitlab.gnome.org/World/Phosh/phoc/-/issues/299
+  * xwayland-surface: Order signal handlers.
+    Use the same ordering as in the struct.
+  * xwayland-surface: Don't forget to remove request_fullscreen handler
+  * packaging: Ignore Part-Of in commits added by magit
+  * server: Drop flag in docstring too.
+    Fixes: 75e8003587c9c80716863e8c4ea3f935454bd88a
+
+  [ Sam Hewitt ]
+  * data: Add icon
+
+ -- Guido Günther <agx@sigxcpu.org>  Thu, 27 Apr 2023 16:31:46 +0200
+
+phoc (0.26.1) experimental; urgency=medium
+
+  [ Guido Günther ]
+  * xwayland: Make wlr_xwayland_signalhandlers private.
+    These should be private to the surface object.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/427>
+  * xwayland-surface: Allow to get the wlr_xwayland_surface.
+    PhocOutput, PhocRenderer and PhocSeat access this directly atm.  Allow
+    to get this in favour of keeping the whole structure public (blocking
+    other cleanups).
+    We'll cleanup that call sites.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/427>
+  * xwayland: Drop PhocXWaylandSurface from header.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/427>
+  * xwayland-surface: Reindent is_movable.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/427>
+  * xwayland-surface: Use type casts directly in close.
+    Avoid the phoc_xwayland_surface_from_view redirection
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/427>
+  * xwayland-surface: Use type casts directly in set_fullscreen.
+    Avoid the phoc_xwayland_surface_from_view redirection
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/427>
+  * xwayland-surface: Use type casts directly in is_moveable.
+    Avoid the phoc_xwayland_surface_from_view redirection
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/427>
+  * xwayland-surface: Use type casts directly in set_active.
+    Avoid the phoc_xwayland_surface_from_view redirection
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/427>
+  * xwayland-surface: Use type casts directly in move.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/427>
+  * xwayland-surface: Use type casts directly in resize.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/427>
+  * xwayland-surface: Reindent move_resize.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/427>
+  * xwayland-surface: Use type casts directly in move_resize.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/427>
+  * xwayland-surface: Use type casts directly in want_auto_maximize.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/427>
+  * xwayland-surface: Nuke phoc_xwayland_surface_from_view.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/427>
+  * xwayland: Drop xwayland.[ch]
+    We can remove that middle layer now
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/427>
+  * xwayland-surface: Reindent remaining two functions.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/427>
+  * xwayland-surface: Use `self` instead of `phoc_surface`
+    Now that the code is moved over to the class implementation use
+    self consistently
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/427>
+  * server: Set flags early.
+    This makes sure that e.g. PhocDesktop can access these during
+    construction.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/427>
+  * server: Add a flag to start XWayland.
+    This allows us to enable XWayland without having to modify
+    the config file
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/427>
+  * main: Add command line flag to launch XWayland.
+    Can be useful when XWayland is disabled in the config
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/427>
+  * ci: Install xwayland.
+    Just until we updated the image
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/427>
+  * tests: Allow to pass flags when creating the compositor.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/427>
+  * tests: Add initial XWayland test.
+    This makes it simple to check that we didn't break things
+    completely.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/427>
+  * phosh-private: Use view's GObject signals.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/437>
+  * seat: Use view's GObject signals.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/437>
+  * view: Drop wl_signals.
+    We use the GObject based ones now.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/437>
+  * seat: Use consistent name for seat_view.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/437>
+  * view: Reindent toplevel-handle related functions.
+    We'll rework these in the next commits. No functional change.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/437>
+  * view: Make view_create_foreign_toplevel_handle static.
+    We don't move the function around (to avoid the forward declaration)
+    to keep code move under control.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/437>
+  * view: Make toplevel-handle private.
+    We move the listseners and the handle over.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/437>
+  * view: Make child_surfaces private.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/437>
+  * view: Move private functions to separate header.
+    Reduce view's API surface by moving functions that are meat to be only
+    used by derived classes of view into a private header.
+    Keeping them in th public header is misleading as calling them from
+    elsewhere without doing the derived classes specific setup might not
+    give the expected result.
+    We don't change function names to keep review simple.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/437>
+  * testlib: Allow to create xdg toplevels without a buffer.
+    This is needed for finer grained tests where we want more control
+    over the attached buffer. It's also useful for toplevel-decoration
+    which wants the decoration set before the buffer is attached.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/439>
+  * testlib: Handle empty buffers graciously.
+    This helps when we e.g. create a PhocTestXdgToplevelSurface
+    but never fill the buffer.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/439>
+  * protocols: Generate headers for xdg-toplevel-decoration-unstable-v1.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/439>
+  * tests: Bind bind xdg-toplevel-decoration-unstable-v1.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/439>
+  * tests: Add test for toplevel decoration.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/439>
+  * xdg-shell: Reindent decoration_handle_destroy.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/439>
+  * xdg-shell: Reindent handle_xdg_toplevel_decoration.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/439>
+  * xdg-shell: Use g_assert ()
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/439>
+  * xdg-shell: Don't crash when decoration goes away before the surface.
+    This is a protocol error but we need to guard against it nevertheless.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/439>
+  * xdg-shell: Unify indentation.
+    There's wasn't much left so just fix it up.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/439>
+  * ci: Add python3-docutils.
+    We can drop this when we update the image
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/441>
+  * doc: Add a manpage.
+    Closes: https://gitlab.gnome.org/World/Phosh/phoc/-/issues/245
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/441>
+  * event: Drop duplicate Return: doc.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/442>
+  * timed-animation: Remove frame callback after the animation ended.
+    If we remove the callback based on the time for the next frame we fail
+    to render the last frame of the animation.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/442>
+  * layer-shell-effects: Don't remove signals when layer-surface is already gone.
+    The client should destroy the effects first but we shouldn't crash if it
+    doesn't.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/442>
+  * layer-shell-effects: Document that effects should be destroyed before layer-surface.
+    This was unspecified before. We'll enforce that in a later version.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/442>
+  * xdg-surface: Use self in move_resize()
+    Rename xdg_surface to self for consistency
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/443>
+  * xdg-surface: Use wlr_xdg_surface in resize()
+    Rename wlr's xdg_surface to wlr_xdg_surface for consistency
+    with other functions.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/443>
+  * xdg-surface: Drop xdg_surface_from_view()
+    Just use the type case generated by glib.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/443>
+  * view: Reindent view_update_size()
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/443>
+  * view: Reindent view_update_decorated()
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/443>
+  * view: Reindent view_set_title()
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/443>
+  * view: Reindent view_set_parent ()
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/443>
+  * view: Reindent view_update_position()
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/443>
+  * view: Reindent view_update_output()
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/443>
+  * view: Use g_free()
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/443>
+  * view: Use g_free in subsurface_destroy()
+    This makes it match the g_new0
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/443>
+  * view: Make fullscreen_output private.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/443>
+  * output: Use phoc_view_is_mapped()
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/443>
+  * text_input: Use phoc_view_is_mapped()
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/443>
+  * desktop: Reindent view_at()
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/443>
+  * desktop: Reindent desktop_view_at()
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/443>
+  * view: Make get_wlr_surface_at a virtual functions.
+    This unclutters the code in PhocDesktop's view_at
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/443>
+  * testlib: Fix transfer annotations.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/444>
+  * settings: Reindent.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/444>
+  * settings: Match on PhocOutput.
+    Follow the pattern that we want to pass Phoc* objects around
+    to public functions
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/444>
+  * output: Allow to get the output's name.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/444>
+  * settings: Avoid peeking into wlr_output for vendor/make/model.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/444>
+  * settings: Use GSList for output list.
+    While at that add phoc_output_config_{new,destroy} to make
+    the code a bit more expressive.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/444>
+  * settings: Use less generic name for config loading function.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/444>
+  * settings: Split config loading and path handling.
+    This will allow us to load config from e.g. memory too
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/444>
+  * settings: Allow to parse data from memory.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/444>
+  * server: Use config object rather than file path.
+    This allows to create servers from in memory data. We could move the
+    flags and debug_flags here too.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/444>
+  * settings: Add automatic cleanup.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/444>
+  * settings: Use a GSList for the modes.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/444>
+  * tests: Add config parsing tests.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/444>
+  * server: Deduplicate XWayland config.
+    Having it as flag and config option was duplication. Now that we have
+    pulled config parsing out of the server itself we can deduplicate it.
+    Fixes 15373e454a75f4415888a807e0f251a6c5c2f27a
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/444>
+  * build: Drop config.h template.
+    Makes sure we don't have to maintain variables in two places
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/446>
+  * build: Add an app-id for phoc.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/446>
+  * build: Setup i18n.
+    This will allow us to use translations
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/446>
+  * main: Init gettext.
+    This allows us to have translated strings in the compositor
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/446>
+  * view: Add getter for app-id.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/446>
+  * idle-inhibit: Use app-id of inhibiting view if possible.
+    If we have an app-id for the view that inhibits idle use it's app-id
+    when requesting the inhibitor.
+    This makes sure applications listing inhibitors can print information
+    about the inhibiting application. This is e.g. the case for phosh's
+    end-session-dialog.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/446>
+  * data: Add and install desktop file.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/446>
+  * packaging: Install new files.
+    Switch to dh 13 so we detect missing files.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/446>
+  * render: Fix surface counting in count_surface_iterator.
+    We need to increment the value at the pointer location, not the pointer.
+    This fixes fullscreen views with popovers as scan_out_fullscreen_view
+    now detects these correctly.
+    Fixes: 7632c59b2b98190ced94cc261d7e24fb454d8d4b
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/448>
+
+  [ Sam Hewitt ]
+  * data: Add icon.
+    Part-of: <https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/446>
+
+ -- Guido Günther <agx@sigxcpu.org>  Thu, 27 Apr 2023 16:30:31 +0200
+
 phoc (0.26.0) experimental; urgency=medium
 
   [ Affe Null ]

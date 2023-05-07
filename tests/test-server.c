@@ -21,11 +21,13 @@ test_phoc_server_get_default (void)
 static void
 test_phoc_server_setup (void)
 {
+  PhocConfig *config = phoc_config_new_from_file (TEST_PHOC_INI);
   g_autoptr(PhocServer) server = phoc_server_get_default ();
 
   g_assert_true (PHOC_IS_SERVER (server));
+  g_assert_true (config);
 
-  g_assert_true (phoc_server_setup(server, TEST_PHOC_INI, NULL, NULL,
+  g_assert_true (phoc_server_setup(server, config, NULL, NULL,
                                    PHOC_SERVER_FLAG_NONE,
                                    PHOC_SERVER_DEBUG_FLAG_NONE));
 }
@@ -33,11 +35,13 @@ test_phoc_server_setup (void)
 static void
 test_phoc_server_setup_args (void)
 {
+  PhocConfig *config = phoc_config_new_from_file (TEST_PHOC_INI);
   g_autoptr(PhocServer) server = phoc_server_get_default ();
 
   g_assert_true (PHOC_IS_SERVER (server));
+  g_assert_true (config);
 
-  g_assert_true (phoc_server_setup(server, TEST_PHOC_INI, "/bin/bash", NULL,
+  g_assert_true (phoc_server_setup(server, config, "/bin/bash", NULL,
                                    PHOC_SERVER_FLAG_NONE,
                                    PHOC_SERVER_DEBUG_FLAG_NONE));
 
