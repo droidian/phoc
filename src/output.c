@@ -60,9 +60,13 @@ typedef struct _PhocOutputPrivate {
 
 static void phoc_output_initable_iface_init (GInitableIface *iface);
 
+static void phoc_output_animatable_interface_init (PhocAnimatableInterface *iface);
+
 G_DEFINE_TYPE_WITH_CODE (PhocOutput, phoc_output, G_TYPE_OBJECT,
                          G_ADD_PRIVATE (PhocOutput)
-                         G_IMPLEMENT_INTERFACE (G_TYPE_INITABLE, phoc_output_initable_iface_init));
+                         G_IMPLEMENT_INTERFACE (G_TYPE_INITABLE, phoc_output_initable_iface_init)
+                         G_IMPLEMENT_INTERFACE (PHOC_TYPE_ANIMATABLE,
+                                                phoc_output_animatable_interface_init))
 
 typedef struct {
   PhocAnimatable    *animatable;
@@ -183,6 +187,42 @@ phoc_output_get_property (GObject    *object,
   }
 }
 
+/* {{{ Animatable Interface */
+
+static guint
+_phoc_output_add_frame_callback (PhocAnimatable    *iface,
+                                 PhocFrameCallback  callback,
+                                 gpointer           user_data,
+                                 GDestroyNotify     notify)
+{
+  PhocOutput *self = PHOC_OUTPUT (iface);
+
+  g_assert (PHOC_IS_OUTPUT (self));
+
+  return phoc_output_add_frame_callback (self, iface, callback, user_data, notify);
+}
+
+
+static void
+_phoc_output_remove_frame_callback (PhocAnimatable *iface, guint id)
+{
+  PhocOutput *self = PHOC_OUTPUT (iface);
+
+  g_assert (PHOC_IS_OUTPUT (self));
+
+  phoc_output_remove_frame_callback (self, id);
+}
+
+
+static void
+phoc_output_animatable_interface_init (PhocAnimatableInterface *iface)
+{
+  iface->add_frame_callback = _phoc_output_add_frame_callback;
+  iface->remove_frame_callback = _phoc_output_remove_frame_callback;
+}
+
+/* }}} */
+
 static void
 phoc_output_init (PhocOutput *self)
 {
@@ -292,7 +332,7 @@ phoc_output_damage_handle_frame (struct wl_listener *listener,
   }
   priv->last_frame_us = g_get_monotonic_time ();
 
-  if (priv->cutouts_texture) {
+  if (G_UNLIKELY (priv->cutouts_texture)) {
     struct wlr_box box = { 0, 0, priv->cutouts_texture->width, priv->cutouts_texture->height };
     wlr_output_damage_add_box (self->damage, &box);
   }
@@ -768,11 +808,20 @@ phoc_output_xwayland_children_for_each_surface (PhocOutput                  *sel
 }
 #endif
 
-static void
-phoc_output_layer_handle_surface (PhocOutput          *self,
-                                  PhocLayerSurface    *layer_surface,
-                                  PhocSurfaceIterator  iterator,
-                                  void                *user_data)
+/**
+ * phoc_output_layer_surface_for_each_surface:
+ * @self: the output
+ * @layer: The layer surface to iterate over
+ * @iterator: (scope call): The callback invoked on each iteration
+ * @user_data: Callback user data
+ *
+ * Iterate over a [type@LayerSurface] and it's popups.
+ */
+void
+phoc_output_layer_surface_for_each_surface (PhocOutput          *self,
+                                            PhocLayerSurface    *layer_surface,
+                                            PhocSurfaceIterator  iterator,
+                                            void                *user_data)
 {
   struct wlr_layer_surface_v1 *wlr_layer_surface_v1 = layer_surface->layer_surface;
 
@@ -805,9 +854,11 @@ phoc_output_layer_handle_surface (PhocOutput          *self,
  * @iterator: (scope call): The callback invoked on each iteration
  * @user_data: Callback user data
  *
+ * Ordering matches `phoc_output_get_layer_surfaces_for_layer`.
+ *
  * Iterate over [type@LayerSurface]s in a layer.
  */
-void
+static void
 phoc_output_layer_for_each_surface (PhocOutput          *self,
                                     enum zwlr_layer_shell_v1_layer layer,
                                     PhocSurfaceIterator  iterator,
@@ -820,15 +871,51 @@ phoc_output_layer_for_each_surface (PhocOutput          *self,
       continue;
 
     if (layer_surface->layer_surface->current.exclusive_zone <= 0)
-      phoc_output_layer_handle_surface (self, layer_surface, iterator, user_data);
+      phoc_output_layer_surface_for_each_surface (self, layer_surface, iterator, user_data);
   }
   wl_list_for_each (layer_surface, &self->layer_surfaces, link) {
     if (layer_surface->layer != layer)
       continue;
 
     if (layer_surface->layer_surface->current.exclusive_zone > 0)
-      phoc_output_layer_handle_surface (self, layer_surface, iterator, user_data);
+      phoc_output_layer_surface_for_each_surface (self, layer_surface, iterator, user_data);
   }
+}
+
+
+/**
+ * phoc_output_get_layer_surfaces_for_layer:
+ * @self: the output
+ * @layer: The layer to get the surfaces for
+ *
+ * Get a list of [type@PhocLayerSurface]s on this output in the given
+ * `layer`.
+ *
+ * Returns:(transfer container)(element-type PhocLayerSurface): The layer surfaces of that layer
+ */
+GList *
+phoc_output_get_layer_surfaces_for_layer (PhocOutput *self, enum zwlr_layer_shell_v1_layer layer)
+{
+  GList *layer_surfaces = NULL;
+  PhocLayerSurface *layer_surface;
+
+  wl_list_for_each_reverse (layer_surface, &self->layer_surfaces, link) {
+    if (layer_surface->layer != layer)
+      continue;
+
+    if (layer_surface->layer_surface->current.exclusive_zone > 0)
+      layer_surfaces = g_list_prepend (layer_surfaces, layer_surface);
+  }
+
+  wl_list_for_each (layer_surface, &self->layer_surfaces, link) {
+    if (layer_surface->layer != layer)
+      continue;
+
+    if (layer_surface->layer_surface->current.exclusive_zone <= 0)
+      layer_surfaces = g_list_prepend (layer_surfaces, layer_surface);
+  }
+
+  return layer_surfaces;
 }
 
 /**
@@ -1441,11 +1528,19 @@ should_reveal_shell (PhocOutput *self)
   g_assert (PHOC_IS_OUTPUT (self));
   priv = phoc_output_get_instance_private (self);
 
-  /* is our layer-surface focused on some seat? */
   for (GSList *elem = phoc_input_get_seats (server->input); elem; elem = elem->next) {
     PhocSeat *seat = PHOC_SEAT (elem->data);
+    /* is our layer-surface focused on some seat? */
     if (seat->focused_layer && seat->focused_layer->output == self->wlr_output) {
       return true;
+    }
+
+    /* is OSK displayed because of our fullscreen view? */
+    if (phoc_view_is_mapped (self->fullscreen_view) &&
+        phoc_input_method_relay_is_enabled (&seat->im_relay, self->fullscreen_view->wlr_surface)) {
+      PhocLayerSurface *osk = phoc_layer_shell_find_osk (self);
+      if (osk && osk->mapped)
+        return true;
     }
   }
 

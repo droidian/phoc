@@ -17,7 +17,7 @@
 
 #include <glib-object.h>
 
-#define LAYER_SHELL_EFFECTS_VERSION 1
+#define LAYER_SHELL_EFFECTS_VERSION 2
 #define DRAG_ACCEPT_THRESHOLD_DISTANCE 16
 #define DRAG_REJECT_THRESHOLD_DISTANCE 24
 #define SLIDE_ANIM_DURATION_MS 400 /* ms */
@@ -42,7 +42,7 @@ typedef struct _PhocDraggableLayerSurfaceParams {
   int32_t  folded, unfolded;
   /* Height of exclusive area */
   uint32_t exclusive;
-  /* When is the sufaced pulled out [0.0, 1.0] */
+  /* When is the surface pulled out [0.0, 1.0] */
   double   threshold;
 
   enum zphoc_draggable_layer_surface_v1_drag_mode drag_mode;
@@ -79,10 +79,21 @@ struct _PhocDraggableLayerSurface {
 
   struct wl_listener surface_handle_commit;
   struct wl_listener layer_surface_handle_destroy;
-  struct {
-    struct wl_signal destroy;
-  } events;
 };
+
+struct _PhocAlphaLayerSurface {
+  struct wl_resource *resource;
+  PhocLayerSurface *layer_surface;
+  PhocLayerShellEffects *layer_shell_effects;
+
+  /* Double buffered alpha set by the client */
+  float current;
+  float pending;
+
+  struct wl_listener surface_handle_commit;
+  struct wl_listener layer_surface_handle_destroy;
+};
+
 
 /**
  * PhocLayerShellEffects:
@@ -96,13 +107,17 @@ struct _PhocLayerShellEffects {
   struct wl_global   *global;
   GSList             *resources;
   GSList             *drag_surfaces;
-  GHashTable         *drag_surfaces_by_layer_sufrace;
+  GHashTable         *drag_surfaces_by_layer_surface;
+
+  GSList             *alpha_surfaces;
+  GHashTable         *alpha_surfaces_by_layer_surface;
 };
 
 G_DEFINE_TYPE (PhocLayerShellEffects, phoc_layer_shell_effects, G_TYPE_OBJECT)
 
 static PhocLayerShellEffects    *phoc_layer_shell_effects_from_resource    (struct wl_resource *resource);
 static PhocDraggableLayerSurface *phoc_draggable_layer_surface_from_resource (struct wl_resource *resource);
+static PhocAlphaLayerSurface     *phoc_alpha_layer_surface_from_resource (struct wl_resource *resource);
 
 
 static void
@@ -264,6 +279,35 @@ static const struct zphoc_draggable_layer_surface_v1_interface draggable_layer_s
 };
 
 
+
+static void
+handle_alpha_layer_surface_set_alpha (struct wl_client   *client,
+                                      struct wl_resource *resource,
+                                      wl_fixed_t          alpha_f)
+{
+  PhocAlphaLayerSurface *alpha_surface = wl_resource_get_user_data (resource);
+  double alpha;
+
+  g_assert (alpha_surface);
+  alpha = wl_fixed_to_double (alpha_f);
+
+  g_debug ("Alpha Layer surface alpha for %p: alpha: %f", alpha_surface, alpha);
+
+  if (alpha_surface->layer_surface == NULL)
+    return;
+
+  alpha_surface->pending = alpha;
+}
+
+
+
+static const struct zphoc_alpha_layer_surface_v1_interface alpha_layer_surface_v1_impl = {
+  .set_alpha = handle_alpha_layer_surface_set_alpha,
+  .destroy = resource_handle_destroy,
+};
+
+
+
 static PhocDraggableLayerSurface *
 phoc_draggable_layer_surface_from_resource (struct wl_resource *resource)
 {
@@ -271,6 +315,16 @@ phoc_draggable_layer_surface_from_resource (struct wl_resource *resource)
                                      &draggable_layer_surface_v1_impl));
   return wl_resource_get_user_data (resource);
 }
+
+
+static PhocAlphaLayerSurface *
+phoc_alpha_layer_surface_from_resource (struct wl_resource *resource)
+{
+  g_assert (wl_resource_instance_of (resource, &zphoc_alpha_layer_surface_v1_interface,
+                                     &alpha_layer_surface_v1_impl));
+  return wl_resource_get_user_data (resource);
+}
+
 
 
 static void
@@ -292,7 +346,7 @@ phoc_draggable_layer_surface_destroy (PhocDraggableLayerSurface *drag_surface)
   }
 
   if (drag_surface->layer_surface) {
-    g_hash_table_remove (layer_shell_effects->drag_surfaces_by_layer_sufrace,
+    g_hash_table_remove (layer_shell_effects->drag_surfaces_by_layer_surface,
                          drag_surface->layer_surface);
     /* wlr signals */
     wl_list_remove (&drag_surface->surface_handle_commit.link);
@@ -308,12 +362,66 @@ phoc_draggable_layer_surface_destroy (PhocDraggableLayerSurface *drag_surface)
 
 
 static void
+phoc_alpha_layer_surface_destroy (PhocAlphaLayerSurface *alpha_surface)
+{
+  PhocLayerShellEffects *layer_shell_effects;
+
+  if (alpha_surface == NULL)
+    return;
+
+  g_debug ("Destroying alpa_layer_surface %p (res %p)", alpha_surface, alpha_surface->resource);
+  layer_shell_effects = PHOC_LAYER_SHELL_EFFECTS (alpha_surface->layer_shell_effects);
+  g_assert (PHOC_IS_LAYER_SHELL_EFFECTS (layer_shell_effects));
+
+  if (alpha_surface->layer_surface) {
+    g_hash_table_remove (layer_shell_effects->alpha_surfaces_by_layer_surface,
+                         alpha_surface->layer_surface);
+    /* wlr signals */
+    wl_list_remove (&alpha_surface->surface_handle_commit.link);
+    wl_list_remove (&alpha_surface->layer_surface_handle_destroy.link);
+  }
+  layer_shell_effects->alpha_surfaces = g_slist_remove (layer_shell_effects->alpha_surfaces,
+                                                        alpha_surface);
+
+  alpha_surface->layer_surface = NULL;
+  wl_resource_set_user_data (alpha_surface->resource, NULL);
+  g_free (alpha_surface);
+}
+
+
+static void
 draggable_layer_surface_handle_resource_destroy (struct wl_resource *resource)
 {
   PhocDraggableLayerSurface *drag_surface = phoc_draggable_layer_surface_from_resource (resource);
 
   phoc_draggable_layer_surface_destroy (drag_surface);
 }
+
+
+static void
+alpha_layer_surface_handle_resource_destroy (struct wl_resource *resource)
+{
+  PhocAlphaLayerSurface *alpha_surface = phoc_alpha_layer_surface_from_resource (resource);
+
+  phoc_alpha_layer_surface_destroy (alpha_surface);
+}
+
+
+static void
+alpha_layer_surface_handle_destroy (struct wl_listener *listener, void *data)
+{
+  PhocLayerShellEffects *layer_shell_effects;
+  PhocAlphaLayerSurface *alpha_surface = wl_container_of(listener, alpha_surface, layer_surface_handle_destroy);
+
+  /* Drop the gone layer-surface from the layer-surface -> alpha-surface mapping */
+  layer_shell_effects = PHOC_LAYER_SHELL_EFFECTS (alpha_surface->layer_shell_effects);
+  g_hash_table_remove (layer_shell_effects->alpha_surfaces_by_layer_surface,
+                       alpha_surface->layer_surface);
+
+  /* The layer-surface is unusable for us now */
+  alpha_surface->layer_surface = NULL;
+}
+
 
 /*
  * TODO: Use wlr_layer_surface_v1_from_resource instead
@@ -326,7 +434,7 @@ phoc_wlr_layer_surface_from_resource (struct wl_resource *resource)
 }
 
 static void
-layer_surface_handle_destroy (struct wl_listener *listener, void *data)
+draggable_layer_surface_handle_destroy (struct wl_listener *listener, void *data)
 {
   PhocLayerShellEffects *layer_shell_effects;
   PhocDraggableLayerSurface *drag_surface =
@@ -334,7 +442,7 @@ layer_surface_handle_destroy (struct wl_listener *listener, void *data)
 
   /* Drop the gone layer-surface from the layer-surface -> drag-surface mapping */
   layer_shell_effects = PHOC_LAYER_SHELL_EFFECTS (drag_surface->layer_shell_effects);
-  g_hash_table_remove (layer_shell_effects->drag_surfaces_by_layer_sufrace,
+  g_hash_table_remove (layer_shell_effects->drag_surfaces_by_layer_surface,
                        drag_surface->layer_surface);
 
   /* The layer-surface is unusable for us now */
@@ -379,6 +487,32 @@ surface_handle_commit (struct wl_listener *listener, void *data)
            layer_surface->geo.x, layer_surface->geo.y,
            layer_surface->geo.width, layer_surface->geo.height);
   drag_surface->geo = layer_surface->geo;
+}
+
+
+static void
+alpha_surface_handle_commit (struct wl_listener *listener, void *data)
+{
+  PhocAlphaLayerSurface *alpha_surface =
+    wl_container_of(listener, alpha_surface, surface_handle_commit);
+  PhocLayerSurface *layer_surface = alpha_surface->layer_surface;
+  PhocOutput *output;
+
+  if (layer_surface == NULL)
+    return;
+
+  if (alpha_surface->current == alpha_surface->pending)
+    return;
+
+  alpha_surface->current  = alpha_surface->pending;
+  phoc_layer_surface_set_alpha (layer_surface, alpha_surface->current);
+
+  phoc_layer_surface_get_output (layer_surface);
+  output = phoc_layer_surface_get_output (layer_surface);
+  phoc_output_damage_whole_local_surface (output,
+                                          layer_surface->layer_surface->surface,
+                                          layer_surface->geo.x, layer_surface->geo.y);
+
 }
 
 
@@ -433,12 +567,71 @@ handle_get_draggable_layer_surface (struct wl_client   *client,
   drag_surface->surface_handle_commit.notify = surface_handle_commit;
   wl_signal_add (&wlr_surface->events.commit, &drag_surface->surface_handle_commit);
 
-  drag_surface->layer_surface_handle_destroy.notify = layer_surface_handle_destroy;
+  drag_surface->layer_surface_handle_destroy.notify = draggable_layer_surface_handle_destroy;
   wl_signal_add (&wlr_layer_surface->events.destroy, &drag_surface->layer_surface_handle_destroy);
 
-  g_hash_table_insert (self->drag_surfaces_by_layer_sufrace,
+  g_hash_table_insert (self->drag_surfaces_by_layer_surface,
                        drag_surface->layer_surface, drag_surface);
   self->drag_surfaces = g_slist_prepend (self->drag_surfaces, g_steal_pointer (&drag_surface));
+}
+
+
+static void
+handle_get_alpha_layer_surface (struct wl_client   *client,
+                                struct wl_resource *layer_shell_effects_resource,
+                                uint32_t            id,
+                                struct wl_resource *layer_surface_resource)
+{
+  PhocLayerShellEffects *self;
+  g_autofree PhocAlphaLayerSurface *alpha_surface = NULL;
+  struct wlr_surface *wlr_surface;
+  struct wlr_layer_surface_v1 *wlr_layer_surface;
+  int version;
+
+  self = phoc_layer_shell_effects_from_resource (layer_shell_effects_resource);
+  g_assert (PHOC_IS_LAYER_SHELL_EFFECTS (self));
+  wlr_layer_surface = phoc_wlr_layer_surface_from_resource (layer_surface_resource);
+  wlr_surface = wlr_layer_surface->surface;
+  g_assert (wlr_surface);
+
+  alpha_surface = g_new0 (PhocAlphaLayerSurface, 1);
+
+  version = wl_resource_get_version (layer_shell_effects_resource);
+  alpha_surface->layer_shell_effects = self;
+  alpha_surface->resource = wl_resource_create (client,
+                                                &zphoc_alpha_layer_surface_v1_interface,
+                                                version,
+                                                id);
+  if (alpha_surface->resource == NULL) {
+    wl_client_post_no_memory(client);
+    return;
+  }
+
+  g_debug ("New alpha layer_surface %p (res %p)", alpha_surface, alpha_surface->resource);
+  wl_resource_set_implementation (alpha_surface->resource,
+                                  &alpha_layer_surface_v1_impl,
+                                  alpha_surface,
+                                  alpha_layer_surface_handle_resource_destroy);
+
+  if (!wlr_layer_surface->data) {
+    wl_resource_post_error (layer_shell_effects_resource,
+                            ZPHOC_LAYER_SHELL_EFFECTS_V1_ERROR_BAD_SURFACE,
+                            "Layer surface not yet committed");
+    return;
+  }
+
+  g_assert (PHOC_IS_LAYER_SURFACE (wlr_layer_surface->data));
+  alpha_surface->layer_surface = PHOC_LAYER_SURFACE (wlr_layer_surface->data);
+
+  alpha_surface->surface_handle_commit.notify = alpha_surface_handle_commit;
+  wl_signal_add (&wlr_surface->events.commit, &alpha_surface->surface_handle_commit);
+
+  alpha_surface->layer_surface_handle_destroy.notify = alpha_layer_surface_handle_destroy;
+  wl_signal_add (&wlr_layer_surface->events.destroy, &alpha_surface->layer_surface_handle_destroy);
+
+  g_hash_table_insert (self->alpha_surfaces_by_layer_surface,
+                       alpha_surface->layer_surface, alpha_surface);
+  self->alpha_surfaces = g_slist_prepend (self->alpha_surfaces, g_steal_pointer (&alpha_surface));
 }
 
 
@@ -457,6 +650,7 @@ layer_shell_effects_handle_resource_destroy (struct wl_resource *resource)
 static const struct zphoc_layer_shell_effects_v1_interface layer_shell_effects_impl = {
   .destroy = resource_handle_destroy,
   .get_draggable_layer_surface = handle_get_draggable_layer_surface,
+  .get_alpha_layer_surface = handle_get_alpha_layer_surface,
 };
 
 
@@ -494,7 +688,9 @@ phoc_layer_shell_effects_finalize (GObject *object)
 {
   PhocLayerShellEffects *self = PHOC_LAYER_SHELL_EFFECTS (object);
 
-  g_clear_pointer (&self->drag_surfaces_by_layer_sufrace, g_hash_table_destroy);
+  g_clear_pointer (&self->drag_surfaces_by_layer_surface, g_hash_table_destroy);
+  g_clear_pointer (&self->alpha_surfaces_by_layer_surface, g_hash_table_destroy);
+
   wl_global_destroy (self->global);
 
   G_OBJECT_CLASS (phoc_layer_shell_effects_parent_class)->finalize (object);
@@ -515,7 +711,9 @@ phoc_layer_shell_effects_init (PhocLayerShellEffects *self)
 {
   struct wl_display *display = phoc_server_get_default ()->wl_display;
 
-  self->drag_surfaces_by_layer_sufrace = g_hash_table_new (g_direct_hash, g_direct_equal);
+  self->drag_surfaces_by_layer_surface = g_hash_table_new (g_direct_hash, g_direct_equal);
+  self->alpha_surfaces_by_layer_surface = g_hash_table_new (g_direct_hash, g_direct_equal);
+
   self->global = wl_global_create (display, &zphoc_layer_shell_effects_v1_interface,
                                    LAYER_SHELL_EFFECTS_VERSION, self, layer_shell_effects_bind);
 
@@ -730,11 +928,24 @@ phoc_draggable_layer_surface_slide (PhocDraggableLayerSurface *drag_surface, Pho
  *
  * Returns: (transfer none): The underlying layer surface
  */
-PhocLayerSurface*
+PhocLayerSurface *
 phoc_draggable_layer_surface_get_layer_surface (PhocDraggableLayerSurface *drag_surface)
 {
   return drag_surface->layer_surface;
 }
+
+/**
+ * phoc_alpha_layer_surface_get_layer_surface:
+ * @alpha_surface: The layer surface with alpha effect
+ *
+ * Returns: (transfer none): The underlying layer surface
+ */
+PhocLayerSurface *
+phoc_alpha_layer_surface_get_layer_surface (PhocAlphaLayerSurface *alpha_surface)
+{
+  return alpha_surface->layer_surface;
+}
+
 
 
 static void
@@ -1062,5 +1273,17 @@ phoc_layer_shell_effects_get_draggable_layer_surface_from_layer_surface (
   g_return_val_if_fail (PHOC_IS_LAYER_SHELL_EFFECTS (self), NULL);
   g_return_val_if_fail (PHOC_IS_LAYER_SURFACE (layer_surface), NULL);
 
-  return g_hash_table_lookup (self->drag_surfaces_by_layer_sufrace, layer_surface);
+  return g_hash_table_lookup (self->drag_surfaces_by_layer_surface, layer_surface);
+}
+
+
+PhocAlphaLayerSurface *
+phoc_layer_shell_effects_get_alpha_layer_surface_from_layer_surface (
+  PhocLayerShellEffects *self,
+  PhocLayerSurface *layer_surface)
+{
+  g_return_val_if_fail (PHOC_IS_LAYER_SHELL_EFFECTS (self), NULL);
+  g_return_val_if_fail (PHOC_IS_LAYER_SURFACE (layer_surface), NULL);
+
+  return g_hash_table_lookup (self->alpha_surfaces_by_layer_surface, layer_surface);
 }

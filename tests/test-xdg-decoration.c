@@ -63,6 +63,7 @@ test_xdg_decoration_server_side (void)
   PhocTestClientIface iface = {
     .server_prepare = test_client_xdg_decoration_server_prepare,
     .client_run     = test_client_xdg_decoration_server_side,
+    .debug_flags    = PHOC_SERVER_DEBUG_FLAG_DISABLE_ANIMATIONS,
   };
 
   phoc_test_client_run (TEST_PHOC_CLIENT_TIMEOUT, &iface, GINT_TO_POINTER (FALSE));

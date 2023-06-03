@@ -98,7 +98,6 @@ struct _PhocDesktop {
 	xcb_atom_t xwayland_atoms[XWAYLAND_ATOM_LAST];
 #endif
 
-	GSettings *settings;
 	gboolean maximize, scale_to_fit;
 	GHashTable *input_output_map;
 
@@ -115,6 +114,7 @@ void         phoc_desktop_set_auto_maximize (PhocDesktop *self, gboolean on);
 gboolean     phoc_desktop_get_auto_maximize (PhocDesktop *self);
 void         phoc_desktop_set_scale_to_fit (PhocDesktop *self, gboolean on);
 gboolean     phoc_desktop_get_scale_to_fit (PhocDesktop *self);
+gboolean     phoc_desktop_get_enable_animations (PhocDesktop *self);
 PhocOutput  *phoc_desktop_find_output (PhocDesktop *self,
                                        const char  *make,
                                        const char  *model,

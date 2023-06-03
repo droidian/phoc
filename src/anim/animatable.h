@@ -15,7 +15,7 @@ G_DECLARE_INTERFACE (PhocAnimatable, phoc_animatable, PHOC, ANIMATABLE, GObject)
 
 /**
  * PhocFrameCallback:
- * @self: The paintable
+ * @self: The animatable
  * @last_frame: Time of the last frame in us
  * @user_data: User data passed when registering the callback
  *

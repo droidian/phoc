@@ -67,6 +67,11 @@ static GParamSpec *props[PROP_LAST_PROP];
 
 typedef struct _PhocDesktopPrivate {
   PhocIdleInhibit *idle_inhibit;
+
+  gboolean         enable_animations;
+
+  GSettings       *settings;
+  GSettings       *interface_settings;
 } PhocDesktopPrivate;
 
 G_DEFINE_TYPE_WITH_PRIVATE (PhocDesktop, phoc_desktop, G_TYPE_OBJECT);
@@ -178,6 +183,7 @@ layer_surface_at (PhocOutput                     *output,
 {
   PhocLayerSurface *layer_surface;
 
+  /* TODO: use phoc_output_get_layer_surfaces_for_layer */
   wl_list_for_each_reverse(layer_surface, &output->layer_surfaces, link) {
     if (!layer_surface->mapped)
       continue;
@@ -472,6 +478,23 @@ auto_maximize_changed_cb (PhocDesktop *self,
 
   phoc_desktop_set_auto_maximize (self, max);
 }
+
+
+static void
+on_enable_animations_changed (PhocDesktop *self,
+                              const gchar *key,
+                              GSettings   *settings)
+{
+  PhocDesktopPrivate *priv;
+
+  g_return_if_fail (PHOC_IS_DESKTOP (self));
+  g_return_if_fail (G_IS_SETTINGS (settings));
+  priv = phoc_desktop_get_instance_private (self);
+
+  priv->enable_animations = g_settings_get_boolean (settings, key);
+}
+
+
 
 #ifdef PHOC_XWAYLAND
 static const char *atom_map[XWAYLAND_ATOM_LAST] = {
@@ -768,12 +791,22 @@ phoc_desktop_constructed (GObject *object)
 
   wlr_data_control_manager_v1_create(server->wl_display);
 
-  self->settings = g_settings_new ("sm.puri.phoc");
-  g_signal_connect_swapped(self->settings, "changed::auto-maximize",
-			   G_CALLBACK (auto_maximize_changed_cb), self);
-  auto_maximize_changed_cb(self, "auto-maximize", self->settings);
+  /* sm.puri.phosh settings */
+  priv->settings = g_settings_new ("sm.puri.phoc");
+  g_signal_connect_swapped (priv->settings, "changed::auto-maximize",
+                            G_CALLBACK (auto_maximize_changed_cb), self);
+  auto_maximize_changed_cb (self, "auto-maximize", priv->settings);
+  g_settings_bind (priv->settings, "scale-to-fit", self, "scale-to-fit", G_SETTINGS_BIND_DEFAULT);
 
-  g_settings_bind (self->settings, "scale-to-fit", self, "scale-to-fit", G_SETTINGS_BIND_DEFAULT);
+  /* org.gnome.desktop.interface settings */
+  priv->interface_settings = g_settings_new ("org.gnome.desktop.interface");
+  if (server->debug_flags & PHOC_SERVER_DEBUG_FLAG_DISABLE_ANIMATIONS) {
+    priv->enable_animations = FALSE;
+  } else {
+    g_signal_connect_swapped (priv->interface_settings, "changed::enable-animations",
+                              G_CALLBACK (on_enable_animations_changed), self);
+    on_enable_animations_changed (self, "enable-animations", priv->interface_settings);
+  }
 }
 
 
@@ -822,6 +855,9 @@ phoc_desktop_finalize (GObject *object)
   g_hash_table_remove_all (self->input_output_map);
   g_hash_table_unref (self->input_output_map);
 
+  g_clear_object (&priv->interface_settings);
+  g_clear_object (&priv->settings);
+
   G_OBJECT_CLASS (phoc_desktop_parent_class)->finalize (object);
 }
 
@@ -861,7 +897,10 @@ phoc_desktop_class_init (PhocDesktopClass *klass)
 static void
 phoc_desktop_init (PhocDesktop *self)
 {
-  g_autoptr (PhocGesture) touchpad_swipe = NULL;
+  PhocDesktopPrivate *priv;
+
+  priv = phoc_desktop_get_instance_private (self);
+  priv->enable_animations = TRUE;
 
   self->input_output_map = g_hash_table_new_full (g_str_hash,
                                                   g_str_equal,
@@ -977,6 +1016,25 @@ gboolean
 phoc_desktop_get_scale_to_fit (PhocDesktop *self)
 {
     return self->scale_to_fit;
+}
+
+/**
+ * phoc_desktop_get_enable_animations:
+ * @self: The desktop
+ *
+ * Checks whether the user wants animations to be enabled.
+ *
+ * Returns: Whether animations are enabled
+ */
+gboolean
+phoc_desktop_get_enable_animations (PhocDesktop *self)
+{
+  PhocDesktopPrivate *priv;
+
+  g_assert (PHOC_IS_DESKTOP (self));
+  priv = phoc_desktop_get_instance_private (self);
+
+  return priv->enable_animations;
 }
 
 /**

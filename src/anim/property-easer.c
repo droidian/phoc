@@ -60,7 +60,8 @@ typedef struct _PhocEaseProp {
  *
  * would set `object.a == 0.0` and `object.b == 50.0`.
  *
- * The eased properties must be of type `float` or `int`.
+ * The eased properties must be of type `float` or `int`. If the tracked object goes away the
+ * easing stops. No ref is held on the object.
  */
 struct _PhocPropertyEaser {
   GObject         parent;

@@ -73,6 +73,7 @@ test_phosh_private_thumbnail_simple (void)
 {
   PhocTestClientIface iface = {
    .client_run = test_client_phosh_private_thumbnail_simple,
+   .debug_flags    = PHOC_SERVER_DEBUG_FLAG_DISABLE_ANIMATIONS,
   };
 
   /* pixman renderer can work in containers, skip tests otherwise */

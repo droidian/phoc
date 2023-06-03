@@ -72,9 +72,11 @@ typedef gboolean (* PhocTestClientFunc) (PhocTestClientGlobals *globals, gpointe
 
 typedef struct PhocTestClientIface {
   /* Prepare function runs in server context */
-  PhocTestServerFunc  server_prepare;
-  PhocTestClientFunc  client_run;
-  PhocConfig         *config;
+  PhocTestServerFunc   server_prepare;
+  PhocTestClientFunc   client_run;
+  PhocServerFlags      server_flags;
+  PhocServerDebugFlags debug_flags;
+  PhocConfig          *config;
 } PhocTestClientIface;
 
 typedef struct _PhocTestXdgToplevelSurface

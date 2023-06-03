@@ -1,4 +1,19 @@
-phoch 0.27.0
+phoc 0.28.0
+-----------
+Released Mai 2023
+* Support layer shell transpareancy and add protocol bits for this
+* Handle <super> key
+* Properly reveal OSK for fullscreen surfaces too
+* Smooth mapping of new toplevels when not in auto-maximize mode
+* Issues fixed:
+    https://gitlab.gnome.org/World/Phosh/phosh/-/issues/563
+* Contributors:
+    * Alistair Francis
+    * Guido Günther
+    * Newbyte
+    * Sebastian Krzyszkowiak
+
+phoc 0.27.0
 ------------
 Released April 2023
 * Let idle-inhibit report the app's id

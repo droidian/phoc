@@ -37,6 +37,7 @@ tests = [
   'run',
   'settings',
   'server',
+  'timed-animation',
   'utils',
   'xdg-decoration',
   'xdg-shell',

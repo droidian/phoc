@@ -1691,33 +1691,52 @@ phoc_seat_set_exclusive_client (PhocSeat         *seat,
   seat->exclusive_client = client;
 }
 
+/**
+ * phoc_seat_cycle_focus:
+ * @seat: The seat
+ * @forward: Whether to cycle forward or backward through the `PhocSeatViews`
+ *
+ * Cycles the input focus through the current seat views. Depending on `forward` it
+ * cycles either forward or backward.
+ */
 void
-phoc_seat_cycle_focus (PhocSeat *seat)
+phoc_seat_cycle_focus (PhocSeat *seat, gboolean forward)
 {
-  if (wl_list_empty (&seat->views)) {
-    return;
-  }
+  PhocSeatView *first_seat_view;
+  PhocSeatView *seat_view;
 
-  PhocSeatView *first_seat_view = wl_container_of (
-    seat->views.next, first_seat_view, link);
+  if (wl_list_empty (&seat->views))
+    return;
+  first_seat_view = wl_container_of (seat->views.next, first_seat_view, link);
 
   if (!seat->has_focus) {
     phoc_seat_set_focus (seat, first_seat_view->view);
     return;
   }
-  if (wl_list_length (&seat->views) < 2) {
+
+  if (wl_list_length (&seat->views) < 2)
     return;
+
+  if (forward) {
+    /* Focus the next view */
+    seat_view = wl_container_of (first_seat_view->link.next, seat_view, link);
+  } else {
+    /* Focus the last view in the list */
+    seat_view = wl_container_of (seat->views.prev, seat_view, link);
   }
 
-  // Focus the next view
-  PhocSeatView *next_seat_view = wl_container_of (
-    first_seat_view->link.next, next_seat_view, link);
+  g_assert (PHOC_IS_VIEW (seat_view->view));
+  phoc_seat_set_focus (seat, seat_view->view);
 
-  phoc_seat_set_focus (seat, next_seat_view->view);
-
-  // Move the first view to the end of the list
-  wl_list_remove (&first_seat_view->link);
-  wl_list_insert (seat->views.prev, &first_seat_view->link);
+  if (forward) {
+    /* Move the first view to the end */
+    wl_list_remove (&first_seat_view->link);
+    wl_list_insert (seat->views.prev, &first_seat_view->link);
+  } else {
+    /* Move the new seat view to the start of the list */
+    wl_list_remove (&seat_view->link);
+    wl_list_insert (&seat->views, &seat_view->link);
+  }
 }
 
 void

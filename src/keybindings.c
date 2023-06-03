@@ -114,7 +114,13 @@ handle_toggle_fullscreen (PhocSeat *seat)
 
 static void handle_cycle_windows (PhocSeat *seat)
 {
-  phoc_seat_cycle_focus(seat);
+  phoc_seat_cycle_focus(seat, TRUE);
+}
+
+
+static void handle_cycle_windows_backwards (PhocSeat *seat)
+{
+  phoc_seat_cycle_focus(seat, FALSE);
 }
 
 
@@ -545,6 +551,8 @@ phoc_keybindings_constructed (GObject *object)
   phoc_add_keybinding (self, self->settings,
                        "cycle-windows", handle_cycle_windows);
   phoc_add_keybinding (self, self->settings,
+                       "cycle-windows-backward", handle_cycle_windows_backwards);
+  phoc_add_keybinding (self, self->settings,
                        "maximize", handle_maximize);
   phoc_add_keybinding (self, self->settings,
                        "toggle-fullscreen", handle_toggle_fullscreen);
@@ -558,6 +566,8 @@ phoc_keybindings_constructed (GObject *object)
    * useful */
   phoc_add_keybinding (self, self->settings,
                        "switch-applications", handle_cycle_windows);
+  phoc_add_keybinding (self, self->settings,
+                       "switch-applications-backward", handle_cycle_windows_backwards);
   phoc_add_keybinding (self, self->settings,
                        "unmaximize", handle_unmaximize);
   phoc_add_keybinding (self, self->settings,

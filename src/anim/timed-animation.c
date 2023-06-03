@@ -21,6 +21,7 @@ enum {
   PROP_PROPERTY_EASER,
   PROP_ANIMATABLE,
   PROP_DURATION,
+  PROP_DISPOSE_ON_DONE,
   PROP_STATE,
   PROP_LAST_PROP
 };
@@ -48,6 +49,7 @@ struct _PhocTimedAnimation {
   int                  duration;
   PhocAnimationState   state;
   guint                frame_callback_id;
+  gboolean             dispose_on_done;
 };
 
 struct _PhocTimedAnimationClass {
@@ -74,6 +76,8 @@ update_properties (PhocTimedAnimation *self, guint t)
 {
   double progress;
 
+  g_assert (PHOC_IS_PROPERTY_EASER (self->prop_easer));
+
   if (self->duration == 0)
     return phoc_property_easer_set_progress (self->prop_easer, 0.0);
 
@@ -98,6 +102,19 @@ set_property_easer (PhocTimedAnimation *self, PhocPropertyEaser *prop_easer)
   g_set_object (&self->prop_easer, prop_easer);
 
   g_object_notify_by_pspec (G_OBJECT (self), props[PROP_PROPERTY_EASER]);
+}
+
+
+static void
+set_dispose_on_done (PhocTimedAnimation *self, gboolean dispose_on_done)
+{
+  if (self->dispose_on_done == dispose_on_done)
+    return;
+
+  /* Take a ref so the code instantiating the object doesn't care about the life cycle */
+  g_object_ref (self);
+
+  self->dispose_on_done = dispose_on_done;
 }
 
 
@@ -179,6 +196,9 @@ phoc_timed_animation_set_property (GObject      *object,
   case PROP_DURATION:
     phoc_timed_animation_set_duration (self, g_value_get_int (value));
     break;
+  case PROP_DISPOSE_ON_DONE:
+    set_dispose_on_done (self, g_value_get_boolean (value));
+    break;
   default:
     G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
     break;
@@ -203,6 +223,9 @@ phoc_timed_animation_get_property (GObject    *object,
     break;
   case PROP_DURATION:
     g_value_set_int (value, self->duration);
+    break;
+  case PROP_DISPOSE_ON_DONE:
+    g_value_set_boolean (value, self->dispose_on_done);
     break;
   case PROP_STATE:
     g_value_set_enum (value, phoc_timed_animation_get_state (self));
@@ -277,7 +300,21 @@ phoc_timed_animation_class_init (PhocTimedAnimationClass *klass)
                       G_MAXINT,
                       0,
                       G_PARAM_READWRITE | G_PARAM_EXPLICIT_NOTIFY | G_PARAM_STATIC_STRINGS);
-
+  /**
+   * PhocTimedAnimation:dispose-on-done:
+   *
+   * Whether the animation should ref itself during construction and drop
+   * that reference once it emitted the [signal@TimedAnimation::done]
+   * signal.  This frees the animated object from tracking the
+   * animations life cycle thus making it easy to create "fire and
+   * forget" animations.
+   */
+  props[PROP_DISPOSE_ON_DONE] =
+    g_param_spec_boolean ("dispose-on-done",
+                          "",
+                          "",
+                          FALSE,
+                          G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS);
   /**
    * PhocAnimation::state:
    *
@@ -447,6 +484,11 @@ phoc_timed_animation_skip (PhocTimedAnimation *self)
   g_object_thaw_notify (G_OBJECT (self));
 
   g_signal_emit (self, signals[DONE], 0);
+  if (self->dispose_on_done) {
+    g_object_unref (self);
+    /* Only do this once */
+    self->dispose_on_done = FALSE;
+  }
 }
 
 
@@ -454,7 +496,7 @@ phoc_timed_animation_skip (PhocTimedAnimation *self)
  * phoc_timed_animation_get_state:
  * @self: a `PhocTimedAnimation`
  *
- * Gets the current value of @self.
+ * Gets the current state of @self.
  *
  * The state indicates whether @self is currently playing, finished or
  * hasn't been started yet.
@@ -466,6 +508,24 @@ phoc_timed_animation_get_state (PhocTimedAnimation *self)
 
   return self->state;
 }
+
+
+/**
+ * phoc_timed_animation_get_dispose_on_done:
+ * @self: a `PhocTimedAnimation`
+ *
+ * Whether the animation tracks it's own reference.
+ *
+ * Returns: Whether [prop@TimedAnimation:dispose-on-done] is set.
+ */
+gboolean
+phoc_timed_animation_get_dispose_on_done (PhocTimedAnimation *self)
+{
+  g_return_val_if_fail (PHOC_IS_TIMED_ANIMATION (self), PHOC_TIMED_ANIMATION_IDLE);
+
+  return self->dispose_on_done;
+}
+
 
 /**
  * phoc_timed_animation_reset:

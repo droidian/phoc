@@ -156,7 +156,7 @@ void               phoc_seat_set_focus (PhocSeat *seat, PhocView *view);
 void               phoc_seat_set_focus_layer (PhocSeat                    *seat,
                                               struct wlr_layer_surface_v1 *layer);
 
-void               phoc_seat_cycle_focus (PhocSeat *seat);
+void               phoc_seat_cycle_focus (PhocSeat *seat, gboolean forward);
 
 void               phoc_seat_begin_move (PhocSeat *seat, PhocView *view);
 

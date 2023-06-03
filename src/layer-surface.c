@@ -171,6 +171,7 @@ phoc_layer_surface_class_init (PhocLayerSurfaceClass *klass)
 static void
 phoc_layer_surface_init (PhocLayerSurface *self)
 {
+  self->alpha = 1.0;
   wl_list_init(&self->subsurfaces);
 }
 
@@ -237,4 +238,34 @@ phoc_layer_surface_get_output (PhocLayerSurface *self)
     return NULL;
 
   return self->layer_surface->output->data;
+}
+
+/**
+ * phoc_layer_surface_set_alpha:
+ * @self: The layer surface
+ * @alpha: The alpha value
+ *
+ * Sets the surfaces transparency.
+ */
+void
+phoc_layer_surface_set_alpha (PhocLayerSurface *self, float alpha)
+{
+  g_assert (PHOC_IS_LAYER_SURFACE (self));
+  g_return_if_fail (alpha >= 0.0 && alpha <= 1.0);
+
+  self->alpha = alpha;
+}
+
+/**
+ * phoc_layer_surface_get_alpha:
+ * @self: The layer surface
+ *
+ * Returns: the surfaces transparency
+ */
+float
+phoc_layer_surface_get_alpha (PhocLayerSurface *self)
+{
+  g_assert (PHOC_IS_LAYER_SURFACE (self));
+
+  return self->alpha;
 }
