@@ -14,14 +14,17 @@
 #include "seat.h"
 #include "server.h"
 #include "utils.h"
+#include "timed-animation.h"
 #include "view-private.h"
 
+#define PHOC_ANIM_DURATION_WINDOW_FADE 150
 
 enum {
   PROP_0,
   PROP_SCALE_TO_FIT,
   PROP_ACTIVATION_TOKEN,
   PROP_IS_MAPPED,
+  PROP_ALPHA,
   PROP_LAST_PROP
 };
 static GParamSpec *props[PROP_LAST_PROP];
@@ -454,16 +457,6 @@ view_arrange_tiled (PhocView *view, struct wlr_output *output)
                          usable_area.height / priv->scale);
 }
 
-/*
- * Check if a view needs to be maximized
- */
-static bool
-want_auto_maximize(PhocView *view) {
-  if (!view->desktop->maximize)
-    return false;
-
-  return PHOC_VIEW_GET_CLASS (view)->want_auto_maximize(view);
-}
 
 void view_maximize(PhocView *view, struct wlr_output *output) {
         PhocViewPrivate *priv;
@@ -498,7 +491,7 @@ void view_maximize(PhocView *view, struct wlr_output *output) {
 void
 view_auto_maximize(PhocView *view)
 {
-  if (want_auto_maximize (view))
+  if (phoc_view_want_auto_maximize (view))
     view_maximize (view, NULL);
 }
 
@@ -513,7 +506,7 @@ view_restore(PhocView *view)
   if (!view_is_maximized (view) && !view_is_tiled (view))
     return;
 
-  if (want_auto_maximize (view))
+  if (phoc_view_want_auto_maximize (view))
     return;
 
   struct wlr_box geom;
@@ -1069,6 +1062,25 @@ phoc_view_map (PhocView *view, struct wlr_surface *surface)
   if (priv->activation_token)
     phoc_view_activate (view, TRUE);
 
+  if (phoc_desktop_get_enable_animations (view->desktop)
+      && view->parent == NULL
+      && !phoc_view_want_auto_maximize (view)) {
+    g_autoptr (PhocTimedAnimation) fade_anim = NULL;
+    g_autoptr (PhocPropertyEaser) easer = NULL;
+    easer = g_object_new (PHOC_TYPE_PROPERTY_EASER,
+                          "target", view,
+                          "easing", PHOC_EASING_EASE_OUT_QUAD,
+                          NULL);
+    phoc_property_easer_set_props (easer, "alpha", 0.0, 1.0, NULL);
+    fade_anim = g_object_new (PHOC_TYPE_TIMED_ANIMATION,
+                              "animatable", phoc_view_get_output (view),
+                              "duration", PHOC_ANIM_DURATION_WINDOW_FADE,
+                              "property-easer", easer,
+                              "dispose-on-done", TRUE,
+                              NULL);
+    phoc_timed_animation_play (fade_anim);
+  }
+
   g_object_notify_by_pspec (G_OBJECT (view), props[PROP_IS_MAPPED]);
 }
 
@@ -1434,6 +1446,23 @@ view_create_foreign_toplevel_handle (PhocView *view)
 
 
 static void
+phoc_view_set_alpha (PhocView *self, float alpha)
+{
+  PhocViewPrivate *priv;
+
+  g_assert (PHOC_IS_VIEW (self));
+  priv = phoc_view_get_instance_private (self);
+
+  if (G_APPROX_VALUE (priv->alpha, alpha, FLT_EPSILON))
+    return;
+
+  priv->alpha = alpha;
+  phoc_view_damage_whole (self);
+  g_object_notify_by_pspec (G_OBJECT (self), props[PROP_ALPHA]);
+}
+
+
+static void
 phoc_view_set_property (GObject      *object,
 			  guint         property_id,
 			  const GValue *value,
@@ -1447,6 +1476,9 @@ phoc_view_set_property (GObject      *object,
     break;
   case PROP_ACTIVATION_TOKEN:
     phoc_view_set_activation_token (self, g_value_get_string (value));
+    break;
+  case PROP_ALPHA:
+    phoc_view_set_alpha (self, g_value_get_float (value));
     break;
   default:
     G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -1473,6 +1505,9 @@ phoc_view_get_property (GObject    *object,
     break;
   case PROP_IS_MAPPED:
     g_value_set_boolean (value, phoc_view_is_mapped (self));
+    break;
+  case PROP_ALPHA:
+    g_value_set_float (value, phoc_view_get_alpha (self));
     break;
   default:
     G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -1669,6 +1704,16 @@ phoc_view_class_init (PhocViewClass *klass)
                           FALSE,
                           G_PARAM_READABLE | G_PARAM_STATIC_STRINGS | G_PARAM_EXPLICIT_NOTIFY);
 
+  /**
+   * PhocView:alpha:
+   *
+   * The view's transparency
+   */
+  props[PROP_ALPHA] =
+    g_param_spec_float ("alpha", "", "",
+                        0.0, 1.0, 1.0,
+                        G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS | G_PARAM_EXPLICIT_NOTIFY);
+
   g_object_class_install_properties (object_class, PROP_LAST_PROP, props);
 
   /**
@@ -1754,6 +1799,26 @@ phoc_view_get_tile_direction (PhocView *self)
   return priv->tile_direction;
 }
 
+
+/**
+ * phoc_view_get_output:
+ * @view: The view to get the output for
+ *
+ * If a view spans multiple output it returns the output that the
+ * center of the view is on.
+ *
+ * Returns: (transfer none)(nullable): The output the view is on
+ */
+PhocOutput *
+phoc_view_get_output (PhocView *view)
+{
+  struct wlr_output *wlr_output = view_get_output (view);
+
+  if (wlr_output == NULL)
+    return NULL;
+
+  return PHOC_OUTPUT (wlr_output->data);
+}
 
 /**
  * phoc_view_child_destroy:
@@ -2039,6 +2104,24 @@ phoc_view_get_wlr_surface_at (PhocView *self, double sx, double sy, double *sub_
 
   return PHOC_VIEW_GET_CLASS (self)->get_wlr_surface_at (self, sx, sy, sub_x, sub_y);
 }
+
+/*
+ * phoc_view_want_automaximize:
+ *
+ * Check if a view needs to be auto-maximized. In phoc's auto-maximize
+ * mode only toplevels should be maximized.
+ */
+bool
+phoc_view_want_auto_maximize (PhocView *view)
+{
+  g_assert (PHOC_IS_VIEW (view));
+
+  if (!view->desktop->maximize)
+    return false;
+
+  return PHOC_VIEW_GET_CLASS (view)->want_auto_maximize(view);
+}
+
 
 const char *
 phoc_view_get_app_id (PhocView *self)

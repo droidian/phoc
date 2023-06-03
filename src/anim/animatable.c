@@ -15,7 +15,13 @@
 /**
  * PhocAnimatable:
  *
- * Something that can be animated
+ * Something that can be animated. Objects implementing this interface
+ * attach to a frame callback source (usually a [type@PhocOutput] and
+ * are invoked until the callback is removed.
+ *
+ * While often the `PhocAnimatable` is the object being animated
+ * that's not required. The `PhocAnimatable` can also e.g. drive
+ * a [type@TimedAnimation] on a different object.
  */
 G_DEFINE_INTERFACE (PhocAnimatable, phoc_animatable, G_TYPE_OBJECT)
 
@@ -43,8 +49,8 @@ phoc_animatable_default_init (PhocAnimatableInterface *klass)
 guint
 phoc_animatable_add_frame_callback (PhocAnimatable    *self,
                                     PhocFrameCallback  callback,
-                                    gpointer          user_data,
-                                    GDestroyNotify    notify)
+                                    gpointer           user_data,
+                                    GDestroyNotify     notify)
 {
   PhocAnimatableInterface *iface;
 
@@ -57,8 +63,8 @@ phoc_animatable_add_frame_callback (PhocAnimatable    *self,
 }
 
 void
-phoc_animatable_remove_frame_callback (PhocAnimatable    *self,
-                                       guint              id)
+phoc_animatable_remove_frame_callback (PhocAnimatable *self,
+                                       guint           id)
 {
   PhocAnimatableInterface *iface;
 

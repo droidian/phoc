@@ -20,6 +20,7 @@ G_DECLARE_FINAL_TYPE (PhocOutput, phoc_output, PHOC, OUTPUT, GObject);
 
 typedef struct _PhocDesktop PhocDesktop;
 typedef struct _PhocInput PhocInput;
+typedef struct _PhocLayerSurface PhocLayerSurface;
 
 /**
  * PhocOutput:
@@ -83,10 +84,11 @@ void        phoc_output_drag_icons_for_each_surface  (PhocOutput *self,
                                                       PhocInput *input,
                                                       PhocSurfaceIterator iterator,
                                                       void *user_data);
-void        phoc_output_layer_for_each_surface       (PhocOutput *self,
-                                                      enum zwlr_layer_shell_v1_layer layer,
-                                                      PhocSurfaceIterator iterator,
-                                                      void *user_data);
+void        phoc_output_layer_surface_for_each_surface (PhocOutput          *self,
+                                                        PhocLayerSurface    *layer_surface,
+                                                        PhocSurfaceIterator  iterator,
+                                                        void                *user_data);
+
 #ifdef PHOC_XWAYLAND
 struct wlr_xwayland_surface;
 void        phoc_output_xwayland_children_for_each_surface (PhocOutput *self,
@@ -98,6 +100,9 @@ void        phoc_output_for_each_surface             (PhocOutput *self,
                                                       PhocSurfaceIterator iterator,
                                                       void *user_data,
                                                       gboolean visible_only);
+GList *     phoc_output_get_layer_surfaces_for_layer (PhocOutput                     *self,
+                                                      enum zwlr_layer_shell_v1_layer  layer);
+
 /* signal handlers */
 void        handle_output_manager_apply (struct wl_listener *listener, void *data);
 void        handle_output_manager_test (struct wl_listener *listener, void *data);

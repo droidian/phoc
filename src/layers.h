@@ -54,5 +54,6 @@ typedef struct phoc_layer_subsurface {
 
 void phoc_layer_shell_arrange (PhocOutput *output);
 void phoc_layer_shell_update_focus (void);
+PhocLayerSurface *phoc_layer_shell_find_osk (PhocOutput *output);
 
 G_END_DECLS

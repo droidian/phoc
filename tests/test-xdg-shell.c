@@ -87,6 +87,7 @@ test_xdg_shell_normal (void)
   PhocTestClientIface iface = {
    .server_prepare = test_client_xdg_shell_server_prepare,
    .client_run     = test_client_xdg_shell_normal,
+   .debug_flags    = PHOC_SERVER_DEBUG_FLAG_DISABLE_ANIMATIONS,
   };
 
   phoc_test_client_run (TEST_PHOC_CLIENT_TIMEOUT, &iface, GINT_TO_POINTER (FALSE));
@@ -98,6 +99,7 @@ test_xdg_shell_auto_maximized (void)
   PhocTestClientIface iface = {
    .server_prepare = test_client_xdg_shell_server_prepare,
    .client_run     = test_client_xdg_shell_auto_maximized,
+   .debug_flags    = PHOC_SERVER_DEBUG_FLAG_DISABLE_ANIMATIONS,
   };
 
   phoc_test_client_run (TEST_PHOC_CLIENT_TIMEOUT, &iface, GINT_TO_POINTER (TRUE));
@@ -110,6 +112,7 @@ test_xdg_shell_toplevel_maximized (void)
   PhocTestClientIface iface = {
    .server_prepare = test_client_xdg_shell_server_prepare,
    .client_run     = test_client_xdg_shell_toplevel_maximized,
+   .debug_flags    = PHOC_SERVER_DEBUG_FLAG_DISABLE_ANIMATIONS,
   };
 
   phoc_test_client_run (TEST_PHOC_CLIENT_TIMEOUT, &iface, GINT_TO_POINTER (FALSE));

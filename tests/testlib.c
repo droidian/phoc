@@ -326,7 +326,7 @@ static void registry_handle_global(void *data, struct wl_registry *registry,
     globals->gtk_shell1 = wl_registry_bind (registry, name, &gtk_shell1_interface, 3);
   } else if (!g_strcmp0 (interface, zphoc_layer_shell_effects_v1_interface.name)) {
     globals->layer_shell_effects = wl_registry_bind (registry, name,
-                                                     &zphoc_layer_shell_effects_v1_interface, 1);
+                                                     &zphoc_layer_shell_effects_v1_interface, 2);
   } else if (!g_strcmp0 (interface, zxdg_decoration_manager_v1_interface.name)) {
     globals->decoration_manager = wl_registry_bind (registry, name,
                                                      &zxdg_decoration_manager_v1_interface, 1);
@@ -442,7 +442,7 @@ phoc_test_client_run (gint timeout, PhocTestClientIface *iface, gpointer data)
   g_assert_true (config);
   g_assert_true (phoc_server_setup(server, config, NULL, loop,
                                    PHOC_SERVER_FLAG_NONE,
-                                   PHOC_SERVER_DEBUG_FLAG_NONE));
+                                   iface ? iface->debug_flags : PHOC_SERVER_DEBUG_FLAG_NONE));
   if (iface && iface->server_prepare)
     g_assert_true (iface->server_prepare(server, data));
 

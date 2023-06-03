@@ -1,3 +1,96 @@
+phoc (0.28.0) experimental; urgency=medium
+
+  [ Newbyte ]
+  * NEWS: Fix typo.
+
+  [ Sebastian Krzyszkowiak ]
+  * layer-shell: Make find_osk public.
+    This is going to be useful in order to reveal shell when fullscreen view
+    requests the keyboard and to draw the keyboard inside window thumbnails.
+  * output: Reveal the shell when a fullscreen view requests the keyboard.
+    Without that, the keyboard would stay hidden unless the user revealed
+    shell surfaces manually.
+
+  [ Guido Günther ]
+  * output: Only care about mapped views when checking shell reveal.
+    This avoids when a surface is marked to become fullscreen but isn't mapped
+    yet (doesn't have a wlr_surface attached).
+    This happens e.g. when starting electron apps fullscreen.
+  * layer-surface: Allow to get and set alpha
+  * output: Make layer surface iterator public.
+    Name it consistently with the view iterator. We need a forward
+    declaration of PhocLayerSurface until we cleanup up more headers.
+  * output: Add helper to get layer surfaces in render order.
+    We need this in several places.
+  * render: Allow to use alpha for layer surfaces
+  * layer-shell-effects: Drop unused destroy signal
+  * layer-shell-effects: Allow to set surface alpha.
+    Extend the protocol with a new effect that allows to set a layer
+    surface's alpha value. Bump the protocol version for that.
+  * layer-shell-effects: Fix surface typos
+  * examples: Allow to test layer surface alpha.
+  * layer-shell-effects: Add a test for setting alpha.
+    We skip this under pixman. wlroots 0.16 should allow us to
+    enable this test permanently.
+  * property-easer: Document that we don't ref the object.
+    This makes sure that easing of properties stops as soon as the object
+    that we track is disposed.
+  * desktop: Remove unused code.
+    Fixes: a8992d3124442c19d65d1db66ba35727c80ec3f4
+  * desktop: Dispose settings
+  * desktop: Make settings private.
+    We'll add more settings and that makes sure they're in one place
+  * desktop: Track whether animations should be used.
+    Track the enable-animations GSetting to figure out if we want
+    to use animations in the compositor.
+    We also add a debug flag to disable animations from the command
+    line or in tests.
+  * tests: Disable animations.
+    Disable animations so the screenshots continue to work. For that
+    pass the debug flags to the created compositor.
+  * output: Mark cutout texture rendering as unlikely.
+    It's a debugging tool after all
+  * animatable: Improve documentation
+  * timed-animation: Allow to dispose animations when done.
+    Setting the dispose-on-done property will dispose the animations so it
+    doesn't need to be tracked.
+  * tests: Add simple tests for timed animation
+  * output: Implement animatable interface.
+    This makes it very simple to use an output to drive a
+    PhocTimedAnimation without requiring the animated object
+    to implement PhocAnimatable itself.
+    We currently ignore the case of the output going away while the
+    animatable is being driven.
+  * view: Add getter for output.
+    We want to make all of View's methods use PhocOutput instead of
+    wlr_output but let's do that later to avoid more noise.
+  * view: Make surface alpha a property
+  * view: Animate surface map.
+    We fade the surface of a stack in when animations are enabled.
+  * view: Make want_automaximize public.
+    This can be useful elsewhere and we'd need to move it up anyway
+    (or add a forward declaration) as we want to use it in view_map.
+  * view: Disable fade in animation when automaximize is in use.
+    While the fade in would be nice for slow staring apps (where splash is
+    already gone) it introduces flicker for applications using
+    xdg-activation. This can be fixed once we landet the xdg-activation
+    cleanups.
+  * tests: Disable animation for xdg-decoration test.
+    The other tests have it disabled.
+    Fixes 4a107d661e51f7d0b962c14829aacb2f8e4e36b1
+  * layer-shell: Avoid crash when surfaces width or height become negative.
+  * Allow to cycle backwards through windows
+
+  [ Alistair Francis ]
+  * keyboard: Forward on the super key if pressed by itself.
+    If the super key is the only key pressed (so it isn't used as a
+    modifier) we want to pass the event onto Phosh. This handles the complex
+    logic of looking for the key being pressed and released in Phoc allowing
+    Phosh to just easily react to the event.
+    Fixes: https://gitlab.gnome.org/World/Phosh/phosh/-/issues/563
+
+ -- Guido Günther <agx@sigxcpu.org>  Thu, 25 May 2023 14:52:59 +0200
+
 phoc (0.27.0) experimental; urgency=medium
 
   [ Guido Günther ]

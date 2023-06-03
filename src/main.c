@@ -84,6 +84,9 @@ static GDebugKey debug_keys[] =
  { .key = "cutouts",
    .value = PHOC_SERVER_DEBUG_FLAG_CUTOUTS,
  },
+ { .key = "disable-animations",
+   .value = PHOC_SERVER_DEBUG_FLAG_DISABLE_ANIMATIONS,
+ },
 };
 
 

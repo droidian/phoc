@@ -142,6 +142,7 @@ test_xwayland_normal (void)
     .config         = config,
     .server_prepare = test_client_xwayland_server_prepare,
     .client_run     = test_client_xwayland_normal,
+    .debug_flags    = PHOC_SERVER_DEBUG_FLAG_DISABLE_ANIMATIONS,
   };
 
   phoc_test_client_run (3, &iface, GINT_TO_POINTER (FALSE));

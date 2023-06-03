@@ -357,12 +357,22 @@ render_layer (PhocOutput                     *output,
               pixman_region32_t              *damage,
               enum zwlr_layer_shell_v1_layer  layer)
 {
+  g_autoptr (GList) layer_surfaces = NULL;
+
   struct render_data data = {
     .damage = damage,
-    .alpha = 1.0f,
   };
 
-  phoc_output_layer_for_each_surface(output, layer, render_surface_iterator, &data);
+  layer_surfaces = phoc_output_get_layer_surfaces_for_layer (output, layer);
+  for (GList *l = layer_surfaces; l; l = l->next) {
+    PhocLayerSurface *layer_surface = PHOC_LAYER_SURFACE (l->data);
+
+    data.alpha = phoc_layer_surface_get_alpha (layer_surface);
+    phoc_output_layer_surface_for_each_surface (output,
+                                                layer_surface,
+                                                render_surface_iterator,
+                                                &data);
+  }
 }
 
 

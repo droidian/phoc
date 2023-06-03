@@ -28,6 +28,7 @@ PhocPropertyEaser    *phoc_timed_animation_get_property_easer (PhocTimedAnimatio
 void                  phoc_timed_animation_set_duration     (PhocTimedAnimation *self, int duration);
 int                   phoc_timed_animation_get_duration     (PhocTimedAnimation *self);
 PhocAnimationState    phoc_timed_animation_get_state        (PhocTimedAnimation *self);
+gboolean              phoc_timed_animation_get_dispose_on_done (PhocTimedAnimation *self);
 void                  phoc_timed_animation_play             (PhocTimedAnimation *self);
 void                  phoc_timed_animation_skip             (PhocTimedAnimation *self);
 void                  phoc_timed_animation_reset            (PhocTimedAnimation *self);

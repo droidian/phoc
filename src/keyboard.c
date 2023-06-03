@@ -175,6 +175,55 @@ keyboard_execute_compositor_binding(PhocKeyboard *self,
   return false;
 }
 
+/*
+ * Execute super key. This function will detect if the super key has been pressed
+ * or released. If between a press and release no other keys are press then a
+ * keysym will be forwarded to phoc. Otherwise nothing happens.
+ *
+ * Returns `true` if the keysym was handled by a binding and `false` if the event
+ * should be propagated further.
+ */
+static bool
+keyboard_execute_super_key (PhocKeyboard              *self,
+                            const xkb_keysym_t        *keysyms,
+                            size_t                     keysyms_len,
+                            uint32_t                   modifiers,
+                            uint32_t                   time,
+                            enum wl_keyboard_key_state state)
+{
+  static bool press_valid = false;
+  uint32_t super_mod = 1 << xkb_map_mod_get_index(self->keymap, "Mod4");
+
+  if (modifiers > 0 && modifiers != super_mod) {
+    /* Check if other modifiers have been pressed e.g. <ctrl><super> */
+    return false;
+  }
+
+  for (size_t i = 0; i < keysyms_len; ++i) {
+    if (keysyms[i] == XKB_KEY_Super_L || keysyms[i] == XKB_KEY_Super_R) {
+      PhocKeyCombo combo = { 0, keysyms[i] };
+
+      if (state == WL_KEYBOARD_KEY_STATE_PRESSED) {
+        /* The super key was pressed wait for a release */
+        press_valid = true;
+        return phoc_phosh_private_forward_keysym (&combo, time, false);
+      } else if (press_valid == true) {
+        /* The super key was released and is valid (no other key was pressed) */
+        press_valid = false;
+        return phoc_phosh_private_forward_keysym (&combo, time, true);
+      }
+
+      return false;
+    } else {
+      /* A non super key was pressed, don't wait for the release
+       * as the super key is a modifier.
+       */
+      press_valid = false;
+    }
+  }
+
+  return false;
+}
 
 static bool
 keyboard_execute_power_key (PhocKeyboard              *self,
@@ -361,6 +410,11 @@ phoc_keyboard_handle_key (PhocKeyboard *self, struct wlr_event_keyboard_key *eve
     handled = keyboard_execute_binding (self,
                                         self->pressed_keysyms_raw, modifiers, keysyms,
                                         keysyms_len, event->state);
+  }
+
+  // Check for the super key
+  if (!handled) {
+    handled = keyboard_execute_super_key (self, keysyms, keysyms_len, modifiers, event->time_msec, event->state);
   }
 
   // Handle subscribed keysyms

@@ -114,112 +114,114 @@ static void update_cursors(PhocLayerSurface *layer_surface, GSList *seats /* Pho
 	}
 }
 
-static void arrange_layer(PhocOutput *output,
-		GSList *seats /* PhocSeat */,
-		enum zwlr_layer_shell_v1_layer layer,
-		struct wlr_box *usable_area, bool exclusive) {
-	PhocLayerSurface *layer_surface;
-	struct wlr_box full_area = { 0 };
+static void
+arrange_layer (PhocOutput                     *output,
+               GSList                         *seats, /* PhocSeat */
+               enum zwlr_layer_shell_v1_layer  layer,
+               struct wlr_box                 *usable_area,
+               bool                            exclusive)
+{
+  PhocLayerSurface *layer_surface;
+  struct wlr_box full_area = { 0 };
 
-	g_assert (PHOC_IS_OUTPUT (output));
-	wlr_output_effective_resolution(output->wlr_output,
-			&full_area.width, &full_area.height);
-	wl_list_for_each_reverse(layer_surface, &output->layer_surfaces, link) {
-		struct wlr_layer_surface_v1 *wlr_layer_surface = layer_surface->layer_surface;
-		struct wlr_layer_surface_v1_state *state = &wlr_layer_surface->current;
+  g_assert (PHOC_IS_OUTPUT (output));
+  wlr_output_effective_resolution (output->wlr_output, &full_area.width, &full_area.height);
+  wl_list_for_each_reverse (layer_surface, &output->layer_surfaces, link) {
+    struct wlr_layer_surface_v1 *wlr_layer_surface = layer_surface->layer_surface;
+    struct wlr_layer_surface_v1_state *state = &wlr_layer_surface->current;
 
-		if (layer_surface->layer != layer)
-		  continue;
+    if (layer_surface->layer != layer)
+      continue;
 
-		if (exclusive != (state->exclusive_zone > 0)) {
-			continue;
-		}
-		struct wlr_box bounds;
-		if (state->exclusive_zone == -1) {
-			bounds = full_area;
-		} else {
-			bounds = *usable_area;
-		}
-		struct wlr_box box = {
-			.width = state->desired_width,
-			.height = state->desired_height
-		};
-		// Horizontal axis
-		const uint32_t both_horiz = ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT
-			| ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT;
-		if ((state->anchor & both_horiz) && box.width == 0) {
-			box.x = bounds.x;
-			box.width = bounds.width;
-		} else if ((state->anchor & ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT)) {
-			box.x = bounds.x;
-		} else if ((state->anchor & ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT)) {
-			box.x = bounds.x + (bounds.width - box.width);
-		} else {
-			box.x = bounds.x + ((bounds.width / 2) - (box.width / 2));
-		}
-		// Vertical axis
-		const uint32_t both_vert = ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP
-			| ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM;
-		if ((state->anchor & both_vert) && box.height == 0) {
-			box.y = bounds.y;
-			box.height = bounds.height;
-		} else if ((state->anchor & ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP)) {
-			box.y = bounds.y;
-		} else if ((state->anchor & ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM)) {
-			box.y = bounds.y + (bounds.height - box.height);
-		} else {
-			box.y = bounds.y + ((bounds.height / 2) - (box.height / 2));
-		}
-		// Margin
-		if ((state->anchor & both_horiz) == both_horiz) {
-			box.x += state->margin.left;
-			box.width -= state->margin.left + state->margin.right;
-		} else if ((state->anchor & ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT)) {
-			box.x += state->margin.left;
-		} else if ((state->anchor & ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT)) {
-			box.x -= state->margin.right;
-		}
-		if ((state->anchor & both_vert) == both_vert) {
-			box.y += state->margin.top;
-			box.height -= state->margin.top + state->margin.bottom;
-		} else if ((state->anchor & ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP)) {
-			box.y += state->margin.top;
-		} else if ((state->anchor & ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM)) {
-			box.y -= state->margin.bottom;
-		}
-		if (box.width < 0 || box.height < 0) {
-			// TODO: Bubble up a protocol error?
-			wlr_layer_surface_v1_destroy(wlr_layer_surface);
-			continue;
-		}
+    if (exclusive != (state->exclusive_zone > 0))
+      continue;
 
-		// Apply
-		struct wlr_box old_geo = layer_surface->geo;
-		layer_surface->geo = box;
-		if (wlr_layer_surface->mapped) {
-			apply_exclusive(usable_area, state->anchor, state->exclusive_zone,
-					state->margin.top, state->margin.right,
-					state->margin.bottom, state->margin.left);
-		}
+    struct wlr_box bounds;
+    if (state->exclusive_zone == -1)
+      bounds = full_area;
+    else
+      bounds = *usable_area;
 
-		if (box.width != old_geo.width || box.height != old_geo.height)
-			wlr_layer_surface_v1_configure(wlr_layer_surface, box.width, box.height);
+    struct wlr_box box = {
+      .width = state->desired_width,
+      .height = state->desired_height
+    };
+    // Horizontal axis
+    const uint32_t both_horiz = ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT
+      | ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT;
+    if ((state->anchor & both_horiz) && box.width == 0) {
+      box.x = bounds.x;
+      box.width = bounds.width;
+    } else if ((state->anchor & ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT)) {
+      box.x = bounds.x;
+    } else if ((state->anchor & ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT)) {
+      box.x = bounds.x + (bounds.width - box.width);
+    } else {
+      box.x = bounds.x + ((bounds.width / 2) - (box.width / 2));
+    }
+    // Vertical axis
+    const uint32_t both_vert = ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP
+      | ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM;
+    if ((state->anchor & both_vert) && box.height == 0) {
+      box.y = bounds.y;
+      box.height = bounds.height;
+    } else if ((state->anchor & ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP)) {
+      box.y = bounds.y;
+    } else if ((state->anchor & ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM)) {
+      box.y = bounds.y + (bounds.height - box.height);
+    } else {
+      box.y = bounds.y + ((bounds.height / 2) - (box.height / 2));
+    }
+    // Margin
+    if ((state->anchor & both_horiz) == both_horiz) {
+      box.x += state->margin.left;
+      box.width -= state->margin.left + state->margin.right;
+    } else if ((state->anchor & ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT)) {
+      box.x += state->margin.left;
+    } else if ((state->anchor & ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT)) {
+      box.x -= state->margin.right;
+    }
+    if ((state->anchor & both_vert) == both_vert) {
+      box.y += state->margin.top;
+      box.height -= state->margin.top + state->margin.bottom;
+    } else if ((state->anchor & ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP)) {
+      box.y += state->margin.top;
+    } else if ((state->anchor & ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM)) {
+      box.y -= state->margin.bottom;
+    }
+    if (box.width < 0 || box.height < 0) {
+      g_warning_once ("Layer surface '%s' has negative bounds %dx%d - ignoring",
+                      layer_surface->layer_surface->namespace ?: "<unknown>",
+                      box.width, box.height);
+      /* The layer surface never gets configured, hence the client sees a protocol error */
+      continue;
+    }
 
-		// Having a cursor newly end up over the moved layer will not
-		// automatically send a motion event to the surface. The event needs to
-		// be synthesized.
-		// Only update layer surfaces which kept their size (and so buffers) the
-		// same, because those with resized buffers will be handled separately.
+    // Apply
+    struct wlr_box old_geo = layer_surface->geo;
+    layer_surface->geo = box;
+    if (wlr_layer_surface->mapped) {
+      apply_exclusive (usable_area, state->anchor, state->exclusive_zone,
+                       state->margin.top, state->margin.right,
+                       state->margin.bottom, state->margin.left);
+    }
 
-		if (layer_surface->geo.x != old_geo.x
-				|| layer_surface->geo.y != old_geo.y) {
-			update_cursors(layer_surface, seats);
-		}
-	}
+    if (box.width != old_geo.width || box.height != old_geo.height)
+      wlr_layer_surface_v1_configure (wlr_layer_surface, box.width, box.height);
+
+    // Having a cursor newly end up over the moved layer will not
+    // automatically send a motion event to the surface. The event needs to
+    // be synthesized.
+    // Only update layer surfaces which kept their size (and so buffers) the
+    // same, because those with resized buffers will be handled separately.
+
+    if (layer_surface->geo.x != old_geo.x || layer_surface->geo.y != old_geo.y)
+      update_cursors(layer_surface, seats);
+  }
 }
 
-static PhocLayerSurface *
-find_osk (PhocOutput *output)
+PhocLayerSurface *
+phoc_layer_shell_find_osk (PhocOutput *output)
 {
   PhocLayerSurface *layer_surface;
 
@@ -257,7 +259,7 @@ phoc_layer_shell_arrange (PhocOutput *output)
 
   wlr_output_effective_resolution (output->wlr_output, &usable_area.width, &usable_area.height);
 
-  PhocLayerSurface *osk = find_osk (output);
+  PhocLayerSurface *osk = phoc_layer_shell_find_osk (output);
   if (osk) {
     bool osk_force_overlay = false;
 
@@ -293,6 +295,8 @@ phoc_layer_shell_arrange (PhocOutput *output)
   // Arrange non-exlusive surfaces from top->bottom
   for (size_t i = 0; i < G_N_ELEMENTS(layers); ++i)
     arrange_layer (output, seats, layers[i], &usable_area, false);
+
+  phoc_output_update_shell_reveal (output);
 
   if (G_UNLIKELY (server->debug_flags & PHOC_SERVER_DEBUG_FLAG_LAYER_SHELL)) {
     PhocLayerSurface *layer_surface;

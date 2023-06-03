@@ -96,10 +96,54 @@ test_client_layer_shell_effects_drag_surface_simple (PhocTestClientGlobals *glob
 }
 
 
+static gboolean
+test_client_layer_shell_effects_alpha_surface_simple (PhocTestClientGlobals *globals, gpointer data)
+{
+  PhocTestLayerSurface *ls_green;
+  static struct zphoc_alpha_layer_surface_v1 *alpha_surf;
+
+  ls_green = phoc_test_layer_surface_new (globals, 0, HEIGHT, 0xFF00FF00,
+                                          ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP |
+                                          ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT |
+                                          ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT,
+                                          HEIGHT);
+  g_assert_nonnull (ls_green);
+  phoc_assert_screenshot (globals, "test-layer-shell-effects-alpha-1.png");
+
+  alpha_surf = zphoc_layer_shell_effects_v1_get_alpha_layer_surface (
+    globals->layer_shell_effects, ls_green->layer_surface);
+  g_assert_nonnull (alpha_surf);
+  zphoc_alpha_layer_surface_v1_set_alpha (alpha_surf, wl_fixed_from_double (0.5));
+  wl_surface_commit (ls_green->wl_surface);
+  wl_display_roundtrip (globals->display);
+
+  phoc_assert_screenshot (globals, "test-layer-shell-effects-alpha-2.png");
+
+  phoc_test_layer_surface_free (ls_green);
+  phoc_assert_screenshot (globals, "empty.png");
+
+  return TRUE;
+}
+
+
 static void
 test_layer_shell_effects_drag_surface_simple (void)
 {
   PhocTestClientIface iface = { .client_run =  test_client_layer_shell_effects_drag_surface_simple };
+
+  phoc_test_client_run (TEST_PHOC_CLIENT_TIMEOUT, &iface, NULL);
+}
+
+
+static void
+test_layer_shell_effects_alpha_surface_simple (void)
+{
+  PhocTestClientIface iface = { .client_run =  test_client_layer_shell_effects_alpha_surface_simple };
+
+  if (g_strcmp0 (g_getenv ("WLR_RENDERER"), "pixman") == 0) {
+    g_test_skip ("Skipping layer surface alpha check under pixman");
+    return;
+  }
 
   phoc_test_client_run (TEST_PHOC_CLIENT_TIMEOUT, &iface, NULL);
 }
@@ -112,6 +156,7 @@ main (gint argc, gchar *argv[])
 
   PHOC_TEST_ADD ("/phoc/layer-shell-effects/drag-surface/simple",
                  test_layer_shell_effects_drag_surface_simple);
-
+  PHOC_TEST_ADD ("/phoc/layer-shell-effects/alpha-surface/simple",
+                 test_layer_shell_effects_alpha_surface_simple);
   return g_test_run();
 }
