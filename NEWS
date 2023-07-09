@@ -1,7 +1,14 @@
+phoc 0.29.0
+-----------
+Released July 2023
+* Fix cutout rendering in landscape mode
+* Contributors:
+    * Guido Günther
+
 phoc 0.28.0
 -----------
 Released Mai 2023
-* Support layer shell transpareancy and add protocol bits for this
+* Support layer shell transparency and add protocol bits for this
 * Handle <super> key
 * Properly reveal OSK for fullscreen surfaces too
 * Smooth mapping of new toplevels when not in auto-maximize mode
