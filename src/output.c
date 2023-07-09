@@ -299,12 +299,17 @@ render_cutouts (PhocRenderer *renderer, PhocOutput *self)
   if (priv->cutouts_texture) {
     float matrix[9];
     struct wlr_box box;
+    struct wlr_renderer *wlr_renderer = phoc_renderer_get_wlr_renderer (renderer);
     struct wlr_texture *texture = priv->cutouts_texture;
+    enum wl_output_transform transform = wlr_output_transform_invert (self->wlr_output->transform);
 
-    box = (struct wlr_box){ 0, 0, texture->width, texture->height };
-    wlr_matrix_project_box(matrix, &box, WL_OUTPUT_TRANSFORM_NORMAL,
-                           0, wlr_output->transform_matrix);
-    wlr_render_texture_with_matrix (phoc_renderer_get_wlr_renderer (renderer),  texture, matrix, 1.0);
+    if (transform % 2 == 0) /* 0, 180 */
+      box = (struct wlr_box){ 0, 0, texture->width, texture->height };
+    else /* 90, 270 */
+      box = (struct wlr_box){ 0, 0, texture->height, texture->width };
+
+    wlr_matrix_project_box (matrix, &box, transform, 0, wlr_output->transform_matrix);
+    wlr_render_texture_with_matrix (wlr_renderer, texture, matrix, 1.0);
   }
 }
 
@@ -570,6 +575,7 @@ phoc_output_initable_init (GInitable    *initable,
 
     priv->cutouts = phoc_cutouts_overlay_new (phoc_server_get_compatibles (server));
     if (priv->cutouts) {
+      g_message ("Adding cutouts overlay");
       priv->cutouts_texture = phoc_cutouts_overlay_get_cutouts_texture (priv->cutouts, self);
       priv->render_cutouts_id =  g_signal_connect (renderer, "render-end",
                                                    G_CALLBACK (render_cutouts),

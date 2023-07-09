@@ -1,3 +1,11 @@
+phoc (0.29.0) experimental; urgency=medium
+
+  * output: Log when we render a cutout.  This makes it easy from the logs to
+    see if it's enabled.
+  * output: Render cutouts with WL_OUTPUT_TRANSFORM correctly
+
+ -- Guido Günther <agx@sigxcpu.org>  Sun, 02 Jul 2023 17:32:27 +0200
+
 phoc (0.28.0) experimental; urgency=medium
 
   [ Newbyte ]
