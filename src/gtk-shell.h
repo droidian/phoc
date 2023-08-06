@@ -5,7 +5,7 @@
  */
 
 #include "desktop.h"
-#include <wlr/types/wlr_surface.h>
+#include <wlr/types/wlr_compositor.h>
 #include <wayland-server-core.h>
 
 #include <glib.h>

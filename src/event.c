@@ -62,7 +62,7 @@ phoc_event_new (PhocEventType type, gpointer wlr_event, gsize size)
   PhocEvent *new_event;
   PhocEventPrivate *priv;
 
-  g_assert (wlr_event == NULL || size >= sizeof (struct wlr_event_touch_cancel));
+  g_assert (wlr_event == NULL || size >= sizeof (struct wlr_touch_cancel_event));
 
   priv = g_new0 (PhocEventPrivate, 1);
 
@@ -141,7 +141,7 @@ phoc_event_get_event_sequence (const PhocEvent *event)
       event->type == PHOC_EVENT_TOUCH_UPDATE ||
       event->type == PHOC_EVENT_TOUCH_END ||
       event->type == PHOC_EVENT_TOUCH_CANCEL) {
-    /* All wlr_event_touch_* have the touch_id at the same position */
+    /* All wlr_touch_*_event have the touch_id at the same position */
     return GUINT_TO_POINTER (event->touch_up.touch_id);
   }
 
@@ -175,7 +175,7 @@ phoc_event_get_device (const PhocEvent *event)
   case PHOC_EVENT_TOUCHPAD_PINCH_BEGIN:
   case PHOC_EVENT_TOUCHPAD_PINCH_UPDATE:
   case PHOC_EVENT_TOUCHPAD_PINCH_END:
-    wlr_device = event->touch_down.device;
+    wlr_device = &event->touch_down.touch->base;
     break;
   default:
     g_return_val_if_reached (NULL);

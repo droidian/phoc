@@ -2,7 +2,7 @@
 
 #include <wlr/types/wlr_text_input_v3.h>
 #include <wlr/types/wlr_input_method_v2.h>
-#include <wlr/types/wlr_surface.h>
+#include <wlr/types/wlr_subcompositor.h>
 #include "seat.h"
 
 G_BEGIN_DECLS

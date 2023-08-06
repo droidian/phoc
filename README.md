@@ -29,7 +29,6 @@ way to get going is to do the following:
 This assumes you have wlroots installed on your system. If you don't have that
 and/or want to build from source run:
 
-    git submodule update --init
     meson -Dembed-wlroots=enabled --default-library=static _build
     ninja -C _build
 

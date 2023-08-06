@@ -16,7 +16,6 @@
 #include <unistd.h>
 #include <wayland-server-core.h>
 #include <wlr/config.h>
-#include <wlr/types/wlr_surface.h>
 #include <wlr/render/wlr_texture.h>
 #include <wlr/types/wlr_matrix.h>
 #include <phosh-private-protocol.h>
@@ -443,9 +442,8 @@ thumbnail_frame_handle_copy (struct wl_client   *wl_client,
     zwlr_screencopy_frame_v1_send_failed (frame->resource);
     return;
   }
-  enum zwlr_screencopy_frame_v1_flags flags = (renderer_flags & WLR_RENDERER_READ_PIXELS_Y_INVERT) ? ZWLR_SCREENCOPY_FRAME_V1_FLAGS_Y_INVERT : 0;
 
-  zwlr_screencopy_frame_v1_send_flags (frame->resource, flags);
+  zwlr_screencopy_frame_v1_send_flags (frame->resource, 0);
 
   struct timespec now;
   clock_gettime (CLOCK_MONOTONIC, &now);

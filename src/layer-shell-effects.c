@@ -423,16 +423,6 @@ alpha_layer_surface_handle_destroy (struct wl_listener *listener, void *data)
 }
 
 
-/*
- * TODO: Use wlr_layer_surface_v1_from_resource instead
- *  https://gitlab.freedesktop.org/wlroots/wlroots/-/merge_requests/3480
- */
-static struct wlr_layer_surface_v1*
-phoc_wlr_layer_surface_from_resource (struct wl_resource *resource)
-{
-  return wl_resource_get_user_data (resource);
-}
-
 static void
 draggable_layer_surface_handle_destroy (struct wl_listener *listener, void *data)
 {
@@ -530,7 +520,7 @@ handle_get_draggable_layer_surface (struct wl_client   *client,
 
   self = phoc_layer_shell_effects_from_resource (layer_shell_effects_resource);
   g_assert (PHOC_IS_LAYER_SHELL_EFFECTS (self));
-  wlr_layer_surface = phoc_wlr_layer_surface_from_resource (layer_surface_resource);
+  wlr_layer_surface = wlr_layer_surface_v1_from_resource (layer_surface_resource);
   wlr_surface = wlr_layer_surface->surface;
   g_assert (wlr_surface);
 
@@ -590,7 +580,7 @@ handle_get_alpha_layer_surface (struct wl_client   *client,
 
   self = phoc_layer_shell_effects_from_resource (layer_shell_effects_resource);
   g_assert (PHOC_IS_LAYER_SHELL_EFFECTS (self));
-  wlr_layer_surface = phoc_wlr_layer_surface_from_resource (layer_surface_resource);
+  wlr_layer_surface = wlr_layer_surface_v1_from_resource (layer_surface_resource);
   wlr_surface = wlr_layer_surface->surface;
   g_assert (wlr_surface);
 
@@ -956,7 +946,7 @@ accept_drag (PhocDraggableLayerSurface *drag_surface,
   struct wlr_layer_surface_v1 *wlr_layer_surface = drag_surface->layer_surface->layer_surface;
   struct wlr_output *wlr_output = wlr_layer_surface->output;
   PhocOutput *output;
-  uint32_t *target;
+  int32_t *target;
   int32_t margin = 0;
 
   output = PHOC_OUTPUT (wlr_output->data);
@@ -1016,9 +1006,10 @@ phoc_draggable_layer_surface_drag_start (PhocDraggableLayerSurface *drag_surface
 {
   PhocServer *server = phoc_server_get_default ();
   struct wlr_layer_surface_v1 *wlr_layer_surface = drag_surface->layer_surface->layer_surface;
-  struct wlr_box *output_box = wlr_output_layout_get_box (server->desktop->layout, wlr_layer_surface->output);
-  double sx = lx - drag_surface->geo.x - output_box->x;
-  double sy = ly - drag_surface->geo.y - output_box->y;
+  struct wlr_box output_box;
+  wlr_output_layout_get_box (server->desktop->layout, wlr_layer_surface->output, &output_box);
+  double sx = lx - drag_surface->geo.x - output_box.x;
+  double sy = ly - drag_surface->geo.y - output_box.y;
   bool is_handle = false;
   int32_t start_margin;
 

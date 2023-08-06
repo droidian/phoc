@@ -1,5 +1,5 @@
 project('phoc', 'c',
-          version: '0.29.0',
+          version: '0.30.0',
           license: 'GPLv3+',
     meson_version: '>= 0.56.0',
   default_options: [
@@ -54,7 +54,7 @@ if not embed_wlroots.disabled()
    # Try first to find wlroots as a subproject, then as a system dependency
    wlroots_proj = subproject(
         'wlroots',
-        default_options: ['examples=false'],
+        default_options: ['examples=false', 'renderers=gles2'],
         required: false,
    )
 
@@ -65,19 +65,11 @@ endif
 
 if not embed_wlroots.disabled() and wlroots_proj.found()
         wlroots = wlroots_proj.get_variable('wlroots')
-        wlroots_conf = wlroots_proj.get_variable('conf_data')
-        wlroots_has_xwayland = wlroots_conf.get('WLR_HAS_XWAYLAND') == 1
-        have_wlr_seat_touch_notify_cancel = true
 else
-        wlroots = dependency('wlroots', version: '== 0.15.1')
-        wlroots_has_xwayland = cc.get_define('WLR_HAS_XWAYLAND', prefix: '#include <wlr/config.h>', dependencies: wlroots) == '1'
-        have_wlr_seat_touch_notify_cancel = false
-        if cc.has_function('wlr_seat_touch_notify_cancel',
-                           args: '-DWLR_USE_UNSTABLE',
-                           dependencies: wlroots)
-          have_wlr_seat_touch_notify_cancel = true
-        endif
+        wlroots = dependency('wlroots', version: '>= 0.16.0')
 endif
+wlroots_has_xwayland = wlroots.get_variable(pkgconfig: 'have_xwayland',
+                                            internal: 'have_xwayland') == 'true'
 
 if get_option('xwayland').enabled() and not wlroots_has_xwayland
         error('Cannot enable Xwayland in phoc: wlroots has been built without Xwayland support')
@@ -143,9 +135,6 @@ config_h.set_quoted('PHOC_APP_ID', 'sm.puri.Phoc')
 config_h.set_quoted('PHOC_VERSION', meson.project_version())
 config_h.set('PHOC_XWAYLAND', have_xwayland,
 	     description: 'Whether xwayland is enabled')
-config_h.set('PHOC_HAVE_WLR_SEAT_TOUCH_NOTIFY_CANCEL', have_wlr_seat_touch_notify_cancel,
-	     description: '''Whether we have needed functions for toch gesture cancel
-   Can be dropped with wlroots 0.16.0''')
 
 phoc_config_h = configure_file(
   output: 'phoc-config.h',

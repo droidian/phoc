@@ -358,7 +358,7 @@ handle_layout_change (struct wl_listener *listener, void *data)
 {
   PhocDesktop *self;
   struct wlr_output *center_output;
-  struct wlr_box *center_output_box;
+  struct wlr_box center_output_box;
   double center_x, center_y;
   PhocView *view;
   PhocOutput *output;
@@ -368,9 +368,9 @@ handle_layout_change (struct wl_listener *listener, void *data)
   if (center_output == NULL)
     return;
 
-  center_output_box = wlr_output_layout_get_box (self->layout, center_output);
-  center_x = center_output_box->x + center_output_box->width / 2;
-  center_y = center_output_box->y + center_output_box->height / 2;
+  wlr_output_layout_get_box (self->layout, center_output, &center_output_box);
+  center_x = center_output_box.x + center_output_box.width / 2;
+  center_y = center_output_box.y + center_output_box.height / 2;
 
   /* Make sure all views are on an existing output */
   wl_list_for_each (view, &self->views, link) {
@@ -680,7 +680,7 @@ phoc_desktop_constructed (GObject *object)
   self->layout_change.notify = handle_layout_change;
   wl_signal_add(&self->layout->events.change, &self->layout_change);
 
-  self->xdg_shell = wlr_xdg_shell_create(server->wl_display);
+  self->xdg_shell = wlr_xdg_shell_create(server->wl_display, 5);
   wl_signal_add(&self->xdg_shell->events.new_surface,
 		&self->xdg_shell_surface);
   self->xdg_shell_surface.notify = handle_xdg_shell_surface;

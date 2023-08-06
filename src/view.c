@@ -39,6 +39,7 @@ typedef struct _PhocViewPrivate {
   char          *title;
   char          *app_id;
   GSettings     *settings;
+  pid_t          pid;
 
   float          alpha;
   float          scale;
@@ -396,11 +397,11 @@ void view_arrange_maximized(PhocView *view, struct wlr_output *output) {
 		return;
 
 	PhocOutput *phoc_output = output->data;
-	struct wlr_box *output_box =
-		wlr_output_layout_get_box(view->desktop->layout, output);
+	struct wlr_box output_box;
+	wlr_output_layout_get_box (view->desktop->layout, output, &output_box);
 	struct wlr_box usable_area = phoc_output->usable_area;
-	usable_area.x += output_box->x;
-	usable_area.y += output_box->y;
+	usable_area.x += output_box.x;
+	usable_area.y += output_box.y;
 
 	struct wlr_box geom;
 	phoc_view_get_geometry (view, &geom);
@@ -429,12 +430,13 @@ view_arrange_tiled (PhocView *view, struct wlr_output *output)
     return;
 
   PhocOutput *phoc_output = output->data;
-  struct wlr_box *output_box = wlr_output_layout_get_box (view->desktop->layout, output);
+  struct wlr_box output_box;
+  wlr_output_layout_get_box (view->desktop->layout, output, &output_box);
   struct wlr_box usable_area = phoc_output->usable_area;
   int x;
 
-  usable_area.x += output_box->x;
-  usable_area.y += output_box->y;
+  usable_area.x += output_box.x;
+  usable_area.y += output_box.y;
 
   switch (priv->tile_direction) {
   case PHOC_VIEW_TILE_LEFT:
@@ -580,12 +582,13 @@ void phoc_view_set_fullscreen(PhocView *view, bool fullscreen, struct wlr_output
 
 		view_save (view);
 
-		struct wlr_box *output_box =
-			wlr_output_layout_get_box(view->desktop->layout, output);
-		phoc_view_move_resize (view, output_box->x,
-				       output_box->y,
-				       output_box->width,
-				       output_box->height);
+		struct wlr_box output_box;
+		wlr_output_layout_get_box (view->desktop->layout, output, &output_box);
+		phoc_view_move_resize (view,
+				       output_box.x,
+				       output_box.y,
+				       output_box.width,
+				       output_box.height);
 
 		phoc_output->fullscreen_view = view;
 		phoc_output_force_shell_reveal (phoc_output, false);
@@ -1013,32 +1016,32 @@ on_global_scale_to_fit_changed (PhocView *self, GParamSpec *pspec, gpointer unus
 
 
 void
-phoc_view_map (PhocView *view, struct wlr_surface *surface)
+phoc_view_map (PhocView *self, struct wlr_surface *surface)
 {
   PhocServer *server = phoc_server_get_default ();
-  PhocViewPrivate *priv = phoc_view_get_instance_private (view);
+  PhocViewPrivate *priv = phoc_view_get_instance_private (self);
 
-  g_assert (view->wlr_surface == NULL);
-  view->wlr_surface = surface;
+  g_assert (self->wlr_surface == NULL);
+  self->wlr_surface = surface;
 
   struct wlr_subsurface *subsurface;
-  wl_list_for_each(subsurface, &view->wlr_surface->current.subsurfaces_below, current.link) {
-    phoc_view_subsurface_create(view, subsurface);
+  wl_list_for_each(subsurface, &self->wlr_surface->current.subsurfaces_below, current.link) {
+    phoc_view_subsurface_create(self, subsurface);
   }
-  wl_list_for_each(subsurface, &view->wlr_surface->current.subsurfaces_above, current.link) {
-    phoc_view_subsurface_create(view, subsurface);
+  wl_list_for_each(subsurface, &self->wlr_surface->current.subsurfaces_above, current.link) {
+    phoc_view_subsurface_create(self, subsurface);
   }
 
-  phoc_view_init_subsurfaces (view, surface);
+  phoc_view_init_subsurfaces (self, surface);
   priv->surface_new_subsurface.notify = phoc_view_handle_surface_new_subsurface;
-  wl_signal_add (&view->wlr_surface->events.new_subsurface, &priv->surface_new_subsurface);
+  wl_signal_add (&self->wlr_surface->events.new_subsurface, &priv->surface_new_subsurface);
 
-  if (view->desktop->maximize) {
-    phoc_view_appear_activated (view, true);
+  if (self->desktop->maximize) {
+    phoc_view_appear_activated (self, true);
 
-    if (!wl_list_empty(&view->desktop->views)) {
+    if (!wl_list_empty(&self->desktop->views)) {
       // mapping a new stack may make the old stack disappear, so damage its area
-      PhocView *top_view = wl_container_of(view->desktop->views.next, view, link);
+      PhocView *top_view = wl_container_of(self->desktop->views.next, self, link);
       while (top_view) {
         phoc_view_damage_whole (top_view);
         top_view = top_view->parent;
@@ -1046,33 +1049,34 @@ phoc_view_map (PhocView *view, struct wlr_surface *surface)
     }
   }
 
-  wl_list_insert(&view->desktop->views, &view->link);
-  phoc_view_damage_whole (view);
+  wl_list_insert(&self->desktop->views, &self->link);
+  phoc_view_damage_whole (self);
   phoc_input_update_cursor_focus(server->input);
+  priv->pid = PHOC_VIEW_GET_CLASS (self)->get_pid (self);
 
   priv->notify_scale_to_fit_id =
-    g_signal_connect_swapped (view->desktop,
+    g_signal_connect_swapped (self->desktop,
                               "notify::scale-to-fit",
                               G_CALLBACK (on_global_scale_to_fit_changed),
-                              view);
+                              self);
 
 
   /* Process pending activation */
   if (priv->activation_token)
-    phoc_view_activate (view, TRUE);
+    phoc_view_activate (self, TRUE);
 
-  if (phoc_desktop_get_enable_animations (view->desktop)
-      && view->parent == NULL
-      && !phoc_view_want_auto_maximize (view)) {
+  if (phoc_desktop_get_enable_animations (self->desktop)
+      && self->parent == NULL
+      && !phoc_view_want_auto_maximize (self)) {
     g_autoptr (PhocTimedAnimation) fade_anim = NULL;
     g_autoptr (PhocPropertyEaser) easer = NULL;
     easer = g_object_new (PHOC_TYPE_PROPERTY_EASER,
-                          "target", view,
+                          "target", self,
                           "easing", PHOC_EASING_EASE_OUT_QUAD,
                           NULL);
     phoc_property_easer_set_props (easer, "alpha", 0.0, 1.0, NULL);
     fade_anim = g_object_new (PHOC_TYPE_TIMED_ANIMATION,
-                              "animatable", phoc_view_get_output (view),
+                              "animatable", phoc_view_get_output (self),
                               "duration", PHOC_ANIM_DURATION_WINDOW_FADE,
                               "property-easer", easer,
                               "dispose-on-done", TRUE,
@@ -1080,7 +1084,7 @@ phoc_view_map (PhocView *view, struct wlr_surface *surface)
     phoc_timed_animation_play (fade_anim);
   }
 
-  g_object_notify_by_pspec (G_OBJECT (view), props[PROP_IS_MAPPED]);
+  g_object_notify_by_pspec (G_OBJECT (self), props[PROP_IS_MAPPED]);
 }
 
 void view_unmap(PhocView *view) {
@@ -1885,8 +1889,26 @@ phoc_view_child_damage_whole (PhocViewChild *child)
   if (!child || !phoc_view_child_is_mapped (child) || !phoc_view_is_mapped (child->view))
     return;
 
-  /* TODO: just damage the whole child instead of the whole view */
-  phoc_view_damage_whole (child->view);
+  if (child->impl->get_pos) {
+    PhocOutput *output;
+    int sx, sy;
+    struct wlr_box view_box;
+
+    view_get_box (child->view, &view_box);
+    child->impl->get_pos (child, &sx, &sy);
+
+    wl_list_for_each (output, &child->view->desktop->outputs, link) {
+      struct wlr_box output_box;
+      wlr_output_layout_get_box (child->view->desktop->layout, output->wlr_output, &output_box);
+      phoc_output_damage_whole_local_surface (output, child->wlr_surface,
+                                              view_box.x + sx,
+                                              view_box.y + sy);
+
+    }
+  } else {
+    /* TODO: Implement impl->get_pos for subsurfaces too */
+    phoc_view_damage_whole (child->view);
+  }
 }
 
 
@@ -2131,4 +2153,16 @@ phoc_view_get_app_id (PhocView *self)
   priv = phoc_view_get_instance_private (self);
 
   return priv->app_id;
+}
+
+
+pid_t
+phoc_view_get_pid (PhocView *self)
+{
+  PhocViewPrivate *priv;
+
+  g_assert (PHOC_IS_VIEW (self));
+  priv = phoc_view_get_instance_private (self);
+
+  return priv->pid;
 }

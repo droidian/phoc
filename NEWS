@@ -1,3 +1,19 @@
+phoc 0.30.0
+-----------
+Released August 2023
+* Switch to wlroots 0.16.2
+* Drop git submodules in favour of meson subprojects
+  Patches are now in subprojects/packagefiles/ 
+* Switch to xdg-shell 5
+* More internal cleanups
+* Issued fixed:
+    * https://gitlab.gnome.org/World/Phosh/phoc/-/issues/324
+    * https://gitlab.gnome.org/World/Phosh/phoc/-/issues/325
+    * https://gitlab.gnome.org/World/Phosh/phoc/-/issues/272
+* Contributors:
+    * Guido Günther
+    * Sebastian Krzyszkowiak
+
 phoc 0.29.0
 -----------
 Released July 2023

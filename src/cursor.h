@@ -103,15 +103,15 @@ typedef struct _PhocCursor {
 
 PhocCursor *phoc_cursor_new (PhocSeat                                                    *seat);
 void        phoc_cursor_handle_touch_down (PhocCursor                                    *self,
-                                           struct wlr_event_touch_down                   *event);
+                                           struct wlr_touch_down_event                   *event);
 void        phoc_cursor_handle_touch_up (PhocCursor                                      *self,
-                                         struct wlr_event_touch_up                       *event);
+                                         struct wlr_touch_up_event                       *event);
 void        phoc_cursor_handle_touch_motion (PhocCursor                                  *self,
-                                             struct wlr_event_touch_motion               *event);
+                                             struct wlr_touch_motion_event               *event);
 void        phoc_cursor_handle_tool_axis (PhocCursor                                     *self,
-                                          struct wlr_event_tablet_tool_axis              *event);
+                                          struct wlr_tablet_tool_axis_event              *event);
 void        phoc_cursor_handle_tool_tip (PhocCursor                                      *self,
-                                         struct wlr_event_tablet_tool_tip                *event);
+                                         struct wlr_tablet_tool_tip_event                *event);
 void        phoc_cursor_handle_request_set_cursor (PhocCursor                            *self,
                                                    struct wlr_seat_pointer_request_set_cursor_event *event);
 void        phoc_cursor_handle_focus_change (PhocCursor                                  *self,

@@ -221,6 +221,7 @@ phoc_server_initable_init (GInitable    *initable,
 
   self->compositor = wlr_compositor_create(self->wl_display,
                                            wlr_renderer);
+  self->subcompositor = wlr_subcompositor_create (self->wl_display);
 
   return TRUE;
 }

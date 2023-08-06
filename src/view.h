@@ -3,7 +3,7 @@
 #include <stdbool.h>
 #include <wlr/config.h>
 #include <wlr/types/wlr_output_layout.h>
-#include <wlr/types/wlr_surface.h>
+#include <wlr/types/wlr_compositor.h>
 
 #include <glib-object.h>
 #include <gio/gio.h>
@@ -106,6 +106,7 @@ typedef struct _PhocViewClass
   void (*get_geometry)       (PhocView *self, struct wlr_box *box);
   struct wlr_surface *
        (*get_wlr_surface_at) (PhocView *self, double sx, double sy, double *sub_x, double *sub_y);
+  pid_t (*get_pid)           (PhocView *self);
 } PhocViewClass;
 
 
@@ -128,6 +129,7 @@ static inline PhocViewClass * PHOC_VIEW_GET_CLASS (gpointer ptr) {
 typedef struct _PhocViewChild PhocViewChild;
 
 typedef struct phoc_view_child_interface {
+  void (*get_pos)(PhocViewChild *child, int *sx, int *sy);
   void (*destroy)(PhocViewChild *child);
 } PhocViewChildInterface;
 
@@ -194,7 +196,7 @@ struct wlr_surface *
 PhocView *phoc_view_from_wlr_surface (struct wlr_surface *wlr_surface);
 PhocOutput *phoc_view_get_output (PhocView *view);
 
-
+pid_t                phoc_view_get_pid                           (PhocView *self);
 bool                 phoc_view_is_mapped (PhocView *view);
 PhocViewDecoPart     view_get_deco_part(PhocView *view, double sx, double sy);
 void                 phoc_view_set_scale_to_fit (PhocView *self, gboolean enable);

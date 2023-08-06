@@ -125,19 +125,19 @@ struct  _PhocEvent {
   PhocEventType          type;
 
   union {
-    struct wlr_event_pointer_button             button_press;
-    struct wlr_event_pointer_button             button_release;
-    struct wlr_event_pointer_motion_absolute    motion_notify;
-    struct wlr_event_touch_down                 touch_down;
-    struct wlr_event_touch_up                   touch_up;
-    struct wlr_event_touch_motion               touch_motion;
-    struct wlr_event_touch_cancel               touch_cancel;
-    struct wlr_event_pointer_swipe_begin        touchpad_swipe_begin;
-    struct wlr_event_pointer_swipe_update       touchpad_swipe_update;
-    struct wlr_event_pointer_swipe_end          touchpad_swipe_end;
-    struct wlr_event_pointer_pinch_begin        touchpad_pinch_begin;
-    struct wlr_event_pointer_pinch_update       touchpad_pinch_update;
-    struct wlr_event_pointer_pinch_end          touchpad_pinch_end;
+    struct wlr_pointer_button_event             button_press;
+    struct wlr_pointer_button_event             button_release;
+    struct wlr_pointer_motion_absolute_event    motion_notify;
+    struct wlr_touch_down_event                 touch_down;
+    struct wlr_touch_up_event                   touch_up;
+    struct wlr_touch_motion_event               touch_motion;
+    struct wlr_touch_cancel_event               touch_cancel;
+    struct wlr_pointer_swipe_begin_event        touchpad_swipe_begin;
+    struct wlr_pointer_swipe_update_event       touchpad_swipe_update;
+    struct wlr_pointer_swipe_end_event          touchpad_swipe_end;
+    struct wlr_pointer_pinch_begin_event        touchpad_pinch_begin;
+    struct wlr_pointer_pinch_update_event       touchpad_pinch_update;
+    struct wlr_pointer_pinch_end_event          touchpad_pinch_end;
   };
 };
 

@@ -41,6 +41,7 @@ struct _PhocOutput {
   PhocView                 *fullscreen_view;
   struct wl_list            layer_surfaces; // PhocLayerSurface::link
 
+  struct wlr_output_state  *pending;
   struct wlr_output_damage *damage;
   GList                    *debug_touch_points;
 

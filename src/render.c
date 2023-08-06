@@ -391,7 +391,7 @@ static bool scan_out_fullscreen_view(PhocOutput *output) {
 		return false;
 	}
 
-#if WLR_HAS_XWAYLAND
+#ifdef PHOC_XWAYLAND
 	if (PHOC_IS_XWAYLAND_SURFACE (view)) {
 		struct wlr_xwayland_surface *xsurface =
 			phoc_xwayland_surface_get_wlr_surface (PHOC_XWAYLAND_SURFACE (view));
@@ -613,7 +613,7 @@ phoc_renderer_render_view_to_buffer (PhocRenderer         *self,
   wl_shm_buffer_begin_access (shm_buffer);
   void *data = wl_shm_buffer_get_data (shm_buffer);
 
-  wlr_renderer_read_pixels (self->wlr_renderer, DRM_FORMAT_ARGB8888, NULL, stride, width, height, 0, 0, 0, 0, data);
+  wlr_renderer_read_pixels (self->wlr_renderer, DRM_FORMAT_ARGB8888, stride, width, height, 0, 0, 0, 0, data);
   wlr_renderer_end (self->wlr_renderer);
 
   wlr_buffer_drop (buffer);

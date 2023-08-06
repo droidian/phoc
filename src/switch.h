@@ -14,6 +14,6 @@ typedef struct phoc_switch {
 } PhocSwitch;
 
 void phoc_switch_handle_toggle(struct phoc_switch *switch_device,
-                               struct wlr_event_switch_toggle *event);
+                               struct wlr_switch_toggle_event *event);
 
 G_END_DECLS

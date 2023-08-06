@@ -1,3 +1,130 @@
+phoc (0.30.0) experimental; urgency=medium
+
+  [ Guido Günther ]
+  * desktop: Specify xdg-shell protocol version
+  * seat: Get derived class via wlr_*_from_input_device.
+    Get the derived class from the wlr_input_device base class via the
+    corresponding wlr_<type>_from_input_device()
+  * gtk-shell: Use wlr_compository.h instead of deprecated wlr_surface.h
+  * xwayland-surface: Use xcb_size_hints_t directly.
+    See wlroots commit 640f3b9f2156a007c5d1a36afdee570e123c95e4
+    and https://gitlab.freedesktop.org/wlroots/wlroots/-/merge_requests/3495
+  * layer-shell-effects: Margins are now signed.
+    This is good news.
+    See https://gitlab.freedesktop.org/wlroots/wlroots/-/merge_requests/3404
+  * output: Look at popup's current coordinates
+  * switch: Get name from device
+  * phosh-private: Adjust thumbnail flags.
+    See wlroots commit 6832ae14aaa659929ea13057616db34536f7f724
+  * d/control: Bump wlroots dependency
+  * ci: Update image before installing dependencies
+  * ci: Install wlroots 0.16.0 from sid.  Update the CI image for that
+  * Drop check for wlr_seat_touch_notify_cancel.
+    It's part of wlroots 0.16
+  * output: Use wlr_output_state when setting up output.
+    While at that make sure we pass PhocOutput around rather than wlr_output
+    when functions are called phoc_outpu_<foo>.
+  * output: Make debugging more useful.
+    The output name tells us more than the address
+  * output: Fall back to other mode if preferred mode doesn't work
+  * output: Don't crash when adding new output.
+    We need to set a mode when committing the state as otherwise sending out
+    the head config asserts.
+  * render: Fix build without xwayland.
+    We need to check whether the user enabled xwayland support, not
+    if wlroots supports it.
+    Fixes e904c0975d480202279e7aafc42f70d28cf4164f
+  * dir-locals: Update from phosh.
+    This avoids tabs in meson files
+  * po: Add Linguas.
+    Otherwise msgfmt throws a warning on
+      meson setup _build
+  * ci: Set defaults.
+    This e.g. allows to interrupt builds on new commits
+    Taken verbatim from phosh.
+  * build: Use project_source_root.
+    Avoids a meson deprecation warning.
+  * build: Avoid cc.getdefine for subproject.
+    Otherwise we fail with
+       ERROR:  Dependencies must be external dependencies
+    See https://github.com/mesonbuild/meson/issues/4800
+  * packaging: Reset dh's wrap-mode.
+    We want to fallback for gmobile to have it available.
+  * build: Use meson wrap for the wlroots submodule.
+    This makes it more obvious what we're tracking and it gives
+    us a git archive after all so local development doesn't get
+    more complicated.
+  * build: Use meson wrap for the gmobile submodule.
+    It's a bit easier to handle than the git submodule giving us an explicit
+    reference in the source tree. It will then also be simpler to switch to
+    the shared library version once we have a stable API.
+  * build: No need to update git submodules anymore
+  * build: Fetch wlroots from the official repo.
+    This finally makes sure we don't have to mess with forks
+    somewhere. We still should upstream the one patch.
+  * desktop: Bump xdg-shell to 5.
+    Closes: https://gitlab.gnome.org/World/Phosh/phoc/-/issues/324
+  * xdg-shell: Set capabilities.
+    Phoc doesn't provide right click menus or minimize.
+  * view: Use `self` in map.
+    Old code parts use `view`, let's update this when making other changes.
+    See HACKING.
+  * view: Allow to retrieve pid.
+    This can be useful for force killing and supsending apps
+  * layer-shell-effects: Use wlr_layer_surface_v1_from_resource.
+    Available in 0.16
+  * output: Move public damage handling closer together
+  * output: Document some more functions
+  * xdg_shell: Use PhocXdgPopup consistently.
+    Avoids confustion whether PhocXdgPopup and struct phoc_xdg_popup
+    are the same type.
+  * view: Implement phoc_view_child_damage_whole for popups.
+    So far we damaged the parent surface which doesn't work well when the
+    popup extends out of the parent. It also avoids that we submit way
+    more damage than necessary.
+    Closes: https://gitlab.gnome.org/World/Phosh/phoc/-/issues/325
+  * build: Switch to wlroots 0.16
+    Closes: https://gitlab.gnome.org/World/Phosh/phoc/-/issues/272
+
+  [ Sebastian Krzyszkowiak ]
+  * treewide: Follow event rename for wlroots 0.16.
+    Events are now names wlr_<event_type>_event instead of
+    wlr_event_<event_type>. E.g. wlr_touch_motion_event
+  * treewide: Get event device from touch, pointer, etc.
+    The event does no longer carry the wlr_input_device. It's embedded
+    as base class in e.g. wlr_{touch,pointer,...} now.
+  * cursor: Adjust to wlr_output_layout_get_box signature change.
+    See https://gitlab.freedesktop.org/wlroots/wlroots/-/merge_requests/3439
+  * desktop: Adjust to wlr_output_layout_get_box signature change.
+    See https://gitlab.freedesktop.org/wlroots/wlroots/-/merge_requests/3439
+  * layer-shell-effects: Adjust to wlr_output_layout_get_box signature change.
+    See https://gitlab.freedesktop.org/wlroots/wlroots/-/merge_requests/3439
+  * output: Adjust to wlr_output_layout_get_box signature change.
+    See https://gitlab.freedesktop.org/wlroots/wlroots/-/merge_requests/3439
+  * view: Adjust to wlr_output_layout_get_box signature change.
+    See https://gitlab.freedesktop.org/wlroots/wlroots/-/merge_requests/3439
+  * keyboard: Get keyboard via wlr_keyboard_from_input_device
+  * xdg-surface: Adjust to toplevel changes
+    wlr_xdg_toplevel_* now take a toplevel rather than a wlr_xdg_surface
+  * Adjust popups to 0.16 API changes
+  * render: read_pixels dropped it's flag argument
+  * seat: Signals are now attached without the devices indirection
+  * Adjust includes
+  * server: Init subcompositor responsible for subsurfaces
+  * keyboard: End touch grab in Escape key binding.
+    Pointer and keyboard grabs are ended here, but touch has been forgotten.
+  * seat: End keyboard grab in set_focus_layer.
+    This matches what set_focus does for regular views already.
+  * cursor: Ignore touch grab when interacting with layer-surfaces.
+    This is needed in order to be able to use the shell (including virtual
+    keyboard) while some client has a xdg-popup grab without dismissing that
+    popup right away.
+    See https://gitlab.freedesktop.org/wlroots/wlroots/-/issues/3478
+  * cursor: Ignore pointer grab when interacting with layer-surfaces.
+    See the previous commit for explanation.
+
+ -- Guido Günther <agx@sigxcpu.org>  Mon, 31 Jul 2023 11:40:38 +0200
+
 phoc (0.29.0) experimental; urgency=medium
 
   * output: Log when we render a cutout.  This makes it easy from the logs to

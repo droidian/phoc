@@ -96,6 +96,11 @@ phoc_output_frame_callback_info_free (PhocOutputFrameCallbackInfo *cb_info)
   g_free (cb_info);
 }
 
+/**
+ * get_surface_box:
+ *
+ * Returns: `true` if the resulting box intersects with the output
+ */
 static bool
 get_surface_box (PhocOutputSurfaceIteratorData *data,
                  struct wlr_surface *surface, int sx, int sy,
@@ -133,8 +138,7 @@ get_surface_box (PhocOutputSurfaceIteratorData *data,
 
   struct wlr_box output_box = {0};
 
-  wlr_output_effective_resolution (self->wlr_output,
-                                   &output_box.width, &output_box.height);
+  wlr_output_effective_resolution (self->wlr_output, &output_box.width, &output_box.height);
   phoc_output_scale_box (self, &output_box, 1 / data->scale);
 
   struct wlr_box intersection;
@@ -256,11 +260,16 @@ update_output_manager_config (PhocDesktop *desktop)
   wl_list_for_each (output, &desktop->outputs, link) {
     struct wlr_output_configuration_head_v1 *config_head =
       wlr_output_configuration_head_v1_create (config, output->wlr_output);
-    struct wlr_box *output_box = wlr_output_layout_get_box (
-      output->desktop->layout, output->wlr_output);
-    if (output_box) {
-      config_head->state.x = output_box->x;
-      config_head->state.y = output_box->y;
+    struct wlr_box output_box;
+
+    config_head->state.enabled = output->wlr_output->enabled;
+    config_head->state.mode = output->pending ? output->pending->mode :
+      output->wlr_output->current_mode;
+
+    wlr_output_layout_get_box (output->desktop->layout, output->wlr_output, &output_box);
+    if (!wlr_box_empty (&output_box)) {
+      config_head->state.x = output_box.x;
+      config_head->state.y = output_box.y;
     }
   }
 
@@ -374,70 +383,77 @@ phoc_output_handle_mode (struct wl_listener *listener, void *data)
   update_output_manager_config (self->desktop);
 }
 
+
 static void
 phoc_output_handle_commit (struct wl_listener *listener, void *data)
 {
   PhocOutput *self = wl_container_of (listener, self, commit);
+  struct wlr_output_event_commit *event = data;
 
+  /* FIXME: We do this way too often */
   phoc_layer_shell_arrange (self);
+
+  if (event->committed & (WLR_OUTPUT_STATE_TRANSFORM | WLR_OUTPUT_STATE_SCALE))
+    update_output_manager_config (self->desktop);
 }
 
+
 static float
-phoc_output_compute_scale (struct wlr_output *output)
+phoc_output_compute_scale (PhocOutput *self, struct wlr_output_state *pending)
 {
   int32_t width = 0, height = 0;
 
-  if (!output->phys_width || !output->phys_height) {
+  if (!self->wlr_output->phys_width || !self->wlr_output->phys_height) {
     g_message ("Output '%s' has invalid physical size, "
-               "using default scale", output->name);
+               "using default scale", self->wlr_output->name);
     return 1;
   }
 
   // Use the pending mode if any
-  if (output->pending.committed & WLR_OUTPUT_STATE_MODE) {
-    switch (output->pending.mode_type) {
+  if (pending->committed & WLR_OUTPUT_STATE_MODE) {
+    switch (pending->mode_type) {
     case WLR_OUTPUT_STATE_MODE_FIXED:
-      width = output->pending.mode->width;
-      height = output->pending.mode->height;
+      width = pending->mode->width;
+      height = pending->mode->height;
       break;
     case WLR_OUTPUT_STATE_MODE_CUSTOM:
-      width = output->pending.custom_mode.width;
-      height = output->pending.custom_mode.height;
+      width = pending->custom_mode.width;
+      height = pending->custom_mode.height;
       break;
     default:
       break;
     }
   // Fall back to current mode
-  } else if (output->current_mode) {
-    width = output->current_mode->width;
-    height = output->current_mode->height;
+  } else if (self->wlr_output->current_mode) {
+    width = self->wlr_output->current_mode->width;
+    height = self->wlr_output->current_mode->height;
   }
 
   if (!width || !height) {
     g_message ("No valid mode set for output '%s', "
-               "using default scale", output->name);
+               "using default scale", self->wlr_output->name);
     return 1;
   }
 
-  return phoc_utils_compute_scale (output->phys_width, output->phys_height,
+  return phoc_utils_compute_scale (self->wlr_output->phys_width,
+                                   self->wlr_output->phys_height,
                                    width, height);
 }
 
 static void
-phoc_output_set_mode (struct wlr_output *output, PhocOutputConfig *oc)
+phoc_output_set_mode (PhocOutput *self, struct wlr_output_state *pending, PhocOutputConfig *oc)
 {
   int mhz = (int)(oc->mode.refresh_rate * 1000);
 
-  if (wl_list_empty (&output->modes)) {
+  if (wl_list_empty (&self->wlr_output->modes)) {
     // Output has no mode, try setting a custom one
-    wlr_output_set_custom_mode (output, oc->mode.width,
-                                oc->mode.height, mhz);
+    wlr_output_state_set_custom_mode (pending, oc->mode.width, oc->mode.height, mhz);
     return;
   }
 
   struct wlr_output_mode *mode, *best = NULL;
 
-  wl_list_for_each (mode, &output->modes, link) {
+  wl_list_for_each (mode, &self->wlr_output->modes, link) {
     if (mode->width == oc->mode.width && mode->height == oc->mode.height) {
       if (mode->refresh == mhz) {
         best = mode;
@@ -447,11 +463,10 @@ phoc_output_set_mode (struct wlr_output *output, PhocOutputConfig *oc)
     }
   }
   if (!best) {
-    g_warning ("Configured mode for %s not available", output->name);
+    g_warning ("Configured mode for %s not available", self->wlr_output->name);
   } else {
-    g_debug ("Assigning configured mode to %s",
-             output->name);
-    wlr_output_set_mode (output, best);
+    g_debug ("Assigning configured mode to %s", self->wlr_output->name);
+    wlr_output_state_set_mode (pending, best);
   }
 }
 
@@ -508,9 +523,8 @@ phoc_output_initable_init (GInitable    *initable,
   wl_signal_add (&self->damage->events.destroy, &self->damage_destroy);
 
   PhocOutputConfig *output_config = phoc_config_get_output (config, self);
-
-  struct wlr_output_mode *preferred_mode =
-    wlr_output_preferred_mode (self->wlr_output);
+  struct wlr_output_state pending = { 0 };
+  struct wlr_output_mode *preferred_mode = wlr_output_preferred_mode (self->wlr_output);
 
   if (output_config) {
     if (output_config->enable) {
@@ -525,33 +539,48 @@ phoc_output_initable_init (GInitable    *initable,
       }
 
       if (output_config->mode.width) {
-        phoc_output_set_mode (self->wlr_output, output_config);
+        phoc_output_set_mode (self, &pending, output_config);
       } else if (preferred_mode != NULL) {
-        wlr_output_set_mode (self->wlr_output, preferred_mode);
+        wlr_output_state_set_mode (&pending, preferred_mode);
       }
 
-      if (!output_config->scale) {
-        wlr_output_set_scale (self->wlr_output,
-                              phoc_output_compute_scale (self->wlr_output));
-      } else {
-        wlr_output_set_scale (self->wlr_output, output_config->scale);
-      }
-      wlr_output_set_transform (self->wlr_output, output_config->transform);
-      wlr_output_layout_add (self->desktop->layout, self->wlr_output,
-                             output_config->x, output_config->y);
+      if (!output_config->scale)
+        wlr_output_state_set_scale (&pending, phoc_output_compute_scale (self, &pending));
+      else
+        wlr_output_state_set_scale (&pending, output_config->scale);
+
+      wlr_output_state_set_transform (&pending, output_config->transform);
+      wlr_output_layout_add (self->desktop->layout, self->wlr_output, output_config->x, output_config->y);
     } else {
-      wlr_output_enable (self->wlr_output, false);
+      wlr_output_state_set_enabled (&pending, false);
     }
   } else {
+    wlr_output_state_set_enabled (&pending, true);
     if (preferred_mode != NULL) {
-      wlr_output_set_mode (self->wlr_output, preferred_mode);
+      g_debug ("Using preferred mode for %s", self->wlr_output->name);
+      wlr_output_state_set_mode (&pending, preferred_mode);
     }
-    wlr_output_set_scale (self->wlr_output,
-                          phoc_output_compute_scale (self->wlr_output));
-    wlr_output_enable (self->wlr_output, true);
+
+    if (!wlr_output_test_state (self->wlr_output, &pending)) {
+      g_debug ("Preferred mode rejected for %s falling back to another mode",
+               self->wlr_output->name);
+      struct wlr_output_mode *mode;
+      wl_list_for_each (mode, &self->wlr_output->modes, link) {
+        if (mode == preferred_mode)
+          continue;
+
+        wlr_output_state_set_mode (&pending, mode);
+        if (wlr_output_test_state (self->wlr_output, &pending))
+          break;
+      }
+    }
+
+    wlr_output_state_set_scale (&pending, phoc_output_compute_scale (self, &pending));
     wlr_output_layout_add_auto (self->desktop->layout, self->wlr_output);
   }
-  wlr_output_commit (self->wlr_output);
+  self->pending = &pending;
+  wlr_output_commit_state (self->wlr_output, &pending);
+  self->pending = NULL;
 
   for (GSList *elem = phoc_input_get_seats (input); elem; elem = elem->next) {
     PhocSeat *seat = PHOC_SEAT (elem->data);
@@ -754,19 +783,18 @@ phoc_output_view_for_each_surface (PhocOutput          *self,
                                    PhocSurfaceIterator  iterator,
                                    void                *user_data)
 {
-  struct wlr_box *output_box =
-    wlr_output_layout_get_box (self->desktop->layout, self->wlr_output);
+  struct wlr_box output_box;
+  wlr_output_layout_get_box (self->desktop->layout, self->wlr_output, &output_box);
 
-  if (!output_box) {
+  if (wlr_box_empty (&output_box))
     return;
-  }
 
   PhocOutputSurfaceIteratorData data = {
     .user_iterator = iterator,
     .user_data = user_data,
     .output = self,
-    .ox = view->box.x - output_box->x,
-    .oy = view->box.y - output_box->y,
+    .ox = view->box.x - output_box.x,
+    .oy = view->box.y - output_box.y,
     .width = view->box.width,
     .height = view->box.height,
     .rotation = 0,
@@ -792,19 +820,18 @@ phoc_output_xwayland_children_for_each_surface (PhocOutput                  *sel
                                                 PhocSurfaceIterator          iterator,
                                                 void                        *user_data)
 {
-  struct wlr_box *output_box =
-    wlr_output_layout_get_box (self->desktop->layout, self->wlr_output);
+  struct wlr_box output_box;
+  wlr_output_layout_get_box (self->desktop->layout, self->wlr_output, &output_box);
 
-  if (!output_box) {
+  if (wlr_box_empty (&output_box))
     return;
-  }
 
   struct wlr_xwayland_surface *child;
 
   wl_list_for_each (child, &surface->children, parent_link) {
     if (child->mapped) {
-      double ox = child->x - output_box->x;
-      double oy = child->y - output_box->y;
+      double ox = child->x - output_box.x;
+      double oy = child->y - output_box.y;
       phoc_output_surface_for_each_surface (self, child->surface, ox, oy, iterator,
                                             user_data);
     }
@@ -844,9 +871,9 @@ phoc_output_layer_surface_for_each_surface (PhocOutput          *self,
 
     double popup_sx, popup_sy;
     popup_sx = layer_surface->geo.x;
-    popup_sx += popup->popup->geometry.x - popup->current.geometry.x;
+    popup_sx += popup->popup->current.geometry.x - popup->current.geometry.x;
     popup_sy = layer_surface->geo.y;
-    popup_sy += popup->popup->geometry.y - popup->current.geometry.y;
+    popup_sy += popup->popup->current.geometry.y - popup->current.geometry.y;
 
     phoc_output_xdg_surface_for_each_surface (self, popup,
                                               popup_sx, popup_sy, iterator, user_data);
@@ -939,24 +966,22 @@ phoc_output_drag_icons_for_each_surface (PhocOutput          *self,
                                          PhocSurfaceIterator  iterator,
                                          void                *user_data)
 {
-  struct wlr_box *output_box =
-    wlr_output_layout_get_box (self->desktop->layout, self->wlr_output);
+  struct wlr_box output_box;
+  wlr_output_layout_get_box (self->desktop->layout, self->wlr_output, &output_box);
 
-  if (!output_box) {
+  if (wlr_box_empty (&output_box))
     return;
-  }
 
   for (GSList *elem = phoc_input_get_seats (input); elem; elem = elem->next) {
     PhocSeat *seat = PHOC_SEAT (elem->data);
 
     g_assert (PHOC_IS_SEAT (seat));
     PhocDragIcon *drag_icon = seat->drag_icon;
-    if (!drag_icon || !drag_icon->wlr_drag_icon->mapped) {
+    if (!drag_icon || !drag_icon->wlr_drag_icon->mapped)
       continue;
-    }
 
-    double ox = drag_icon->x - output_box->x;
-    double oy = drag_icon->y - output_box->y;
+    double ox = drag_icon->x - output_box.x;
+    double oy = drag_icon->y - output_box.y;
     phoc_output_surface_for_each_surface (self, drag_icon->wlr_drag_icon->surface,
                                           ox, oy, iterator, user_data);
   }
@@ -994,11 +1019,9 @@ phoc_output_for_each_surface (PhocOutput          *self,
 #endif
   } else {
     PhocView *view;
-    wl_list_for_each_reverse (view, &desktop->views, link)
-    {
-      if (!visible_only || phoc_desktop_view_is_visible (desktop, view)) {
+    wl_list_for_each_reverse (view, &desktop->views, link) {
+      if (!visible_only || phoc_desktop_view_is_visible (desktop, view))
         phoc_output_view_for_each_surface (self, view, iterator, user_data);
-      }
     }
   }
 
@@ -1122,15 +1145,6 @@ damage_surface_iterator (PhocOutput *self, struct wlr_surface *surface, struct
   wlr_output_schedule_frame (self->wlr_output);
 }
 
-void
-phoc_output_damage_whole_local_surface (PhocOutput *self, struct wlr_surface *surface, double ox,
-                                        double oy)
-{
-  bool whole = true;
-
-  phoc_output_surface_for_each_surface (self, surface, ox, oy,
-                                        damage_surface_iterator, &whole);
-}
 
 static void
 damage_whole_view (PhocOutput *self, PhocView  *view)
@@ -1183,6 +1197,18 @@ phoc_output_damage_whole_drag_icon (PhocOutput *self, PhocDragIcon *icon)
 }
 
 void
+phoc_output_damage_whole_local_surface (PhocOutput         *self,
+                                        struct wlr_surface *surface,
+                                        double              ox,
+                                        double              oy)
+{
+  bool whole = true;
+
+  phoc_output_surface_for_each_surface (self, surface, ox, oy,
+                                        damage_surface_iterator, &whole);
+}
+
+void
 phoc_output_damage_from_local_surface (PhocOutput *self, struct wlr_surface
                                        *surface, double ox, double oy)
 {
@@ -1195,8 +1221,7 @@ phoc_output_damage_from_local_surface (PhocOutput *self, struct wlr_surface
 void
 handle_output_manager_apply (struct wl_listener *listener, void *data)
 {
-  PhocDesktop *desktop =
-    wl_container_of (listener, desktop, output_manager_apply);
+  PhocDesktop *desktop = wl_container_of (listener, desktop, output_manager_apply);
   struct wlr_output_configuration_v1 *config = data;
 
   bool ok = true;
@@ -1274,8 +1299,7 @@ phoc_output_handle_output_power_manager_set_mode (struct wl_listener *listener, 
 
   g_return_if_fail (event && event->output && event->output->data);
   self = event->output->data;
-  g_debug ("Request to set output power mode of %p to %d",
-           self, event->mode);
+  g_debug ("Request to set output power mode of %p to %d", self->wlr_output->name, event->mode);
   switch (event->mode) {
   case ZWLR_OUTPUT_POWER_V1_MODE_OFF:
     enable = false;
@@ -1284,7 +1308,7 @@ phoc_output_handle_output_power_manager_set_mode (struct wl_listener *listener, 
     enable = true;
     break;
   default:
-    g_warning ("Unhandled power state %d for %p", event->mode, self);
+    g_warning ("Unhandled power state %d for %p", event->mode, self->wlr_output->name);
     return;
   }
 
@@ -1443,7 +1467,7 @@ find_cb_by_animatable (PhocOutputFrameCallbackInfo *info,  PhocAnimatable *anima
  * Remove all frame callbacks for the given #PhocAnimatable.
  */
 void
-phoc_output_remove_frame_callbacks_by_animatable  (PhocOutput *self, PhocAnimatable *animatable)
+phoc_output_remove_frame_callbacks_by_animatable (PhocOutput *self, PhocAnimatable *animatable)
 {
   PhocOutputPrivate *priv;
   GSList *found;
@@ -1460,9 +1484,14 @@ phoc_output_remove_frame_callbacks_by_animatable  (PhocOutput *self, PhocAnimata
   } while (found);
 }
 
-
+/**
+ * phoc_output_has_frame_callbacks:
+ * @self: The output to look at
+ *
+ * Returns: `true` if the output has any frame callbacks attached
+ */
 bool
-phoc_output_has_frame_callbacks  (PhocOutput *self)
+phoc_output_has_frame_callbacks (PhocOutput *self)
 {
   PhocOutputPrivate *priv;
 
@@ -1472,7 +1501,13 @@ phoc_output_has_frame_callbacks  (PhocOutput *self)
   return !!priv->frame_callbacks;
 }
 
-
+/**
+ * phoc_output_lower_shield:
+ * @self: The output lower the shield for
+ *
+ * Lowers an output shield that is in place to hide
+ * the outputs current content.
+ */
 void
 phoc_output_lower_shield (PhocOutput *self)
 {
@@ -1487,7 +1522,13 @@ phoc_output_lower_shield (PhocOutput *self)
   phoc_output_shield_lower (priv->shield);
 }
 
-
+/**
+ * phoc_output_lower_shield:
+ * @self: The output lower the shield for
+ *
+ * Raise an output shield will be put in place to hide the outputs
+ * current content.
+ */
 void
 phoc_output_raise_shield (PhocOutput *self)
 {
@@ -1565,7 +1606,6 @@ should_reveal_shell (PhocOutput *self)
   return priv->force_shell_reveal;
 }
 
-
 /**
  * phoc_output_update_shell_reveal:
  * @self: The #PhocOutput
@@ -1588,7 +1628,6 @@ phoc_output_update_shell_reveal (PhocOutput *self)
   }
 }
 
-
 /**
  * phoc_output_force_shell_reveal:
  * @self: The #PhocOutput
@@ -1607,7 +1646,6 @@ phoc_output_force_shell_reveal (PhocOutput *self, gboolean force)
   priv->force_shell_reveal = force;
   phoc_output_update_shell_reveal (self);
 }
-
 
 /**
  * phoc_output_has_shell_revealed:

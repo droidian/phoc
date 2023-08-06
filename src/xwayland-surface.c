@@ -115,16 +115,18 @@ apply_size_constraints (PhocView                    *view,
   if (view_is_maximized (view))
     return;
 
-  struct wlr_xwayland_surface_size_hints *size_hints = xwayland_surface->size_hints;
+  xcb_size_hints_t *size_hints = xwayland_surface->size_hints;
   if (size_hints != NULL) {
     if (size_hints->min_width > 0 && width < (uint32_t)size_hints->min_width) {
       *dest_width = size_hints->min_width;
-    } else if (size_hints->max_width > 0 && width > (uint32_t)size_hints->max_width) {
+    } else if (size_hints->max_width > 0 &&
+               width > (uint32_t)size_hints->max_width) {
       *dest_width = size_hints->max_width;
     }
     if (size_hints->min_height > 0 && height < (uint32_t)size_hints->min_height) {
       *dest_height = size_hints->min_height;
-    } else if (size_hints->max_height > 0 && height > (uint32_t)size_hints->max_height) {
+    } else if (size_hints->max_height > 0 &&
+               height > (uint32_t)size_hints->max_height) {
       *dest_height = size_hints->max_height;
     }
   }
@@ -234,6 +236,16 @@ set_fullscreen(PhocView *view, bool fullscreen)
   xwayland_surface = PHOC_XWAYLAND_SURFACE (view)->xwayland_surface;
   wlr_xwayland_surface_set_fullscreen (xwayland_surface, fullscreen);
 }
+
+
+static pid_t
+get_pid (PhocView *view)
+{
+  PhocXWaylandSurface *self = PHOC_XWAYLAND_SURFACE (view);
+
+  return self->xwayland_surface->pid;
+}
+
 
 static void
 phoc_xwayland_surface_set_property (GObject      *object,
@@ -555,6 +567,7 @@ phoc_xwayland_surface_class_init (PhocXWaylandSurfaceClass *klass)
   view_class->set_fullscreen = set_fullscreen;
   view_class->set_maximized = set_maximized;
   view_class->close = _close;
+  view_class->get_pid = get_pid;
 
   /**
    * PhocXWaylandSurface:wlr-xwayland-surface:

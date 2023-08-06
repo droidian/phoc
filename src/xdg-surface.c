@@ -92,7 +92,7 @@ set_active (PhocView *view, bool active)
   struct wlr_xdg_surface *xdg_surface = PHOC_XDG_SURFACE (view)->xdg_surface;
 
   if (xdg_surface->role == WLR_XDG_SURFACE_ROLE_TOPLEVEL)
-    wlr_xdg_toplevel_set_activated (xdg_surface, active);
+    wlr_xdg_toplevel_set_activated (xdg_surface->toplevel, active);
 }
 
 static void
@@ -133,7 +133,7 @@ resize (PhocView *view, uint32_t width, uint32_t height)
       wlr_xdg_surface->toplevel->scheduled.height == constrained_height)
     return;
 
-  wlr_xdg_toplevel_set_size (wlr_xdg_surface, constrained_width, constrained_height);
+  wlr_xdg_toplevel_set_size (wlr_xdg_surface->toplevel, constrained_width, constrained_height);
 
   view_send_frame_done_if_not_visible (view);
 }
@@ -172,7 +172,7 @@ move_resize (PhocView *view, double x, double y, uint32_t width, uint32_t height
     view_update_position (view, x, y);
   } else {
     self->pending_move_resize_configure_serial =
-      wlr_xdg_toplevel_set_size (wlr_xdg_surface, constrained_width, constrained_height);
+      wlr_xdg_toplevel_set_size (wlr_xdg_surface->toplevel, constrained_width, constrained_height);
   }
 
   view_send_frame_done_if_not_visible (view);
@@ -199,7 +199,7 @@ set_maximized (PhocView *view, bool maximized)
   if (xdg_surface->role != WLR_XDG_SURFACE_ROLE_TOPLEVEL)
     return;
 
-  wlr_xdg_toplevel_set_maximized (xdg_surface, maximized);
+  wlr_xdg_toplevel_set_maximized (xdg_surface->toplevel, maximized);
 }
 
 static void
@@ -211,16 +211,16 @@ set_tiled (PhocView *view, bool tiled)
     return;
 
   if (!tiled) {
-    wlr_xdg_toplevel_set_tiled (xdg_surface, WLR_EDGE_NONE);
+    wlr_xdg_toplevel_set_tiled (xdg_surface->toplevel, WLR_EDGE_NONE);
     return;
   }
 
   switch (phoc_view_get_tile_direction (view)) {
     case PHOC_VIEW_TILE_LEFT:
-      wlr_xdg_toplevel_set_tiled (xdg_surface, WLR_EDGE_TOP | WLR_EDGE_BOTTOM | WLR_EDGE_LEFT);
+      wlr_xdg_toplevel_set_tiled (xdg_surface->toplevel, WLR_EDGE_TOP | WLR_EDGE_BOTTOM | WLR_EDGE_LEFT);
       break;
     case PHOC_VIEW_TILE_RIGHT:
-      wlr_xdg_toplevel_set_tiled (xdg_surface, WLR_EDGE_TOP | WLR_EDGE_BOTTOM | WLR_EDGE_RIGHT);
+      wlr_xdg_toplevel_set_tiled (xdg_surface->toplevel, WLR_EDGE_TOP | WLR_EDGE_BOTTOM | WLR_EDGE_RIGHT);
       break;
     default:
       g_warn_if_reached ();
@@ -235,7 +235,7 @@ set_fullscreen (PhocView *view, bool fullscreen)
   if (xdg_surface->role != WLR_XDG_SURFACE_ROLE_TOPLEVEL)
     return;
 
-  wlr_xdg_toplevel_set_fullscreen (xdg_surface, fullscreen);
+  wlr_xdg_toplevel_set_fullscreen (xdg_surface->toplevel, fullscreen);
 }
 
 static void
@@ -245,9 +245,9 @@ _close(PhocView *view)
   struct wlr_xdg_popup *popup, *tmp = NULL;
 
   wl_list_for_each_safe (popup, tmp, &xdg_surface->popups, link) {
-    wlr_xdg_popup_destroy (popup->base);
+    wlr_xdg_popup_destroy (popup);
   }
-  wlr_xdg_toplevel_send_close (xdg_surface);
+  wlr_xdg_toplevel_send_close (xdg_surface->toplevel);
 
   view_send_frame_done_if_not_visible (view);
 }
@@ -287,6 +287,21 @@ get_wlr_surface_at (PhocView *self, double sx, double sy, double *sub_x, double 
   return wlr_xdg_surface_surface_at (PHOC_XDG_SURFACE (self)->xdg_surface, sx, sy, sub_x, sub_y);
 }
 
+
+static pid_t
+get_pid (PhocView *view)
+{
+  PhocXdgSurface *self = PHOC_XDG_SURFACE (view);
+  struct wl_client *client;
+  pid_t pid;
+
+  g_assert (self->xdg_surface);
+  client = wl_resource_get_client (self->xdg_surface->resource);
+
+  wl_client_get_credentials (client, &pid, NULL, NULL);
+
+  return pid;
+}
 
 static void
 handle_surface_commit (struct wl_listener *listener, void *data)
@@ -431,12 +446,11 @@ handle_request_fullscreen (struct wl_listener *listener, void *data)
 {
   PhocXdgSurface *self = wl_container_of (listener, self, request_fullscreen);
   struct wlr_xdg_surface *surface = self->xdg_surface;
-  struct wlr_xdg_toplevel_set_fullscreen_event *e = data;
 
   if (surface->role != WLR_XDG_SURFACE_ROLE_TOPLEVEL)
     return;
 
-  phoc_view_set_fullscreen (PHOC_VIEW (self), e->fullscreen, e->output);
+  phoc_view_set_fullscreen (PHOC_VIEW (self), surface->toplevel->requested.fullscreen, surface->toplevel->requested.fullscreen_output);
 }
 
 
@@ -464,7 +478,7 @@ handle_set_parent (struct wl_listener *listener, void *data)
   PhocXdgSurface *self = wl_container_of (listener, self, set_parent);
 
   if (self->xdg_surface->toplevel->parent) {
-    PhocXdgSurface *parent = self->xdg_surface->toplevel->parent->data;
+    PhocXdgSurface *parent = self->xdg_surface->toplevel->parent->base->data;
     view_set_parent (PHOC_VIEW (self), &parent->view);
   } else {
     view_set_parent (PHOC_VIEW (self), NULL);
@@ -483,6 +497,25 @@ handle_new_popup (struct wl_listener *listener, void *data)
 
 
 static void
+phoc_xdg_surface_set_capabilities (PhocXdgSurface                        *self,
+                                   enum wlr_xdg_toplevel_wm_capabilities  caps)
+{
+  uint32_t version;
+  struct wlr_xdg_toplevel *toplevel;
+
+  if (self->xdg_surface->role != WLR_XDG_SURFACE_ROLE_TOPLEVEL)
+    return;
+
+  toplevel = self->xdg_surface->toplevel;
+  version = wl_resource_get_version (toplevel->resource);
+  if (version < XDG_TOPLEVEL_WM_CAPABILITIES_SINCE_VERSION)
+    return;
+
+  wlr_xdg_toplevel_set_wm_capabilities (toplevel, caps);
+}
+
+
+static void
 phoc_xdg_surface_constructed (GObject *object)
 {
   PhocXdgSurface *self = PHOC_XDG_SURFACE(object);
@@ -493,7 +526,7 @@ phoc_xdg_surface_constructed (GObject *object)
 
   // catch up with state accumulated before committing
   if (self->xdg_surface->toplevel->parent) {
-    PhocXdgSurface *parent = self->xdg_surface->toplevel->parent->data;
+    PhocXdgSurface *parent = self->xdg_surface->toplevel->parent->base->data;
     view_set_parent (PHOC_VIEW (self), PHOC_VIEW (parent));
   }
 
@@ -505,6 +538,10 @@ phoc_xdg_surface_constructed (GObject *object)
                             self->xdg_surface->toplevel->requested.fullscreen_output);
   view_auto_maximize (PHOC_VIEW (self));
   view_set_title (PHOC_VIEW (self), self->xdg_surface->toplevel->title);
+  /* We don't do window menus or minimize */
+  phoc_xdg_surface_set_capabilities (self,
+                                     WLR_XDG_TOPLEVEL_WM_CAPABILITIES_MAXIMIZE |
+                                     WLR_XDG_TOPLEVEL_WM_CAPABILITIES_FULLSCREEN);
 
   /* Register all handlers */
   self->surface_commit.notify = handle_surface_commit;
@@ -590,6 +627,7 @@ phoc_xdg_surface_class_init (PhocXdgSurfaceClass *klass)
   view_class->for_each_surface = for_each_surface;
   view_class->get_geometry = get_geometry;
   view_class->get_wlr_surface_at = get_wlr_surface_at;
+  view_class->get_pid = get_pid;
 
   /**
    * PhocXdgSurface:wlr-xdg-surface:

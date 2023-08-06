@@ -5,8 +5,21 @@ stages:
  - build
  - test+docs
  - package
- - test-package
  - deploy
+
+default:
+  # Protect CI infra from rogue jobs
+  timeout: 15 minutes
+  # Allow jobs to be caneled on new commits
+  interruptible: true
+  # Retry on infra hickups automatically
+  retry:
+    max: 1
+    when:
+      - 'api_failure'
+      - 'runner_system_failure'
+      - 'scheduler_failure'
+      - 'stuck_or_timeout_failure'
 
 variables:
   DEPS: git lcov
@@ -15,12 +28,11 @@ variables:
         libinput-dev wayland-dev wayland-protocols libxkbcommon-dev wlroots-dev
         xwayland-dev
   XVFB_RUN: xvfb-run -s -noreset
-  DEBIAN_IMAGE: $CI_REGISTRY/world/phosh/phoc/debian:v0.0.20230219
+  DEBIAN_IMAGE: $CI_REGISTRY/world/phosh/phoc/debian:v0.0.20230722
 
 .build: &build
   script:
     - export LC_ALL=C.UTF-8
-    - git submodule update --init
     - meson setup _build $BUILD_ARGS
     - meson compile -C _build
     - meson install -C _build
@@ -28,7 +40,7 @@ variables:
 .before_script_debian: &before_script_debian
   - rm -f ../* || true
   - eatmydata apt-get -y update
-  - eatmydata apt-get -y install xwayland python3-docutils
+  - eatmydata apt-get -y install $DEPS xwayland python3-docutils
   - dpkg -l
 
 .before_script_alpine: &before_script_alpine
@@ -71,7 +83,7 @@ build-without-xwayland-alpinelinux-edge:
   image: alpine:edge
   before_script: *before_script_alpine
   variables:
-     BUILD_ARGS: -Dxwayland=disabled
+     BUILD_ARGS: -Dembed-wlroots=disabled -Dxwayland=disabled
   <<: *build
   allow_failure: true
   except:
@@ -141,6 +153,10 @@ package-debian-bookworm:arm64:
   tags:
     - aarch64
   extends: .l5-build-debian-package
+  before_script:
+    - echo "deb http://deb.debian.org/debian/ sid main" > /etc/apt/sources.list.d/sid.list
+    - apt-get -y update
+    - apt-get -y -t sid build-dep .
 
 package-pureos-byzantium:sanitizers:arm64:
   variables:

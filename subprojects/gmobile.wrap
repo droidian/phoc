@@ -1,0 +1,5 @@
+[wrap-git]
+directory=gmobile
+url=https://gitlab.gnome.org/guidog/gmobile.git
+revision=f4d4e5740c3e4b2de40864ab8a9e7b7f957d6aec
+depth=1

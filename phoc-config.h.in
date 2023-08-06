@@ -9,7 +9,3 @@
 
 /* Whether xwayland is enabled */
 #mesondefine PHOC_XWAYLAND
-
-/* Whether we have needed functions for toch gesture cancel */
-/* Can be dropped with wlroots 0.16                         */
-#mesondefine PHOC_HAVE_WLR_SEAT_TOUCH_NOTIFY_CANCEL

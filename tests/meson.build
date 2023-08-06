@@ -16,7 +16,7 @@ test_env.set('XDG_RUNTIME_DIR', meson.current_build_dir())
 
 # For -Db_sanitize=address
 test_env.set('LSAN_OPTIONS',
-             'suppressions=@0@/data/leak-suppress.txt'.format(meson.source_root()))
+             'suppressions=@0@/data/leak-suppress.txt'.format(meson.project_source_root()))
 test_env.set('ASAN_OPTIONS', 'fast_unwind_on_malloc=0')
 
 test_cflags = [

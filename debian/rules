@@ -2,6 +2,8 @@
 
 export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 
+MESON_OPTS=--wrap-mode=default -Dembed-wlroots=disabled
+
 ifneq ($(filter pkg.phoc.embedwlroots,$(DEB_BUILD_PROFILES)),)
     MESON_OPTS += -Dembed-wlroots=enabled --default-library=static
 else

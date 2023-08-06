@@ -18,8 +18,8 @@ Build-Depends:
  wayland-protocols,
  libgirepository1.0-dev <!nodoc>,
  libxcb1-dev,
- libwlroots-dev (>= 0.15.1) <!pkg.phoc.embedwlroots>,
- libwlroots-dev (<< 0.16.0) <!pkg.phoc.embedwlroots>,
+ libwlroots-dev (>= 0.16.2) <!pkg.phoc.embedwlroots>,
+ libwlroots-dev (<< 0.17.0) <!pkg.phoc.embedwlroots>,
 # For wlroots subproject build
  libavformat-dev <pkg.phoc.embedwlroots>,
  libavcodec-dev <pkg.phoc.embedwlroots>,
