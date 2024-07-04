@@ -510,6 +510,7 @@ phoc_output_draw (PhocOutput *self)
 
   pixman_region32_init (&buffer_damage);
   wlr_damage_ring_get_buffer_damage (&self->damage_ring, buffer_age, &buffer_damage);
+  wlr_output_handle_damage(wlr_output, &buffer_damage);
 
   render_context = (PhocRenderContext){
     .output = self,
