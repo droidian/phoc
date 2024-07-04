@@ -2,6 +2,7 @@ Source: phoc
 Priority: optional
 Maintainer: Guido Günther <agx@sigxcpu.org>
 Uploaders: Sebastian Krzyszkowiak <sebastian.krzyszkowiak@puri.sm>
+XS-Droidian-Extra-Repos: deb http://droidian-wlroots.repo.droidian.org/next-upgrade-0-17-4/ trixie main
 Build-Depends:
  debhelper-compat (= 13),
  gsettings-desktop-schemas,
