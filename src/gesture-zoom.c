@@ -128,11 +128,9 @@ phoc_gesture_zoom_filter_event (PhocGesture     *gesture,
                                 const PhocEvent *event)
 {
   /* Let 2-finger touchpad pinch events go through */
-  if (event->type == PHOC_EVENT_TOUCHPAD_PINCH_BEGIN) {
-    return !(event->touchpad_pinch_begin.fingers == 2);
-  } if (event->type == PHOC_EVENT_TOUCHPAD_PINCH_UPDATE) {
-    return !(event->touchpad_pinch_begin.fingers == 2);
-  } if (event->type == PHOC_EVENT_TOUCHPAD_PINCH_END) {
+  if (event->type == PHOC_EVENT_TOUCHPAD_PINCH_BEGIN ||
+      event->type == PHOC_EVENT_TOUCHPAD_PINCH_UPDATE ||
+      event->type == PHOC_EVENT_TOUCHPAD_PINCH_END) {
     return !(event->touchpad_pinch_begin.fingers == 2);
   }
 

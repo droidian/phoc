@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2020 Purism SPC
- * SPDX-License-Identifier: GPL-3.0+
+ * SPDX-License-Identifier: GPL-3.0-or-later
  * Author: Guido Günther <agx@sigxcpu.org>
  */
 #include "server.h"
@@ -132,9 +132,10 @@ void            phoc_test_xdg_update_buffer (PhocTestClientGlobals      *globals
 gboolean phoc_test_buffer_equal (PhocTestBuffer *buf1, PhocTestBuffer *buf2);
 gboolean phoc_test_buffer_save (PhocTestBuffer *buffer, const gchar *filename);
 gboolean phoc_test_buffer_matches_screenshot (PhocTestBuffer *buffer, const gchar *filename);
-void phoc_test_buffer_free (PhocTestBuffer *buffer);
+void     phoc_test_buffer_free (PhocTestBuffer *buffer);
 
-#define _phoc_test_screenshot_name(l, f, n) (g_strdup_printf ("phoc-test-screenshot-%d-%s_%d.png", l, f, n))
+#define _phoc_test_screenshot_name(l, f, n) \
+  (g_strdup_printf ("phoc-test-screenshot-%d-%s_%d.png", l, f, n))
 
 /*
  * phoc_assert_screenshot:
@@ -145,11 +146,13 @@ void phoc_test_buffer_free (PhocTestBuffer *buffer);
     PhocTestClientGlobals *__g = (g);                                    \
     gchar *__f = g_test_build_filename (G_TEST_DIST, "screenshots", f, NULL); \
     PhocTestBuffer *__s = phoc_test_client_capture_output (__g, &__g->output); \
-    if (phoc_test_buffer_matches_screenshot (__s, __f)) ; else {         \
-      g_autofree gchar *__name = _phoc_test_screenshot_name(__LINE__, G_STRFUNC, 0); \
+    g_test_message ("Snapshotting %s", f);                               \
+    if (phoc_test_buffer_matches_screenshot (__s, __f)); else {         \
+      g_autofree char *__name = _phoc_test_screenshot_name (__LINE__, G_STRFUNC, 0); \
+      g_autofree char *__msg = \
+        g_strdup_printf ("Output content in '%s' does not match " #f, __name); \
       phoc_test_buffer_save (&__g->output.screenshot.buffer, __name);            \
-      g_assertion_message (G_LOG_DOMAIN, __FILE__, __LINE__, G_STRFUNC,  \
-                           "Output content does not match " #f);         \
+      g_assertion_message (G_LOG_DOMAIN, __FILE__, __LINE__, G_STRFUNC, __msg); \
     }                                                                    \
     phoc_test_buffer_free (__s);                                         \
     g_free (__f);                                                        \
@@ -165,13 +168,13 @@ void phoc_test_buffer_free (PhocTestBuffer *buffer);
  */
 #define phoc_assert_buffer_equal(b1, b2)    G_STMT_START { \
     PhocTestBuffer *__b1 = (b1), *__b2 = (b2);                          \
-    if (phoc_test_buffer_equal (__b1 , __b2)) ; else {                  \
-      g_autofree gchar *__name1 = _phoc_test_screenshot_name(__LINE__, G_STRFUNC, 1); \
-      g_autofree gchar *__name2 = _phoc_test_screenshot_name(__LINE__, G_STRFUNC, 2); \
+    if (phoc_test_buffer_equal (__b1, __b2)); else {                  \
+      g_autofree gchar *__name1 = _phoc_test_screenshot_name (__LINE__, G_STRFUNC, 1); \
+      g_autofree gchar *__name2 = _phoc_test_screenshot_name (__LINE__, G_STRFUNC, 2); \
       phoc_test_buffer_save (__b1, __name1);                            \
       phoc_test_buffer_save (__b2, __name2);                            \
       g_assertion_message (G_LOG_DOMAIN, __FILE__, __LINE__, G_STRFUNC, \
-                         "Buffer " #b1 " != " #b2);                     \
+                           "Buffer " #b1 " != " #b2);                   \
     } \
   } G_STMT_END
 

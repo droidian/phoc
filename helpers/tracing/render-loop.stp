@@ -1,0 +1,18 @@
+# Print render loop execution time
+#
+# Usage:
+#
+# stap --runtime=bpf -v helpers/render-loop.stp _build/src/phoc
+#
+
+probe begin
+{
+  printf("Measuring render loop, press ctrl-C to stop...\n")
+}
+
+probe process(@1).function("phoc_renderer_render_output").return
+{
+  output = user_string(@entry($output->wlr_output->name));
+
+  printf("Render time: %10s: %6d µs\n", output, gettimeofday_us() - @entry(gettimeofday_us() ))
+}

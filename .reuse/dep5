@@ -1,0 +1,123 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: phoc
+Upstream-Contact: https://gitlab.gnome.org/World/Phosh/phoc
+Source: https://gitlab.gnome.org/World/Phosh/phoc
+
+# Translations are explicitly under the license of the project
+Files:
+ po/*.po
+Copyright: See individual files
+License: GPL-3.0-or-later
+
+# Imported from wlroots
+Files:
+ protocols/wlr-foreign-toplevel-management-unstable-v1.xml
+ protocols/wlr-layer-shell-unstable-v1.xml
+ protocols/wlr-output-power-management-unstable-v1.xml
+ protocols/wlr-screencopy-unstable-v1.xml
+Copyright: See individual files
+License: MIT
+
+# Imported from GTK
+Files:
+ protocols/gtk-shell.xml
+Copyright: The GTK authors
+License: LGPL-2.1-or-later
+
+# Phoc's protocols have explicit license text
+Files:
+ protocols/phoc-device-state-unstable-v1.xml
+ protocols/phoc-layer-shell-effects-unstable-v1.xml
+ protocols/phosh-private.xml
+Copyright: See individual files
+License: MIT
+
+# Test data has the same copyright as the tests
+Files:
+ tests/data/phosh,tiny.json
+ tests/phoc.ini
+ tests/screenshots/*
+Copyright: The Phoc authors
+License: GPL-3.0-or-later
+
+# These were initially developed in rootston under MIT
+# license so we keep them dual licensed:
+Files:
+ examples/egl-common.c
+ examples/egl-common.h
+ src/desktop.c
+ src/desktop.h
+ src/input.c
+ src/input.h
+ src/layer_shell.c
+ src/layers.h
+ src/output.c
+ src/output.h
+ src/pointer.c
+ src/pointer.h
+ src/settings.c
+ src/settings.h
+ src/switch.c
+ src/tablet.c
+ src/text_input.c
+ src/text_input.h
+ src/touch.c
+ src/view.c
+ src/view.h
+ src/virtual.c
+ src/virtual.h
+ src/xcursor.h
+ src/xdg-toplevel-decoration.c
+Copyright:
+ The wlroots authors
+ The Phoc authors
+License: GPL-3.0-or-later or MIT
+
+# No point in adding indiviual information to tiny files or
+# test data:
+Files:
+ .dir-locals.el
+ .editorconfig
+ .gitignore
+ .gitlab-ci/Makefile
+ .gitlab-ci/README.md
+ .gitlab-ci/check-po
+ .gitlab-ci/check-style.py
+ .gitlab-ci/commit-rules.yml
+ .gitlab-ci/debian.Dockerfile
+ .gitlab-ci/run-docker.sh
+ .gitlab-ci/uncrustify.cfg
+ .gitlab-ci.yml
+ HACKING.md
+ NEWS
+ README.md
+ data/icons/mobi.phosh.Phoc.svg
+ data/leak-suppress.txt
+ data/phoc-dev.in
+ data/phoc-dev.ini
+ data/phoc-dev.service.in
+ data/mobi.phosh.Phoc.desktop.in.in
+ data/sm.puri.phoc.gschema.xml
+ debian/*
+ doc/gettingstarted.md
+ doc/phoc.gsettings.rst
+ doc/phoc.ini.rst
+ doc/phoc.rst
+ doc/phoc.toml.in
+ gcovr.cfg
+ helpers/*
+ meson.build
+ */meson.build
+ meson_options.txt
+ po/POTFILES.in
+ po/POTFILES.skip
+ phoc-config.h.in
+ phoc.doap
+ run.in
+ src/phoc-marshalers.list
+ src/phoc.ini.example
+ subprojects/gi-docgen.wrap
+ subprojects/gmobile.wrap
+ subprojects/wlroots.wrap
+Copyright: The Phoc authors
+License: GPL-3.0-or-later

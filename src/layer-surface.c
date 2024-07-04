@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2021 Purism SPC
  *
- * SPDX-License-Identifier: GPL-3.0+
+ * SPDX-License-Identifier: GPL-3.0-or-later
  * Author: Guido Günther <agx@sigxcpu.org>
  */
 
@@ -121,10 +121,13 @@ phoc_layer_surface_finalize (GObject *object)
   PhocLayerSurface *self = PHOC_LAYER_SURFACE (object);
   PhocOutput *output = phoc_layer_surface_get_output (self);
 
-  if (self->layer_surface->mapped)
+  if (self->layer_surface->surface->mapped)
     phoc_layer_surface_unmap (self);
 
   wl_list_remove (&self->link);
+  if (output)
+    phoc_output_set_layer_dirty (output, self->layer);
+
   wl_list_remove (&self->destroy.link);
   wl_list_remove (&self->map.link);
   wl_list_remove (&self->unmap.link);
@@ -179,9 +182,9 @@ phoc_layer_surface_init (PhocLayerSurface *self)
 PhocLayerSurface *
 phoc_layer_surface_new (struct wlr_layer_surface_v1 *layer_surface)
 {
-  return PHOC_LAYER_SURFACE (g_object_new (PHOC_TYPE_LAYER_SURFACE,
-                                           "wlr-layer-surface", layer_surface,
-                                           NULL));
+  return g_object_new (PHOC_TYPE_LAYER_SURFACE,
+                       "wlr-layer-surface", layer_surface,
+                       NULL);
 }
 
 
@@ -202,8 +205,10 @@ phoc_layer_surface_unmap (PhocLayerSurface *self)
 
   wlr_output = layer_surface->output;
   if (wlr_output != NULL) {
-    phoc_output_damage_whole_local_surface(wlr_output->data, layer_surface->surface,
-                                           self->geo.x, self->geo.y);
+    phoc_output_damage_whole_surface (wlr_output->data,
+                                      layer_surface->surface,
+                                      self->geo.x,
+                                      self->geo.y);
   }
 }
 
@@ -268,4 +273,20 @@ phoc_layer_surface_get_alpha (PhocLayerSurface *self)
   g_assert (PHOC_IS_LAYER_SURFACE (self));
 
   return self->alpha;
+}
+
+/**
+ * phoc_layer_surface_get_layer:
+ * @self: The layer surface
+ *
+ * Get the layer surface's current layer
+ *
+ * Returns: the current layer
+ */
+enum zwlr_layer_shell_v1_layer
+phoc_layer_surface_get_layer (PhocLayerSurface *self)
+{
+  g_assert (PHOC_IS_LAYER_SURFACE (self));
+
+  return self->layer;
 }

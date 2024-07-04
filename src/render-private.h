@@ -7,6 +7,8 @@
 
 #include "render.h"
 
+#include <wlr/types/wlr_output.h>
+
 G_BEGIN_DECLS
 
 struct wlr_renderer  *phoc_renderer_get_wlr_renderer  (PhocRenderer *self);

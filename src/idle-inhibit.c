@@ -1,7 +1,9 @@
 /*
- * Copyright (C) 2023 Guido Günther <agx@sigxcpu.org>
+ * Copyright (C) 2023 The Phosh Developers
  *
  * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * Author: Guido Günther <agx@sigxcpu.org>
  */
 
 #define G_LOG_DOMAIN "phoc-idle-inhibit"
@@ -11,7 +13,6 @@
 #include "idle-inhibit.h"
 #include "server.h"
 
-#include <wlr/types/wlr_idle.h>
 #include <wlr/types/wlr_idle_inhibit_v1.h>
 
 #include <gio/gio.h>
@@ -221,7 +222,7 @@ on_proxy_new_for_bus_finish (GObject *object, GAsyncResult *res, gpointer data)
 {
   PhocIdleInhibit *self = data;
   g_autoptr (GError) err = NULL;
-  PhocServer *server = phoc_server_get_default ();
+  struct wl_display *wl_display = phoc_server_get_wl_display (phoc_server_get_default ());
   GDBusProxy *screensaver_proxy;
 
   screensaver_proxy = g_dbus_proxy_new_for_bus_finish (res, &err);
@@ -235,7 +236,7 @@ on_proxy_new_for_bus_finish (GObject *object, GAsyncResult *res, gpointer data)
 
   self->screensaver_proxy = screensaver_proxy;
   /* We connected to DBus so let's expose zwp_idle_inhibit_manager_v1 */
-  self->wlr_idle_inhibit = wlr_idle_inhibit_v1_create (server->wl_display);
+  self->wlr_idle_inhibit = wlr_idle_inhibit_v1_create (wl_display);
   if (!self->wlr_idle_inhibit) {
     g_clear_object (&self->screensaver_proxy);
     return;
@@ -245,14 +246,19 @@ on_proxy_new_for_bus_finish (GObject *object, GAsyncResult *res, gpointer data)
   wl_signal_add (&self->wlr_idle_inhibit->events.new_inhibitor, &self->new_idle_inhibitor_v1);
 }
 
-
+/**
+ * phoc_idle_inhibit_create: (skip)
+ *
+ * Create new object to proxy Wayland's idle protocol to GNOME Session
+ *
+ * Returns: A new idle-inhibit object
+ */
 PhocIdleInhibit *
-phoc_idle_inhibit_create (struct wlr_idle   *idle)
+phoc_idle_inhibit_create (void)
 {
   PhocIdleInhibit *self = g_new0 (PhocIdleInhibit, 1);
 
   g_info ("Initializing idle inhibit interface");
-  self->wlr_idle = idle;
   wl_list_init (&self->new_idle_inhibitor_v1.link);
 
   self->cancellable = g_cancellable_new ();

@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2020 Purism SPC
- * SPDX-License-Identifier: GPL-3.0+
+ * SPDX-License-Identifier: GPL-3.0-or-later
  * Author: Guido Günther <agx@sigxcpu.org>
  */
 
@@ -45,7 +45,7 @@ test_phoc_server_setup_args (void)
                                    PHOC_SERVER_FLAG_NONE,
                                    PHOC_SERVER_DEBUG_FLAG_NONE));
 
-  g_assert_cmpstr (server->session, ==, "/bin/bash");
+  g_assert_cmpstr (phoc_server_get_session_exec (server), ==, "/bin/bash");
 }
 
 gint

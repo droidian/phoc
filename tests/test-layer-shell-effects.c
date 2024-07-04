@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2022 Purism SPC
- * SPDX-License-Identifier: GPL-3.0+
+ * SPDX-License-Identifier: GPL-3.0-or-later
  * Author: Guido Günther <agx@sigxcpu.org>
  */
 
@@ -124,6 +124,45 @@ test_client_layer_shell_effects_alpha_surface_simple (PhocTestClientGlobals *glo
 
   return TRUE;
 }
+#undef HEIGHT
+
+
+
+#define HEIGHT 200
+#define WIDTH 100
+
+static gboolean
+test_client_layer_shell_effects_stack_surface_simple (PhocTestClientGlobals *globals, gpointer data)
+{
+  PhocTestLayerSurface *ls_green, *ls_red;
+  static struct zphoc_stacked_layer_surface_v1 *stacked_surf;
+
+  ls_green = phoc_test_layer_surface_new (globals, WIDTH, HEIGHT, 0xFF00FF00,
+                                          ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP, 0);
+  g_assert_nonnull (ls_green);
+  phoc_assert_screenshot (globals, "test-layer-shell-anchor-1.png");
+
+  ls_red = phoc_test_layer_surface_new (globals, WIDTH * 2, HEIGHT * 2, 0xFFFF0000,
+                                        ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM, 0);
+  g_assert_nonnull (ls_red);
+  phoc_assert_screenshot (globals, "test-layer-shell-anchor-2.png");
+
+  stacked_surf = zphoc_layer_shell_effects_v1_get_stacked_layer_surface (
+    globals->layer_shell_effects, ls_green->layer_surface);
+
+  g_assert_nonnull (stacked_surf);
+
+  zphoc_stacked_layer_surface_v1_stack_below (stacked_surf, ls_red->layer_surface);
+  wl_surface_commit (ls_green->wl_surface);
+  wl_display_roundtrip (globals->display);
+
+  phoc_test_layer_surface_free (ls_green);
+  phoc_test_layer_surface_free (ls_red);
+
+  phoc_assert_screenshot (globals, "empty.png");
+
+  return TRUE;
+}
 
 
 static void
@@ -140,10 +179,14 @@ test_layer_shell_effects_alpha_surface_simple (void)
 {
   PhocTestClientIface iface = { .client_run =  test_client_layer_shell_effects_alpha_surface_simple };
 
-  if (g_strcmp0 (g_getenv ("WLR_RENDERER"), "pixman") == 0) {
-    g_test_skip ("Skipping layer surface alpha check under pixman");
-    return;
-  }
+  phoc_test_client_run (TEST_PHOC_CLIENT_TIMEOUT, &iface, NULL);
+}
+
+
+static void
+test_layer_shell_effects_stack_surface_simple (void)
+{
+  PhocTestClientIface iface = { .client_run =  test_client_layer_shell_effects_stack_surface_simple };
 
   phoc_test_client_run (TEST_PHOC_CLIENT_TIMEOUT, &iface, NULL);
 }
@@ -158,5 +201,7 @@ main (gint argc, gchar *argv[])
                  test_layer_shell_effects_drag_surface_simple);
   PHOC_TEST_ADD ("/phoc/layer-shell-effects/alpha-surface/simple",
                  test_layer_shell_effects_alpha_surface_simple);
+  PHOC_TEST_ADD ("/phoc/layer-shell-effects/bind-surface/simple",
+                 test_layer_shell_effects_stack_surface_simple);
   return g_test_run();
 }

@@ -216,7 +216,7 @@ phoc_gesture_single_init (PhocGestureSingle *self)
 PhocGestureSingle *
 phoc_gesture_single_new (void)
 {
-  return PHOC_GESTURE_SINGLE (g_object_new (PHOC_TYPE_GESTURE_SINGLE, NULL));
+  return g_object_new (PHOC_TYPE_GESTURE_SINGLE, NULL);
 }
 
 /**

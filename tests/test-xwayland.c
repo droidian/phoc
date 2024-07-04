@@ -1,6 +1,9 @@
 /*
- * Copyright (C) Guido Günther <agx@sigxcpu.org>
- * SPDX-License-Identifier: GPL-3.0+
+ * Copyright (C) 2023 The Phosh Developers
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * Author: Guido Günther <agx@sigxcpu.org>
  */
 
 #include <xcb/xcb.h>
@@ -40,13 +43,15 @@ on_xcb_fd (int fd, GIOCondition condition, gpointer user_data)
 
   if ((event->response_type & 0x7f) == XCB_MAP_NOTIFY) {
     g_debug ("Xcb Window mapped, taking screenshot");
-    phoc_assert_screenshot (cdata->globals, "test-xwayland-simple-1.png");
     cdata->mapped = TRUE;
+    usleep (20 * 1000);
+    phoc_assert_screenshot (cdata->globals, "test-xwayland-simple-1.png");
     g_main_loop_quit (cdata->loop);
   } else if ((event->response_type & 0x7f) == XCB_UNMAP_NOTIFY) {
     g_debug ("Xcb Window unmapped, taking screenshot");
-    phoc_assert_screenshot (cdata->globals, "empty.png");
     cdata->unmapped = TRUE;
+    usleep (20 * 1000);
+    phoc_assert_screenshot (cdata->globals, "empty.png");
     g_main_loop_quit (cdata->loop);
   }
 
@@ -120,7 +125,7 @@ test_client_xwayland_normal (PhocTestClientGlobals *globals, gpointer data)
 static gboolean
 test_client_xwayland_server_prepare (PhocServer *server, gpointer data)
 {
-  PhocDesktop *desktop = server->desktop;
+  PhocDesktop *desktop = phoc_server_get_desktop (server);
   gboolean maximize = GPOINTER_TO_INT (data);
 
   g_assert_nonnull (g_getenv ("DISPLAY"));

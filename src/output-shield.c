@@ -31,6 +31,8 @@ static GParamSpec *props[PROP_LAST_PROP];
  *
  * A shield that covers a whole `PhocOutput`. It can be raised (to cover
  * the whole screen) and lowered to show the screens content.
+ *
+ * TODO: Use PhocColorRect to simplify
  */
 struct _PhocOutputShield {
   GObject             parent;
@@ -41,11 +43,11 @@ struct _PhocOutputShield {
   gulong              render_end_id;
 };
 
-static void phoc_animatable_interface_init (PhocAnimatableInterface *iface);
+static void phoc_output_shield_animatable_interface_init (PhocAnimatableInterface *iface);
 
 G_DEFINE_TYPE_WITH_CODE (PhocOutputShield, phoc_output_shield, G_TYPE_OBJECT,
                          G_IMPLEMENT_INTERFACE (PHOC_TYPE_ANIMATABLE,
-                                                phoc_animatable_interface_init))
+                                                phoc_output_shield_animatable_interface_init))
 
 static guint
 phoc_output_shield_add_frame_callback (PhocAnimatable   *iface,
@@ -86,6 +88,9 @@ set_alpha (PhocOutputShield *self, float alpha)
   g_assert (alpha >= 0.0 && alpha <= 1.0);
 
   self->alpha = alpha;
+
+  /* Damage covers the whole output */
+  phoc_output_damage_whole (self->output);
 }
 
 
@@ -136,7 +141,7 @@ phoc_output_shield_get_property (GObject    *object,
 static void
 stop_render (PhocOutputShield *self)
 {
-  PhocRenderer *renderer = phoc_server_get_default ()->renderer;
+  PhocRenderer *renderer = phoc_server_get_renderer (phoc_server_get_default ());
 
   g_clear_signal_handler (&self->render_end_id, renderer);
 }
@@ -144,33 +149,27 @@ stop_render (PhocOutputShield *self)
 
 
 static void
-on_render (PhocOutputShield *self, PhocOutput *output, PhocRenderer *renderer)
+on_render (PhocOutputShield *self, PhocRenderContext *ctx)
 {
   struct wlr_output *wlr_output;
-  struct wlr_box box;
-  struct wlr_renderer *wlr_renderer;
-  float color[4] = {0.0f, 0.0f, 0.0f, 1.0f};
 
-  if (self->output == NULL)
+  if (self->output == NULL || self->output != ctx->output)
     return;
 
   g_debug ("%s: alpha: %f", __func__, self->alpha);
   wlr_output = self->output->wlr_output;
-  box = (struct wlr_box){ 0, 0, wlr_output->width, wlr_output->height };
-  wlr_renderer = phoc_renderer_get_wlr_renderer (renderer);
 
-  color[3] = self->alpha;
-  wlr_render_rect (wlr_renderer, &box, color, wlr_output->transform_matrix);
-
-  /* Damage covers the whole output */
-  phoc_output_damage_whole (self->output);
+  wlr_render_pass_add_rect (ctx->render_pass, &(struct wlr_render_rect_options){
+      .box = { .width = wlr_output->width, .height = wlr_output->height },
+      .color =  { .a = self->alpha },
+    });
 }
 
 
 static void
 start_render (PhocOutputShield *self)
 {
-  PhocRenderer *renderer = phoc_server_get_default ()->renderer;
+  PhocRenderer *renderer = phoc_server_get_renderer (phoc_server_get_default ());
 
   if (self->render_end_id)
     return;
@@ -234,7 +233,7 @@ phoc_output_shield_finalize (GObject *object)
 
 
 static void
-phoc_animatable_interface_init (PhocAnimatableInterface *iface)
+phoc_output_shield_animatable_interface_init (PhocAnimatableInterface *iface)
 {
   iface->add_frame_callback = phoc_output_shield_add_frame_callback;
   iface->remove_frame_callback = phoc_output_shield_remove_frame_callback;
@@ -286,9 +285,9 @@ phoc_output_shield_init (PhocOutputShield *self)
 PhocOutputShield *
 phoc_output_shield_new (PhocOutput *output)
 {
-  return PHOC_OUTPUT_SHIELD (g_object_new (PHOC_TYPE_OUTPUT_SHIELD,
-                                           "output", output,
-                                           NULL));
+  return g_object_new (PHOC_TYPE_OUTPUT_SHIELD,
+                       "output", output,
+                       NULL);
 }
 
 

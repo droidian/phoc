@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022 Guido Günther
+ * Copyright (C) 2022 The Phosh Developers
  *
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
@@ -56,7 +56,7 @@ cutouts_overlay_set_compatibles (PhocCutoutsOverlay *self, const char *const *co
   }
 
   if (self->compatibles && g_strv_equal ((const char *const *)self->compatibles, compatibles))
-      return;
+    return;
 
   self->compatibles = g_strdupv ((GStrv)compatibles);
   info = gm_device_info_new ((const char * const *)self->compatibles);
@@ -72,9 +72,9 @@ cutouts_overlay_set_compatibles (PhocCutoutsOverlay *self, const char *const *co
 
 static void
 phoc_cutouts_overlay_set_property (GObject      *object,
-                     guint         property_id,
-                     const GValue *value,
-                     GParamSpec   *pspec)
+                                   guint         property_id,
+                                   const GValue *value,
+                                   GParamSpec   *pspec)
 {
   PhocCutoutsOverlay *self = PHOC_CUTOUTS_OVERLAY (object);
 
@@ -91,9 +91,9 @@ phoc_cutouts_overlay_set_property (GObject      *object,
 
 static void
 phoc_cutouts_overlay_get_property (GObject    *object,
-                     guint       property_id,
-                     GValue     *value,
-                     GParamSpec *pspec)
+                                   guint       property_id,
+                                   GValue     *value,
+                                   GParamSpec *pspec)
 {
   PhocCutoutsOverlay *self = PHOC_CUTOUTS_OVERLAY (object);
 
@@ -147,9 +147,9 @@ phoc_cutouts_overlay_init (PhocCutoutsOverlay *self)
 PhocCutoutsOverlay *
 phoc_cutouts_overlay_new (const char * const *compatibles)
 {
-  return PHOC_CUTOUTS_OVERLAY (g_object_new (PHOC_TYPE_CUTOUTS_OVERLAY,
-                                             "compatibles", compatibles,
-                                             NULL));
+  return g_object_new (PHOC_TYPE_CUTOUTS_OVERLAY,
+                       "compatibles", compatibles,
+                       NULL);
 }
 
 
@@ -202,7 +202,7 @@ phoc_cutouts_overlay_get_cutouts_texture (PhocCutoutsOverlay *self, PhocOutput *
 
   /* bottom right */
   cairo_move_to (cr, width, height);
-  cairo_arc (cr, width - radius, height - radius, radius, 0 , 0.5 * M_PI);
+  cairo_arc (cr, width - radius, height - radius, radius, 0, 0.5 * M_PI);
   cairo_close_path (cr);
   cairo_fill (cr);
 

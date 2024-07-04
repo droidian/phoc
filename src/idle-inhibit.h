@@ -14,7 +14,7 @@ G_BEGIN_DECLS
 
 typedef struct _PhocIdleInhibit PhocIdleInhibit;
 
-PhocIdleInhibit *phoc_idle_inhibit_create  (struct wlr_idle   *idle);
+PhocIdleInhibit *phoc_idle_inhibit_create  (void);
 void             phoc_idle_inhibit_destroy (PhocIdleInhibit *self);
 
 G_END_DECLS

@@ -1,14 +1,15 @@
 #pragma once
 
 #include "animatable.h"
+#include "drag-icon.h"
 #include "render.h"
 #include "view.h"
 
 #include <gio/gio.h>
 #include <glib-object.h>
 #include <wayland-server-core.h>
+#include <wlr/types/wlr_damage_ring.h>
 #include <wlr/types/wlr_layer_shell_v1.h>
-#include <wlr/types/wlr_output_damage.h>
 #include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/util/box.h>
 
@@ -23,13 +24,22 @@ typedef struct _PhocInput PhocInput;
 typedef struct _PhocLayerSurface PhocLayerSurface;
 
 /**
+ * PhocOutputScaleFilter:
+ */
+typedef enum _PhocOutputScaleFilter {
+  PHOC_OUTPUT_SCALE_FILTER_AUTO = 1,
+  PHOC_OUTPUT_SCALE_FILTER_BILINEAR,
+  PHOC_OUTPUT_SCALE_FILTER_NEAREST,
+} PhocOutputScaleFilter;
+
+/**
  * PhocOutput:
  *
  * The output region of a compositor (typically a monitor).
  *
  * See wlroot's #wlr_output.
  */
-/* TODO: we keep the struct public due to the list links and
+/* TODO: we keep the struct public for now due to the list links and
    notifiers but we should avoid other member access */
 struct _PhocOutput {
   GObject                   parent;
@@ -41,17 +51,16 @@ struct _PhocOutput {
   PhocView                 *fullscreen_view;
   struct wl_list            layer_surfaces; // PhocLayerSurface::link
 
-  struct wlr_output_damage *damage;
   GList                    *debug_touch_points;
 
   struct wlr_box            usable_area;
+  int                       lx, ly;
 
-  struct wl_listener        enable;
-  struct wl_listener        mode;
   struct wl_listener        commit;
-  struct wl_listener        damage_frame;
-  struct wl_listener        damage_destroy;
   struct wl_listener        output_destroy;
+
+  /* TODO: Should be private, move bits out of renderer */
+  struct wlr_damage_ring    damage_ring;
 };
 
 PhocOutput *phoc_output_new (PhocDesktop       *desktop,
@@ -61,7 +70,6 @@ PhocOutput *phoc_output_new (PhocDesktop       *desktop,
 typedef void (*PhocSurfaceIterator)(PhocOutput         *self,
                                     struct wlr_surface *surface,
                                     struct wlr_box     *box,
-                                    float               rotation,
                                     float               scale,
                                     void               *user_data);
 void        phoc_output_xdg_surface_for_each_surface (PhocOutput *self,
@@ -96,32 +104,29 @@ void        phoc_output_xwayland_children_for_each_surface (PhocOutput *self,
                                                             PhocSurfaceIterator iterator,
                                                             void *user_data);
 #endif
-void        phoc_output_for_each_surface             (PhocOutput *self,
-                                                      PhocSurfaceIterator iterator,
-                                                      void *user_data,
-                                                      gboolean visible_only);
-GList *     phoc_output_get_layer_surfaces_for_layer (PhocOutput                     *self,
+GQueue     *phoc_output_get_layer_surfaces_for_layer (PhocOutput                     *self,
                                                       enum zwlr_layer_shell_v1_layer  layer);
+void        phoc_output_set_layer_dirty (PhocOutput *self, enum zwlr_layer_shell_v1_layer  layer);
 
 /* signal handlers */
-void        handle_output_manager_apply (struct wl_listener *listener, void *data);
-void        handle_output_manager_test (struct wl_listener *listener, void *data);
+void        phoc_handle_output_manager_apply (struct wl_listener *listener, void *data);
+void        phoc_handle_output_manager_test (struct wl_listener *listener, void *data);
 void        phoc_output_handle_output_power_manager_set_mode (struct wl_listener *listener,
                                                               void *data);
+void        phoc_output_handle_gamma_control_set_gamma (struct wl_listener *listener, void *data);
+
 /* methods */
-typedef struct _PhocDragIcon PhocDragIcon;
+struct wlr_output *
+            phoc_output_get_wlr_output (PhocOutput *output);
 void        phoc_output_damage_whole (PhocOutput *output);
 void        phoc_output_damage_from_view (PhocOutput *self, PhocView *view, bool whole);
 void        phoc_output_damage_whole_drag_icon (PhocOutput   *self,
                                                 PhocDragIcon *icon);
-void        phoc_output_damage_from_local_surface (PhocOutput *self, struct wlr_surface *surface, double
-                                                   ox, double oy);
-void        phoc_output_damage_whole_local_surface (PhocOutput *self, struct wlr_surface *surface,
-                                                    double ox, double oy);
+void        phoc_output_damage_from_surface (PhocOutput *self, struct wlr_surface *surface,
+                                             double ox, double oy);
+void        phoc_output_damage_whole_surface (PhocOutput *self, struct wlr_surface *surface,
+                                              double ox, double oy);
 
-void        phoc_output_scale_box (PhocOutput *self, struct wlr_box *box, float scale);
-void        phoc_output_get_decoration_box (PhocOutput *self, PhocView *view,
-                                            struct wlr_box *box);
 void        phoc_output_update_shell_reveal (PhocOutput *self);
 void        phoc_output_force_shell_reveal (PhocOutput *self, gboolean force);
 gboolean    phoc_output_is_builtin (PhocOutput *output);
@@ -148,5 +153,10 @@ void       phoc_output_lower_shield          (PhocOutput *self);
 void       phoc_output_raise_shield          (PhocOutput *self);
 float      phoc_output_get_scale             (PhocOutput *self);
 const char *phoc_output_get_name             (PhocOutput *self);
+void       phoc_output_transform_damage      (PhocOutput *self, pixman_region32_t *damage);
+void       phoc_output_transform_box         (PhocOutput *self, struct wlr_box *box);
+
+enum wlr_scale_filter_mode
+           phoc_output_get_texture_filter_mode (PhocOutput *self);
 
 G_END_DECLS

@@ -197,5 +197,5 @@ phoc_gesture_drag_init (PhocGestureDrag *self)
 PhocGestureDrag *
 phoc_gesture_drag_new (void)
 {
-  return PHOC_GESTURE_DRAG (g_object_new (PHOC_TYPE_GESTURE_DRAG, NULL));
+  return g_object_new (PHOC_TYPE_GESTURE_DRAG, NULL);
 }

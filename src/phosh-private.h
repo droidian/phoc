@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2019,2021 Purism SPC
  *
- * SPDX-License-Identifier: GPL-3.0+
+ * SPDX-License-Identifier: GPL-3.0-or-later
  * Author: Guido Günther <agx@sigxcpu.org>
  */
 
@@ -32,5 +32,6 @@ void              phoc_phosh_private_notify_launch (PhocPhoshPrivate            
                                                     const char                                 *startup_id,
                                                     enum phosh_private_startup_tracker_protocol proto);
 PhocPhoshPrivateShellState phoc_phosh_private_get_shell_state (PhocPhoshPrivate *self);
+struct wl_global *phoc_phosh_private_get_global     (PhocPhoshPrivate *self);
 
 G_END_DECLS

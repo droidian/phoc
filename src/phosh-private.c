@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2019,2021 Purism SPC
  *
- * SPDX-License-Identifier: GPL-3.0+
+ * SPDX-License-Identifier: GPL-3.0-or-later
  * Author: Guido Günther <agx@sigxcpu.org>
  */
 
@@ -16,7 +16,6 @@
 #include <unistd.h>
 #include <wayland-server-core.h>
 #include <wlr/config.h>
-#include <wlr/types/wlr_surface.h>
 #include <wlr/render/wlr_texture.h>
 #include <wlr/types/wlr_matrix.h>
 #include <phosh-private-protocol.h>
@@ -25,6 +24,8 @@
 #include "desktop.h"
 #include "render.h"
 #include "utils.h"
+
+#include <drm_fourcc.h>
 
 /* help older (0.8.2) libxkbcommon */
 #ifndef XKB_KEY_XF86RotationLockToggle
@@ -72,7 +73,8 @@ typedef struct {
   uint32_t height;
   uint32_t stride;
 
-  struct wl_shm_buffer *buffer;
+  struct wlr_buffer *buffer;
+
   PhocView *view;
 } PhocPhoshPrivateScreencopyFrame;
 
@@ -170,11 +172,10 @@ phoc_phosh_private_keyboard_event_accelerator_is_registered (PhocKeyCombo       
 static bool
 phoc_phosh_private_accelerator_already_subscribed (PhocKeyCombo *combo)
 {
+  PhocDesktop *desktop = phoc_server_get_desktop (phoc_server_get_default ());
+  PhocPhoshPrivate *phosh = phoc_desktop_get_phosh_private (desktop);
   GList *l;
   PhocPhoshPrivateKeyboardEventData *kbevent;
-  PhocServer *server = phoc_server_get_default ();
-
-  PhocPhoshPrivate *phosh = server->desktop->phosh;
 
   for (l = phosh->keyboard_events; l != NULL; l = l->next) {
     kbevent = (PhocPhoshPrivateKeyboardEventData *)l->data;
@@ -197,6 +198,15 @@ keysym_is_subscribeable (PhocKeyCombo *combo)
   if (combo->keysym >= XKB_KEY_XF86MonBrightnessUp && combo->keysym <= XKB_KEY_XF86RotationLockToggle)
     return true;
 
+  /* more of these but from a block of mostly deprecated symbols so we add them
+   * explicitly */
+  switch (combo->keysym) {
+  case XKB_KEY_XF86Screensaver:
+    return true;
+  default:
+    break;
+  }
+
   if (combo->keysym == XKB_KEY_Super_L || combo->keysym == XKB_KEY_Super_R)
     return true;
 
@@ -217,7 +227,7 @@ phoc_phosh_private_keyboard_event_grab_accelerator_request (struct wl_client   *
   gint64 *new_key;
 
   PhocPhoshPrivateKeyboardEventData *kbevent = phoc_phosh_private_keyboard_event_from_resource (resource);
-  g_autofree PhocKeyCombo *combo = parse_accelerator (accelerator);
+  g_autofree PhocKeyCombo *combo = phoc_parse_accelerator (accelerator);
 
   if (kbevent == NULL)
     return;
@@ -348,10 +358,10 @@ handle_get_keyboard_event (struct wl_client   *client,
                                                             g_int64_equal,
                                                             g_free, NULL);
   if (kbevent->subscribed_accelerators == NULL) {
-      wl_resource_destroy (kbevent->resource);
-      g_free (kbevent);
-      wl_client_post_no_memory (client);
-      return;
+    wl_resource_destroy (kbevent->resource);
+    g_free (kbevent);
+    wl_client_post_no_memory (client);
+    return;
   }
 
   PhocPhoshPrivate *phosh_private = phoc_phosh_private_from_resource (phosh_private_resource);
@@ -398,13 +408,16 @@ thumbnail_frame_handle_copy (struct wl_client   *wl_client,
 {
   PhocServer *server = phoc_server_get_default ();
   PhocRenderer *self = phoc_server_get_renderer (server);
-  PhocPhoshPrivateScreencopyFrame *frame = phoc_phosh_private_screencopy_frame_from_resource (frame_resource);
+  PhocPhoshPrivateScreencopyFrame *frame;
+  struct wlr_shm_attributes attribs;
+
+  frame = phoc_phosh_private_screencopy_frame_from_resource (frame_resource);
   g_return_if_fail (frame);
 
   if (frame->buffer != NULL) {
     wl_resource_post_error (frame->resource,
-                           ZWLR_SCREENCOPY_FRAME_V1_ERROR_ALREADY_USED,
-                           "frame already used");
+                            ZWLR_SCREENCOPY_FRAME_V1_ERROR_ALREADY_USED,
+                            "frame already used");
     return;
   }
 
@@ -413,8 +426,7 @@ thumbnail_frame_handle_copy (struct wl_client   *wl_client,
     return;
   }
 
-  frame->buffer = wl_shm_buffer_get (buffer_resource);
-
+  frame->buffer = wlr_buffer_try_from_resource (buffer_resource);
   if (frame->buffer == NULL) {
     wl_resource_post_error (frame->resource,
                             ZWLR_SCREENCOPY_FRAME_V1_ERROR_INVALID_BUFFER,
@@ -422,36 +434,40 @@ thumbnail_frame_handle_copy (struct wl_client   *wl_client,
     return;
   }
 
-  enum wl_shm_format fmt = wl_shm_buffer_get_format (frame->buffer);
-  int32_t width = wl_shm_buffer_get_width (frame->buffer);
-  int32_t height = wl_shm_buffer_get_height (frame->buffer);
-  int32_t stride = wl_shm_buffer_get_stride (frame->buffer);
-  if (fmt != frame->format || width != frame->width ||
-      height != frame->height || stride != frame->stride) {
+  if (!wlr_buffer_get_shm (frame->buffer, &attribs)) {
+    wl_resource_post_error (frame->resource,
+                            ZWLR_SCREENCOPY_FRAME_V1_ERROR_INVALID_BUFFER,
+                            "unsupported buffer type");
+    goto unlock_buffer;
+  }
+
+  if (attribs.format != DRM_FORMAT_ARGB8888 || attribs.width != frame->width ||
+      attribs.height != frame->height || attribs.stride != frame->stride) {
     wl_resource_post_error (frame->resource,
                             ZWLR_SCREENCOPY_FRAME_V1_ERROR_INVALID_BUFFER,
                             "invalid buffer attributes");
-    return;
+    goto unlock_buffer;
   }
 
   PhocView *view = frame->view;
   g_signal_handlers_disconnect_by_data (frame->view, frame);
   frame->view = NULL;
 
-  uint32_t renderer_flags = 0;
-  if (!phoc_renderer_render_view_to_buffer (self, view, frame->buffer, &renderer_flags)) {
+  if (!phoc_renderer_render_view_to_buffer (self, view, frame->buffer)) {
     zwlr_screencopy_frame_v1_send_failed (frame->resource);
-    return;
+    goto unlock_buffer;
   }
-  enum zwlr_screencopy_frame_v1_flags flags = (renderer_flags & WLR_RENDERER_READ_PIXELS_Y_INVERT) ? ZWLR_SCREENCOPY_FRAME_V1_FLAGS_Y_INVERT : 0;
 
-  zwlr_screencopy_frame_v1_send_flags (frame->resource, flags);
+  zwlr_screencopy_frame_v1_send_flags (frame->resource, 0);
 
   struct timespec now;
   clock_gettime (CLOCK_MONOTONIC, &now);
   uint32_t tv_sec_hi = (sizeof(now.tv_sec) > 4) ? now.tv_sec >> 32 : 0;
   uint32_t tv_sec_lo = now.tv_sec & 0xFFFFFFFF;
   zwlr_screencopy_frame_v1_send_ready (frame->resource, tv_sec_hi, tv_sec_lo, now.tv_nsec);
+
+unlock_buffer:
+  wlr_buffer_unlock (frame->buffer);
 }
 
 static void
@@ -486,7 +502,6 @@ handle_get_thumbnail (struct wl_client *client,
                       uint32_t max_width,
                       uint32_t max_height)
 {
-  PhocServer *server = phoc_server_get_default (); // FIXME: find a better way to get the preferred pixel_format
   PhocPhoshPrivateScreencopyFrame *frame = g_new0 (PhocPhoshPrivateScreencopyFrame, 1);
 
   if (frame == NULL) {
@@ -530,9 +545,9 @@ handle_get_thumbnail (struct wl_client *client,
   // case is a rescaled thumbnail with wrong aspect ratio we take the liberty
   // to ignore it, at least for now.
   struct wlr_box box;
-  view_get_box (view, &box);
+  phoc_view_get_box (view, &box);
 
-  frame->format = server->preferred_pixel_format; // FIXME: find a better way to do that
+  frame->format = WL_SHM_FORMAT_ARGB8888;
   frame->width = box.width * view->wlr_surface->current.scale;
   frame->height = box.height * view->wlr_surface->current.scale;
 
@@ -634,7 +649,7 @@ handle_set_shell_state (struct wl_client               *client,
   if (self->state == (PhocPhoshPrivateShellState)state)
     return;
 
-  self->state = state;
+  self->state = (PhocPhoshPrivateShellState)state;
   g_object_notify_by_pspec (G_OBJECT (self), props[PROP_SHELL_STATE]);
 }
 
@@ -698,8 +713,8 @@ phosh_private_bind (struct wl_client *client, void *data, uint32_t version, uint
 static PhocPhoshPrivate *
 phoc_phosh_private_from_resource (struct wl_resource *resource)
 {
-  assert (wl_resource_instance_of (resource, &phosh_private_interface,
-                                   &phosh_private_impl));
+  g_assert (wl_resource_instance_of (resource, &phosh_private_interface,
+                                     &phosh_private_impl));
   return wl_resource_get_user_data (resource);
 }
 
@@ -707,8 +722,8 @@ phoc_phosh_private_from_resource (struct wl_resource *resource)
 static PhocPhoshPrivateScreencopyFrame *
 phoc_phosh_private_screencopy_frame_from_resource (struct wl_resource *resource)
 {
-  assert (wl_resource_instance_of (resource, &zwlr_screencopy_frame_v1_interface,
-                                   &phoc_phosh_private_screencopy_frame_impl));
+  g_assert (wl_resource_instance_of (resource, &zwlr_screencopy_frame_v1_interface,
+                                     &phoc_phosh_private_screencopy_frame_impl));
   return wl_resource_get_user_data (resource);
 }
 
@@ -716,8 +731,8 @@ phoc_phosh_private_screencopy_frame_from_resource (struct wl_resource *resource)
 static PhocPhoshPrivateKeyboardEventData *
 phoc_phosh_private_keyboard_event_from_resource (struct wl_resource *resource)
 {
-  assert (wl_resource_instance_of (resource, &phosh_private_keyboard_event_interface,
-                                   &phoc_phosh_private_keyboard_event_impl));
+  g_assert (wl_resource_instance_of (resource, &phosh_private_keyboard_event_interface,
+                                     &phoc_phosh_private_keyboard_event_impl));
   return wl_resource_get_user_data (resource);
 }
 
@@ -725,8 +740,8 @@ phoc_phosh_private_keyboard_event_from_resource (struct wl_resource *resource)
 static PhocPhoshPrivateStartupTracker *
 phoc_phosh_private_startup_tracker_from_resource (struct wl_resource *resource)
 {
-  assert (wl_resource_instance_of (resource, &phosh_private_startup_tracker_interface,
-                                   &phoc_phosh_private_startup_tracker_impl));
+  g_assert (wl_resource_instance_of (resource, &phosh_private_startup_tracker_interface,
+                                     &phoc_phosh_private_startup_tracker_impl));
   return wl_resource_get_user_data (resource);
 }
 
@@ -735,12 +750,13 @@ static void
 phoc_phosh_private_constructed (GObject *object)
 {
   PhocPhoshPrivate *self = PHOC_PHOSH_PRIVATE (object);
-  struct wl_display *display = phoc_server_get_default ()->wl_display;
+  struct wl_display *wl_display = phoc_server_get_wl_display (phoc_server_get_default ());
 
   G_OBJECT_CLASS (phoc_phosh_private_parent_class)->constructed (object);
 
   g_info ("Initializing phosh private interface");
-  self->global = wl_global_create (display, &phosh_private_interface, PHOSH_PRIVATE_VERSION, self, phosh_private_bind);
+  self->global = wl_global_create (wl_display, &phosh_private_interface,
+                                   PHOSH_PRIVATE_VERSION, self, phosh_private_bind);
 }
 
 
@@ -791,7 +807,7 @@ phoc_phosh_private_init (PhocPhoshPrivate *self)
 PhocPhoshPrivate *
 phoc_phosh_private_new (void)
 {
-  return PHOC_PHOSH_PRIVATE (g_object_new (PHOC_TYPE_PHOSH_PRIVATE, NULL));
+  return g_object_new (PHOC_TYPE_PHOSH_PRIVATE, NULL);
 }
 
 
@@ -800,9 +816,9 @@ phoc_phosh_private_forward_keysym (PhocKeyCombo *combo,
                                    uint32_t      timestamp,
                                    bool          pressed)
 {
+  PhocDesktop *desktop = phoc_server_get_desktop (phoc_server_get_default ());
+  PhocPhoshPrivate *phosh = phoc_desktop_get_phosh_private (desktop);
   GList *l;
-  PhocServer *server = phoc_server_get_default ();
-  PhocPhoshPrivate *phosh = server->desktop->phosh;
   bool forwarded = false;
 
   for (l = phosh->keyboard_events; l != NULL; l = l->next) {
@@ -812,21 +828,21 @@ phoc_phosh_private_forward_keysym (PhocKeyCombo *combo,
     g_debug("addr of kbevent and res kbev %p res %p", kbevent, kbevent->resource);
     /*  forward the keysym if it is has been subscribed to */
     if (phoc_phosh_private_keyboard_event_accelerator_is_registered (combo, kbevent)) {
-        gint64 key = ((gint64)combo->modifiers << 32) | combo->keysym;
-        guint action_id = GPOINTER_TO_UINT (g_hash_table_lookup (kbevent->subscribed_accelerators, &key));
+      gint64 key = ((gint64)combo->modifiers << 32) | combo->keysym;
+      guint action_id = GPOINTER_TO_UINT (g_hash_table_lookup (kbevent->subscribed_accelerators, &key));
 
-        if (pressed) {
-          phosh_private_keyboard_event_send_accelerator_activated_event (kbevent->resource,
-                                                                         action_id,
-                                                                         timestamp);
-          forwarded = true;
-        } else if (version >= PHOSH_PRIVATE_KEYBOARD_EVENT_ACCELERATOR_RELEASED_EVENT_SINCE_VERSION) {
-          phosh_private_keyboard_event_send_accelerator_released_event (kbevent->resource,
-                                                                        action_id,
-                                                                        timestamp);
-          forwarded = true;
-        }
+      if (pressed) {
+        phosh_private_keyboard_event_send_accelerator_activated_event (kbevent->resource,
+                                                                       action_id,
+                                                                       timestamp);
+        forwarded = true;
+      } else if (version >= PHOSH_PRIVATE_KEYBOARD_EVENT_ACCELERATOR_RELEASED_EVENT_SINCE_VERSION) {
+        phosh_private_keyboard_event_send_accelerator_released_event (kbevent->resource,
+                                                                      action_id,
+                                                                      timestamp);
+        forwarded = true;
       }
+    }
   }
 
   return forwarded;
@@ -881,4 +897,13 @@ phoc_phosh_private_get_shell_state (PhocPhoshPrivate *self)
   g_assert (PHOC_IS_PHOSH_PRIVATE (self));
 
   return self->state;
+}
+
+
+struct wl_global *
+phoc_phosh_private_get_global (PhocPhoshPrivate *self)
+{
+  g_assert (PHOC_IS_PHOSH_PRIVATE (self));
+
+  return self->global;
 }

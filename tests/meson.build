@@ -8,15 +8,17 @@ test_env.set('GSETTINGS_BACKEND', 'memory')
 test_env.set('GSETTINGS_SCHEMA_DIR', '@0@/data'.format(meson.project_build_root()))
 test_env.set('PYTHONDONTWRITEBYTECODE', 'yes')
 test_env.set('MALLOC_CHECK_', '2')
+test_env.set('MALLOC_PERTURB_', '123')
 test_env.set('XDG_CONFIG_HOME', meson.current_source_dir())
 test_env.set('XDG_CONFIG_DIRS', meson.current_source_dir())
 # Use x11 backend by default
 test_env.set('WLR_BACKENDS', 'x11')
+test_env.set('WLR_RENDERER', 'pixman')
 test_env.set('XDG_RUNTIME_DIR', meson.current_build_dir())
 
 # For -Db_sanitize=address
 test_env.set('LSAN_OPTIONS',
-             'suppressions=@0@/data/leak-suppress.txt'.format(meson.source_root()))
+             'suppressions=@0@/data/leak-suppress.txt'.format(meson.project_source_root()))
 test_env.set('ASAN_OPTIONS', 'fast_unwind_on_malloc=0')
 
 test_cflags = [
@@ -30,6 +32,7 @@ test_link_args = [
 
 tests = [
   'client',
+  'color-rect',
   'layer-shell',
   'layer-shell-effects',
   'phosh-private',
@@ -54,7 +57,12 @@ phoctest_sources = [
   'testlib-layer-shell.c',
 ]
 
-phoctest_lib = static_library('phoctest', phoctest_sources, client_protos_headers,
+phoctest_lib = static_library('phoctest',
+  [
+    phoctest_sources,
+    client_protos_headers,
+    protos_sources,
+  ],
   c_args: test_cflags,
   dependencies: [libphoc_dep, wayland_client])
 

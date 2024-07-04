@@ -15,9 +15,11 @@
 /**
  * PhocAnimatable:
  *
- * Something that can be animated. Objects implementing this interface
- * attach to a frame callback source (usually a [type@PhocOutput] and
- * are invoked until the callback is removed.
+ * Something that can be animated.
+ *
+ * Objects implementing this interface attach to a frame callback
+ * source (usually a [type@PhocOutput] and are invoked until the
+ * callback is removed.
  *
  * While often the `PhocAnimatable` is the object being animated
  * that's not required. The `PhocAnimatable` can also e.g. drive

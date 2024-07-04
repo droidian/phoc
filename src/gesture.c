@@ -42,12 +42,12 @@ typedef struct _PointData PointData;
 struct _PointData {
   PhocEvent *event;
 
-  double    lx;
-  double    ly;
+  double     lx;
+  double     ly;
 
   /* Acummulators for touchpad events */
-  double    accum_dx;
-  double    accum_dy;
+  double     accum_dx;
+  double     accum_dy;
 
   guint      press_handled : 1;
   guint      state : 2;
@@ -73,9 +73,9 @@ G_DEFINE_ABSTRACT_TYPE_WITH_PRIVATE (PhocGesture, phoc_gesture, G_TYPE_OBJECT)
 
 static void
 phoc_gesture_get_property (GObject    *object,
-                          guint       prop_id,
-                          GValue     *value,
-                          GParamSpec *pspec)
+                           guint       prop_id,
+                           GValue     *value,
+                           GParamSpec *pspec)
 {
   PhocGesturePrivate *priv = phoc_gesture_get_instance_private (PHOC_GESTURE (object));
 
@@ -90,9 +90,9 @@ phoc_gesture_get_property (GObject    *object,
 
 static void
 phoc_gesture_set_property (GObject      *object,
-                          guint         prop_id,
-                          const GValue *value,
-                          GParamSpec   *pspec)
+                           guint         prop_id,
+                           const GValue *value,
+                           GParamSpec   *pspec)
 {
   PhocGesturePrivate *priv = phoc_gesture_get_instance_private (PHOC_GESTURE (object));
 
@@ -134,13 +134,13 @@ phoc_gesture_finalize (GObject *object)
 
 
 static guint
-phoc_gesture_get_n_touchpad_points (PhocGesture *gesture,
+phoc_gesture_get_n_touchpad_points (PhocGesture *self,
                                     gboolean     only_active)
 {
   PhocGesturePrivate *priv;
   PointData *data;
 
-  priv = phoc_gesture_get_instance_private (gesture);
+  priv = phoc_gesture_get_instance_private (self);
 
   if (!priv->touchpad)
     return 0;
@@ -154,7 +154,7 @@ phoc_gesture_get_n_touchpad_points (PhocGesture *gesture,
       (data->state == PHOC_EVENT_SEQUENCE_DENIED ||
        data->event->type == PHOC_EVENT_TOUCHPAD_SWIPE_END ||
        data->event->type == PHOC_EVENT_TOUCHPAD_PINCH_END))
-      return 0;
+    return 0;
 
   switch (data->event->type) {
   case PHOC_EVENT_TOUCHPAD_SWIPE_BEGIN:
@@ -172,16 +172,16 @@ phoc_gesture_get_n_touchpad_points (PhocGesture *gesture,
 
 
 static PhocEventSequenceState
-phoc_gesture_get_group_state (PhocGesture       *gesture,
+phoc_gesture_get_group_state (PhocGesture       *self,
                               PhocEventSequence *sequence)
 {
   PhocEventSequenceState state = PHOC_EVENT_SEQUENCE_NONE;
   GList *group_elem;
 
-  group_elem = g_list_first (phoc_gesture_get_group_link (gesture));
+  group_elem = g_list_first (phoc_gesture_get_group_link (self));
 
   for (; group_elem; group_elem = group_elem->next) {
-    if (group_elem->data == gesture)
+    if (group_elem->data == self)
       continue;
     if (!phoc_gesture_handles_sequence (group_elem->data, sequence))
       continue;
@@ -195,7 +195,7 @@ phoc_gesture_get_group_state (PhocGesture       *gesture,
 
 
 static guint
-phoc_gesture_get_n_touch_points (PhocGesture *gesture,
+phoc_gesture_get_n_touch_points (PhocGesture *self,
                                  gboolean     only_active)
 {
   PhocGesturePrivate *priv;
@@ -203,7 +203,7 @@ phoc_gesture_get_n_touch_points (PhocGesture *gesture,
   guint n_points = 0;
   PointData *data;
 
-  priv = phoc_gesture_get_instance_private (gesture);
+  priv = phoc_gesture_get_instance_private (self);
   g_hash_table_iter_init (&iter, priv->points);
 
   while (g_hash_table_iter_next (&iter, NULL, (gpointer *) &data)) {
@@ -221,27 +221,27 @@ phoc_gesture_get_n_touch_points (PhocGesture *gesture,
 
 
 static guint
-phoc_gesture_get_n_physical_points (PhocGesture *gesture,
+phoc_gesture_get_n_physical_points (PhocGesture *self,
                                     gboolean     only_active)
 {
   PhocGesturePrivate *priv;
 
-  priv = phoc_gesture_get_instance_private (gesture);
+  priv = phoc_gesture_get_instance_private (self);
 
   if (priv->touchpad)
-    return phoc_gesture_get_n_touchpad_points (gesture, only_active);
+    return phoc_gesture_get_n_touchpad_points (self, only_active);
   else
-    return phoc_gesture_get_n_touch_points (gesture, only_active);
+    return phoc_gesture_get_n_touch_points (self, only_active);
 }
 
 static gboolean
-phoc_gesture_check_impl (PhocGesture *gesture)
+phoc_gesture_check_impl (PhocGesture *self)
 {
   PhocGesturePrivate *priv;
   guint n_points;
 
-  priv = phoc_gesture_get_instance_private (gesture);
-  n_points = phoc_gesture_get_n_physical_points (gesture, TRUE);
+  priv = phoc_gesture_get_instance_private (self);
+  n_points = phoc_gesture_get_n_physical_points (self, TRUE);
 
   return n_points == priv->n_points;
 }
@@ -339,7 +339,7 @@ update_touchpad_deltas (PointData *data)
 
 
 static gboolean
-phoc_gesture_update_point (PhocGesture     *gesture,
+phoc_gesture_update_point (PhocGesture     *self,
                            const PhocEvent *event,
                            double           lx,
                            double           ly,
@@ -357,7 +357,7 @@ phoc_gesture_update_point (PhocGesture     *gesture,
   if (!device)
     return FALSE;
 
-  priv = phoc_gesture_get_instance_private (gesture);
+  priv = phoc_gesture_get_instance_private (self);
 
   if (add) {
 
@@ -409,12 +409,12 @@ phoc_gesture_update_point (PhocGesture     *gesture,
      * Otherwise, make the sequence inherit the same state
      * from other gestures in the same group.
      */
-    if (phoc_gesture_get_n_physical_points (gesture, FALSE) > priv->n_points)
+    if (phoc_gesture_get_n_physical_points (self, FALSE) > priv->n_points)
       state = PHOC_EVENT_SEQUENCE_DENIED;
     else
-      state = phoc_gesture_get_group_state (gesture, sequence);
+      state = phoc_gesture_get_group_state (self, sequence);
 
-    phoc_gesture_set_sequence_state (gesture, sequence, state);
+    phoc_gesture_set_sequence_state (self, sequence, state);
   }
 
   return TRUE;
@@ -455,22 +455,22 @@ phoc_gesture_remove_point (PhocGesture     *self,
 
 
 static void
-phoc_gesture_cancel_all (PhocGesture *gesture)
+phoc_gesture_cancel_all (PhocGesture *self)
 {
   PhocEventSequence *sequence;
   PhocGesturePrivate *priv;
   GHashTableIter iter;
 
-  priv = phoc_gesture_get_instance_private (gesture);
+  priv = phoc_gesture_get_instance_private (self);
   g_hash_table_iter_init (&iter, priv->points);
 
   while (g_hash_table_iter_next (&iter, (gpointer*) &sequence, NULL)) {
-    g_signal_emit (gesture, signals[CANCEL], 0, sequence);
+    g_signal_emit (self, signals[CANCEL], 0, sequence);
     g_hash_table_iter_remove (&iter);
-    phoc_gesture_check_recognized (gesture, sequence);
+    phoc_gesture_check_recognized (self, sequence);
   }
 
-  phoc_gesture_check_empty (gesture);
+  phoc_gesture_check_empty (self);
 }
 
 
@@ -498,8 +498,8 @@ phoc_gesture_cancel_sequence (PhocGesture       *self,
 
 
 static gboolean
-phoc_gesture_filter_event_impl (PhocGesture      *gesture,
-                                const PhocEvent  *event)
+phoc_gesture_filter_event_impl (PhocGesture     *self,
+                                const PhocEvent *event)
 {
   return FALSE;
 }
@@ -793,9 +793,9 @@ phoc_gesture_reset (PhocGesture *self)
  * @self: a #PhocGesture
  * @sequence: a #PhocEventSequence
  *
- * Returns the @sequence state, as seen by @gesture.
+ * Returns the @sequence state, as seen by @self.
  *
- * Returns: The sequence state in @gesture
+ * Returns: The sequence state in @self
  **/
 PhocEventSequenceState
 phoc_gesture_get_sequence_state (PhocGesture       *self,
@@ -860,26 +860,26 @@ phoc_gesture_get_sequence_state (PhocGesture       *self,
  * ]|
  *
  * If both gestures are in the same group, just set the state on
- * the gesture emitting the event, the sequence will be already
+ * the gesture emitting the event, the sequence will already
  * be initialized to the group's global state when the second
  * gesture processes the event.
  *
- * Returns: %TRUE if @sequence is handled by @gesture,
+ * Returns: %TRUE if @sequence is handled by @self,
  *          and the state is changed successfully
  */
 gboolean
-phoc_gesture_set_sequence_state (PhocGesture           *gesture,
+phoc_gesture_set_sequence_state (PhocGesture           *self,
                                  PhocEventSequence     *sequence,
                                  PhocEventSequenceState state)
 {
   PhocGesturePrivate *priv;
   PointData *data;
 
-  g_return_val_if_fail (PHOC_IS_GESTURE (gesture), FALSE);
+  g_return_val_if_fail (PHOC_IS_GESTURE (self), FALSE);
   g_return_val_if_fail (state >= PHOC_EVENT_SEQUENCE_NONE &&
                         state <= PHOC_EVENT_SEQUENCE_DENIED, FALSE);
 
-  priv = phoc_gesture_get_instance_private (gesture);
+  priv = phoc_gesture_get_instance_private (self);
   data = g_hash_table_lookup (priv->points, sequence);
 
   if (!data)
@@ -898,21 +898,21 @@ phoc_gesture_set_sequence_state (PhocGesture           *gesture,
     return FALSE;
 
   data->state = state;
-  g_signal_emit (gesture, signals[SEQUENCE_STATE_CHANGED], 0,
+  g_signal_emit (self, signals[SEQUENCE_STATE_CHANGED], 0,
                  sequence, state);
 
   if (state == PHOC_EVENT_SEQUENCE_DENIED)
-    phoc_gesture_check_recognized (gesture, sequence);
+    phoc_gesture_check_recognized (self, sequence);
 
   return TRUE;
 }
 
 /**
  * phoch_gesture_set_state:
- * @gesture: a `PhocGesture`
+ * @self: a `PhocGesture`
  * @state: the sequence state
  *
- * Sets the state of all sequences that @gesture is currently
+ * Sets the state of all sequences that @self is currently
  * interacting with.
  *
  * See [method@Phoc.Gesture.set_sequence_state] for more details
@@ -922,22 +922,22 @@ phoc_gesture_set_sequence_state (PhocGesture           *gesture,
  *   was changed successfully
  */
 gboolean
-phoc_gesture_set_state (PhocGesture            *gesture,
+phoc_gesture_set_state (PhocGesture            *self,
                         PhocEventSequenceState  state)
 {
   gboolean handled = FALSE;
   PhocGesturePrivate *priv;
   GList *sequences, *l;
 
-  g_return_val_if_fail (PHOC_IS_GESTURE (gesture), FALSE);
+  g_return_val_if_fail (PHOC_IS_GESTURE (self), FALSE);
   g_return_val_if_fail (state >= PHOC_EVENT_SEQUENCE_NONE &&
                         state <= PHOC_EVENT_SEQUENCE_DENIED, FALSE);
 
-  priv = phoc_gesture_get_instance_private (gesture);
+  priv = phoc_gesture_get_instance_private (self);
   sequences = g_hash_table_get_keys (priv->points);
 
   for (l = sequences; l; l = l->next)
-    handled |= phoc_gesture_set_sequence_state (gesture, l->data, state);
+    handled |= phoc_gesture_set_sequence_state (self, l->data, state);
 
   g_list_free (sequences);
 
@@ -947,18 +947,18 @@ phoc_gesture_set_state (PhocGesture            *gesture,
 
 /**
  * phoc_gesture_get_sequences:
- * @gesture: a #PhocGesture
+ * @self: a #PhocGesture
  *
- * Returns the list of #PhocEventSequences currently being interpreted
- * by @gesture.
+ * Returns the list of [type@EventSequence]s currently being interpreted
+ * by [type@Gesture].
  *
  * Returns: (transfer container) (element-type PhocEventSequence): A list
- *          of #PhocEventSequence s, the list elements are owned by PHOC+
+ *          of #PhocEventSequence s, the list elements are owned by Phoc
  *          and must not be freed or modified, the list itself must be deleted
  *          through g_list_free()
  **/
 GList *
-phoc_gesture_get_sequences (PhocGesture *gesture)
+phoc_gesture_get_sequences (PhocGesture *self)
 {
   PhocEventSequence *sequence;
   PhocGesturePrivate *priv;
@@ -966,46 +966,66 @@ phoc_gesture_get_sequences (PhocGesture *gesture)
   GHashTableIter iter;
   PointData *data;
 
-  g_return_val_if_fail (PHOC_IS_GESTURE (gesture), NULL);
+  g_return_val_if_fail (PHOC_IS_GESTURE (self), NULL);
 
-  priv = phoc_gesture_get_instance_private (gesture);
+  priv = phoc_gesture_get_instance_private (self);
   g_hash_table_iter_init (&iter, priv->points);
 
   while (g_hash_table_iter_next (&iter, (gpointer *) &sequence, (gpointer *) &data)) {
-      if (data->state == PHOC_EVENT_SEQUENCE_DENIED)
-        continue;
-      if (data->event->type == PHOC_EVENT_TOUCH_END ||
-          data->event->type == PHOC_EVENT_BUTTON_RELEASE)
-        continue;
+    if (data->state == PHOC_EVENT_SEQUENCE_DENIED)
+      continue;
+    if (data->event->type == PHOC_EVENT_TOUCH_END ||
+        data->event->type == PHOC_EVENT_BUTTON_RELEASE)
+      continue;
 
-      sequences = g_list_prepend (sequences, sequence);
+    sequences = g_list_prepend (sequences, sequence);
   }
 
   return sequences;
 }
 
 /**
+ * phoc_gesture_get_last_updated_sequence:
+ * @self: a #PhocGesture
+ *
+ * Returns the #PhocEventSequence that was last updated on @self.
+ *
+ * Returns: (transfer none) (nullable): The last updated sequence
+ **/
+PhocEventSequence *
+phoc_gesture_get_last_updated_sequence (PhocGesture *self)
+{
+  PhocGesturePrivate *priv;
+
+  g_return_val_if_fail (PHOC_IS_GESTURE (self), NULL);
+
+  priv = phoc_gesture_get_instance_private (self);
+
+  return priv->last_sequence;
+}
+
+/**
  * phoc_gesture_get_last_event:
- * @gesture: a #PhocGesture
+ * @self: a #PhocGesture
  * @sequence: (nullable): a #PhocEventSequence
  *
  * Returns the last event that was processed for @sequence.
  *
  * Note that the returned pointer is only valid as long as the @sequence
- * is still interpreted by the @gesture. If in doubt, you should make
+ * is still interpreted by the @self. If in doubt, you should make
  * a copy of the event.
  *
  * Returns: (transfer none) (nullable): The last event from @sequence
  **/
 const PhocEvent *
-phoc_gesture_get_last_event (PhocGesture *gesture, PhocEventSequence *sequence)
+phoc_gesture_get_last_event (PhocGesture *self, PhocEventSequence *sequence)
 {
   PhocGesturePrivate *priv;
   PointData *data;
 
-  g_return_val_if_fail (PHOC_IS_GESTURE (gesture), NULL);
+  g_return_val_if_fail (PHOC_IS_GESTURE (self), NULL);
 
-  priv = phoc_gesture_get_instance_private (gesture);
+  priv = phoc_gesture_get_instance_private (self);
   data = g_hash_table_lookup (priv->points, sequence);
 
   if (!data)
@@ -1022,7 +1042,7 @@ phoc_gesture_get_last_event (PhocGesture *gesture, PhocEventSequence *sequence)
  * @lx: (out) (optional): return location for X axis of the sequence coordinates
  * @ly: (out) (optional): return location for Y axis of the sequence coordinates
  *
- * If @sequence is currently being interpreted by @gesture,
+ * If @sequence is currently being interpreted by @self,
  * returns %TRUE and fills in @x and @y with the last coordinates
  * stored for that event sequence.
  *
@@ -1031,17 +1051,17 @@ phoc_gesture_get_last_event (PhocGesture *gesture, PhocEventSequence *sequence)
  * Returns: %TRUE if @sequence is currently interpreted
  */
 gboolean
-phoc_gesture_get_point (PhocGesture       *gesture,
-                       PhocEventSequence  *sequence,
-                       double             *lx,
-                       double             *ly)
+phoc_gesture_get_point (PhocGesture       *self,
+                        PhocEventSequence *sequence,
+                        double            *lx,
+                        double            *ly)
 {
   PhocGesturePrivate *priv;
   PointData *data;
 
-  g_return_val_if_fail (PHOC_IS_GESTURE (gesture), FALSE);
+  g_return_val_if_fail (PHOC_IS_GESTURE (self), FALSE);
 
-  priv = phoc_gesture_get_instance_private (gesture);
+  priv = phoc_gesture_get_instance_private (self);
 
   if (!g_hash_table_lookup_extended (priv->points, sequence,
                                      NULL, (gpointer *) &data))
@@ -1056,16 +1076,16 @@ phoc_gesture_get_point (PhocGesture       *gesture,
 }
 
 gboolean
-phoc_gesture_get_last_update_time (PhocGesture       *gesture,
+phoc_gesture_get_last_update_time (PhocGesture       *self,
                                    PhocEventSequence *sequence,
                                    guint32           *evtime)
 {
   PhocGesturePrivate *priv;
   PointData *data;
 
-  g_return_val_if_fail (PHOC_IS_GESTURE (gesture), FALSE);
+  g_return_val_if_fail (PHOC_IS_GESTURE (self), FALSE);
 
-  priv = phoc_gesture_get_instance_private (gesture);
+  priv = phoc_gesture_get_instance_private (self);
 
   if (!g_hash_table_lookup_extended (priv->points, sequence,
                                      NULL, (gpointer *) &data))
@@ -1075,7 +1095,7 @@ phoc_gesture_get_last_update_time (PhocGesture       *gesture,
     *evtime = phoc_event_get_time (data->event);
 
   return TRUE;
-};
+}
 
 /**
  * phoc_gesture_is_recognized:
@@ -1105,10 +1125,10 @@ phoc_gesture_is_recognized (PhocGesture *self)
  * @self: a #PhocGesture
  * @sequence: (nullable): a #PhocEventSequence or %NULL
  *
- * Returns %TRUE if @gesture is currently handling events corresponding to
+ * Returns %TRUE if @self is currently handling events corresponding to
  * @sequence.
  *
- * Returns: %TRUE if @gesture is handling @sequence, %FALSE otherwise
+ * Returns: %TRUE if @self is handling @sequence, %FALSE otherwise
  *
  * Since: 3.14
  **/

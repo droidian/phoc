@@ -1,14 +1,24 @@
+/* Copyright (C) 2019 Purism SPC
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * Author: Guido Günther <agx@sigxcpu.org>
+ */
+
 #define G_LOG_DOMAIN "phoc"
 
 #include "phoc-config.h"
 
 #define _POSIX_C_SOURCE 200112L
 #include <assert.h>
+#include <locale.h>
 #include <stdlib.h>
 #include <unistd.h>
 
 #include <gio/gio.h>
 #include <glib/gi18n.h>
+
+#include <locale.h>
 
 #include <wayland-server-core.h>
 #include <wlr/backend.h>

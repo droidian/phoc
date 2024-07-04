@@ -1,3 +1,1371 @@
+phoc (0.40.0) experimental; urgency=medium
+
+  * keyboard: Modernize indent.
+    PhocKeyboard is one of the earlier GObjects. Let it catch up with
+    current indent.
+  * keyboard: Use C style comments
+  * keyboard: Chain up to parent's constructed first.
+    We want to initialize the parent first. The other children of
+    PhocInputDevice to that correctly already.
+  * keyboard: Move signals above class
+  * subprojects: Update wlroots to 0.17.3
+  * tracing: Drop unused variables
+  * gesture: Fix indent
+  * cursor: Name drag gesture accordingly.
+    This makes it distinguishable from other gestures.
+  * cursor: Drop cursor_gestures_handle_event.
+    We can fold it into handle_gestures_for_event_at
+  * layer-shell-effects: Reduce time for fold/unfold animation.
+    Feels more snappy without being too hectic.
+  * gesture: Allow to retrieve last event sequence
+  * layer-shell-effects: Split out is_handle check.
+    Will be useful in a follow up commit
+  * layer-shell-effects: Allow to fling fold/unfold a draggable surface.
+    When the velocity is high enough the surface fold/unfold is animated.
+    We don't take the velocity into account for the animation.
+  * cursor: Detect swipe gestures.
+    Apply them to draggable layer surfaces if present. This allows to
+    fling them away with a high velocity swipe gesture.
+    Closes: https://gitlab.gnome.org/World/Phosh/phoc/-/issues/284
+    Closes: https://gitlab.gnome.org/World/Phosh/phosh/-/issues/792
+  * output: Handle NULL output gracefully.
+    It's a bit simpler than adding `if (!output)` at the call sites
+  * seat: Handle NULL output gracefully.
+    We can't arrange layers on gone outputs.
+    Closes: https://gitlab.gnome.org/World/Phosh/phoc/-/issues/257
+  * desktop: Simplify phoc_desktop_surface_at.
+    The function becomes quick to parse if we remove the assignments
+    out of the if() clauses and get the output coordinates upfront
+    as they apply to both layer surface blocks.
+  * desktop: Add wlr to desktop_surface_at.
+    Makes it consistent with phoc_view_get_wlr_surface_at
+  * output: Get getter for wlr_output.
+    We catch lots of errors via type asserts so add a getter with
+    that.
+  * output: Clear wlr_output->data pointer.
+    This points to self which is about to be finalized, clear it out so
+    other parts don't access the gone output.
+  * desktop: Don't forget to remove the gone output from the layout.
+    Closes: https://gitlab.gnome.org/World/Phosh/phoc/-/issues/155
+  * tests: Use MALLOC_PERTURB_
+  * layer-surface: Add layer getter
+  * layer-shell-effects: Drop hash table for alpha layer surfaces.
+    We don't need to look up by layer surface so no need to maintain the
+    hash.
+  * output: Make phoc_output_for_each_surface private
+  * output: Clarify phoc_output_get_layer_surfaces_for_layer
+  * output: Use a GQueue for the layer surfaces.
+    This allows us to go forward and backwards easily.
+  * desktop: Use phoc_output_get_layer_surfaces_for_layer.
+    This makes sure we confine the layer surface iteration to
+    PhocOutput.
+  * output: Unify layer surface iteration logic.
+    Use phoc_output_get_layer_surfaces_for_layer to iterate the
+    surfaces in phoc_output_layer_for_each_surface. This unifies
+    layer surface iteration in one place.
+  * output: Move queue ownership to output.
+    This will allow us to cache it
+  * output: Cache layer surface ordering.
+    Instead of recalculating on each access cache the ordering
+    and make bits that might change the ordering (such as committing
+    a layer surface) invalidate the cache.
+    This also works towards removing more double accounting in this area.
+  * layer-shell-effects: Allow to tweak stacking.
+    The stacked-layer-surface protocol allows to stack a layer surface
+    directly above or below another layer surface.
+  * desktop: Allow to get layer surface stacks
+  * output: Process layer surface stackings
+  * ci: Fix drm backend build on alpine.
+    It needs libdisplay-panel-info
+  * doc: Document help and disable-animations flag
+  * settings: Split out boolean option parsing
+  * output: Simplify update_output_manager_config
+    wlr_output_configuration_head_v1_create already sets the values from
+    the passed in output.
+  * output: Apply drm panel orientation.
+    If `drm-panel-orientation` is set to `true` in phoc.ini apply the panel
+    orientation transform by default.
+    Closes: https://gitlab.gnome.org/World/Phosh/phoc/-/issues/192
+  * utils: Ignore displays that encode aspect ratio rather than size.
+    This is based on sway's 2f84d6e349d12f3293c44268bc5c8551340e5787 which
+    in turn got inspired by mutter.
+  * output: Allow to configure physical width and height.
+    This can be useful in case edid is off or if we're on a nested
+    display (like Wayland or X11)
+  * output: Print output info at the very end.
+    This allows us to see (possibly overridden) physical size.
+
+ -- Guido Günther <agx@sigxcpu.org>  Sat, 29 Jun 2024 19:30:02 +0200
+
+phoc (0.39.0) experimental; urgency=medium
+
+  [ Guido Günther ]
+  * gitlab-ci: Update base image to 2024-04-04.
+    Otherwise gcovr fails on us when a submodule has tests disabled.
+  * build: Update to gmobile 0.1.0
+  * build: Allow to use shared gmobile.
+    This makes it a bit simpler to keep notch information up to date.
+  * packaging: Ignore gmobile related files
+  * doc: Add --skip-subprojects to install.
+    This avoids putting gmobile headers and shared objects into the system.
+    Switch to using meson while at it
+  * settings: Mark some functions as skip.
+    This avoids warnings when creating introspection data
+  * doc-check: Be more strict
+  * tests/xwayland: Wait a bit.
+    Wait until the frame got rendered as we otherwise might snapshot
+    the previous frame
+  * keyboard: Fix indent of keyboard_execute_compositor_binding
+  * desktop: Reindent pointer_constraint helpers.
+    We move the g_new0 to it's separate line to not hide an allocation in a
+    variable declaration, use casts where appropriate.
+  * cursor: Don't unlink constraint_commit twice.
+    It's unlinked a couple of lines above already.
+  * cursor: Deduplicate pointer motion.
+    Absolute and relative motion were doing very similar things but
+    differently. Use a single function for the common bits.
+  * desktop: Drop duplicate include.
+    Fixes: c960805d ("Initial commit")
+  * color-rect: Premultiply the alpha value.
+    This is how render_pass expects it. Fixup the existing animations using
+    alpha for that.
+  * color-rect: Don't render if unmapped.
+    Otherwise we might end up with changed screen state although the
+    rect is unmapped.
+  * types: Make it simple to compare colors
+  * color-rect: Add setter for color.
+    This allows us to use g_notify_by_psepc()
+  * color-rect: Allow to set alpha.
+    So far we only allowed setting the full color, allow to set
+    alpha so we can drive the animation.
+  * desktop: Add animation when always-on-top is toggled on/off
+  * time-animation: Fix use after free
+  * main: Include locale.h.
+    Needed for LC_MESSAGES
+    Fixes the -Dbuildtype=debug build
+  * seat: Make seat-views a queue and private.
+    Queues are a bit easier on the eyes.
+  * seat: Make has_focus private
+  * seat: Reverse window cycle focus order.
+    Cycling "backward" now means to focus the view that previously had focus
+    while moving forward means to focus the view that was out of focus for
+    the longest time.
+    With this we correctly focus the last focused view when cycling via
+    keyboard shortcuts and then closing a window.
+    It also fixes the case where opening an application and cycling backward
+    would not get one back to the previous application.
+  * main: Include locale.h to fix -Dbuildtype=debug build
+  * output: Disconnect render_outputs signal from the correct object.
+    Otherwise we might try to access an already gone output in render_cutouts
+  * build: Indent by two spaces
+  * build: The wlroots library is a subproject wrap.
+    Fixes: e9b9ef02 ("build: Use meson wrap for the wlroots submodule")
+  * build: Add tests to summary
+  * build: Separate generated sources and headers.
+    This reduces the  number of build steps from 465 to 222 (when linking
+    against a shared wlroots).
+  * desktop: Fix typo.
+    We're looking at phosh's schema here
+  * docs: Expand on configuration.
+    Mention where we read configuration from and list the schemas and keys
+    phoc currently uses.
+
+  [ MoonlightWave-12 ]
+  * docs: Update links in README.md.
+    The links were outdated and some did not work anymore.
+    The link to the documentation for GLib now links directly
+    to the relevant part about environment-variables.
+    Also add links to the files `debian/control` and
+    `src/phoc.ini.example`, to make those easier to open.
+  * docs: Update link to libhandy in HACKING.md
+    and remove an unused and outdated link.
+  * docs: Fix typos in doc/gettingstarted.md.
+    Also add a few commas for better readability.
+  * docs: Add `./` to commands for running scripts from source-tree.
+    To make it clearer that those have to be entered as paths to the scripts.
+  * docs: Add more syntax-highlighting
+
+  [ Sam Day ]
+  * keyboard: Udev configuration for "wakeup keys"
+    If a keyboard has an underlying udev device, and that device has
+    properties matching PHOC_WAKEUP_KEY_, these properties are used to
+    determine whether a particular key (or all keys) from that device will
+    trigger activity events or not.
+    Closes: https://gitlab.gnome.org/World/Phosh/phoc/-/issues/363
+
+ -- Guido Günther <agx@sigxcpu.org>  Sun, 12 May 2024 13:12:32 +0200
+
+phoc (0.38.0) experimental; urgency=medium
+
+  * input-device: Add a helper to detect keyboards.
+    Should this prove inefficient we can look at ID_INPUT_KEYBOARD
+    udev property.
+  * seat: Check for keyboard more thoroughly.
+    We only want to announce keyboard capabilities if there's actually
+    a hw keyboard (and not just buttons).
+  * protocols/device-state: Add keyboard capability
+  * device-state: Report hw keyboard capability.
+    Closes: https://gitlab.gnome.org/World/Phosh/phoc/-/issues/98
+  * example/device-state: Use protocol version 2
+  * packaging: Use pkgconf
+    pkg-config is deprecated
+  * manpage: Fix typos
+  * build: Validate desktop file
+  * build: Validate schema
+  * treewide: Move to mobi.phosh prefix.
+    We don't change the schema id's to not break existing installations.
+  * wlroots: Update to 0.17.2
+  * output: Simplify condition.
+    No need to for inverse logic.
+  * output: Adjust scale to fractional-scale-v1.
+    When reading scale form configuration or updated heads make sure we use
+    a scale that works for the fractional-scale-v1 protocol.
+  * xdg-shell: Notify popups about fractional/buffer scale changes.
+    Otherwise the popup might see outdated fractional scale information and
+    become blurry.
+    To reproduce:
+      - Start at scale 100%,
+      - scale to 200 via g-c-c (GNOME Settings)
+      - open the scale popup again: The scaled numbers in there are blurry
+        while the main window has sharp text.
+    Note: tiling the window after changing scale hides the problem as the
+    move ensures updated scale information is sent to the view and all
+    children.
+  * view: Add common map function for ViewChilds.
+    Consolidate in one place to avoid errors fixed in the previous commit.
+    Once ViewChild is a GObject we can chain up "naturally".
+  * view: Add common unmap function for ViewChilds.
+    Once ViewChild is a GObject we can chain up "naturally".
+  * treewide: Use "Phosh Developers" insteady of myself as copyright holders
+  * treewide: Remove unneeded cast around g_object_new()
+    It gives us the right type anyway. Turns out our yasnippet
+    had that wrong and so it ended up in about all classes.
+  * desktop: Bump layer shell version to 3.
+    Version 3 adds the layer_shell object destructor only.
+    Closes: https://gitlab.gnome.org/World/Phosh/phoc/-/issues/364
+  * view: Better document parent child relationship
+    parent, parent_link and stack are all concerned with the view stack.
+    Cleanup indent while at that.
+  * view: Improve docstring
+  * view: Add docstring for phoc_view_restore()
+  * seat: Indent seat_raise_view_stack
+  * keybindings: Return early without a view.
+    Use the same pattern in all view related keybinding handlers
+  * desktop: Get config from server singleton.
+    No need to maintain this as extra property. We did this for some initial
+    uncluttering but that's long fixed.
+  * desktop: Turn list of views into a queue and make it private.
+    This will allow for some upcoming changes and also improves readability
+    a bit as we get function names instead of just list manipulation.
+    We need to take the indirection via `priv` for the moment until we made
+    all of desktop private.
+  * desktop: Handle always-on-top.
+    This allows views to stay on top (e.g. video players).
+    When a view is raised it's already mapped as well as new children are
+    raised too to avoid a parent hiding it's children. We don't raise any
+    parents in order to e.g. allow to raise a single window of an
+    application.
+    To activate you need to bind a keyboard shortcut
+      gsettings set org.gnome.desktop.wm.keybindings always-on-top "['<super>t']"
+    Closes: https://gitlab.gnome.org/World/Phosh/phoc/-/issues/342
+  * desktop: Damage view when raising it.
+    This frees the seat from any view related damage handling.
+  * view: Implement move-to-corner.
+    These are unbound by default, test with e.g.
+      gsettings set org.gnome.desktop.wm.keybindings move-to-corner-nw "['<super>y']"
+      gsettings set org.gnome.desktop.wm.keybindings move-to-corner-ne "['<super>u']"
+      gsettings set org.gnome.desktop.wm.keybindings move-to-corner-sw "['<super>i']"
+      gsettings set org.gnome.desktop.wm.keybindings move-to-corner-se "['<super>o']"
+    We currently reject scale-to-fit, maximized and fullscreened views for
+    that as we want to simplify the scale-to-fit vs saved geometry handling
+    first. See https://gitlab.gnome.org/World/Phosh/phoc/-/issues/362
+  * view: Make view-child a GObject.
+    We use the same pattern as with PhocView and allow for public struct
+    members so derived classes can access them easily. Since PhocView and
+    PhocViewChild are still entangled we leave most of the member functions
+    in PhocView for the moment. They'll be moved in follow up commits.
+    We need to rename phoc_view_child_init() to not clash with the GObject
+    init function.
+  * view-child: Add view and surface properties.
+    We don't take ref on the view yet as the current code doesn't transfer
+    ownership either. We can improve on that once we have the objects in
+    place.
+  * xdg-shell: Make xdg-popup a minimal GObject.
+    The code will move into xdg-suface later.
+  * xdg-shell: Create/destroy popup as GObject
+  * view: Make subsurface a minimal GObject
+  * view: Create/destroy subsurfaces as GOjects
+  * view: Move PhocViewChild's public functions over too.
+    We skip phoc_view_child_setup() for now as it accesses view's
+    private data.
+    Since we now have our own compilation unit we can rename `child`
+    to `self` to ease readability.
+  * view-child: Move most of phoc_view_child_destroy into finalize.
+    For that we pull the `g_object_unref` from the custom destroy handlers
+    into `phoc_view_child_destroy`.
+  * view-child: Use GObject virtual functions for destroy and get_pos.
+    This allows us to drop the ViewChildInterface.
+  * view-child: Move most of the ViewChild's setup into constructed.
+    This allows us to drop more arguments from phoc_view_child_setup() as
+    those are already passed to the object constructor.
+  * view-child: Add map / unmap virtual methods.
+    This allows us to drop the implementation in the derived classes
+    completely (while we could still override them if needed).
+  * xdg-shell: Use popup constructor.
+    Thus we can drop phoc_xdg_popup_create().
+    The phoc_xdg_popup_new() invocations without consuming the return value
+    look a bit odd but the ref is dropped in handle_destroy. This is the
+    same pattern we use for other surface types.
+  * view-child: Drop phoc_view_child_destroy()
+    We can simply drop the only reference.
+  * subsurface: Use casts instead of accessing `child` directly.
+    This improves readability and allows us to rename to parent_instance.
+  * xdg-popup: Move popup class into it's own file.
+    We might want to merge xdg-surface and xdg-popup back into an
+    xdg-shell at some point as they serve the originate from the same
+    Wayland protocol but let's have this split for now to disentangle
+    xdg_shell.
+  * xdg-popup: Use GObject generated casts consistently
+  * xdg-shell: Move surface creation handler to xdg-surface
+  * xdg-surface: Tighten role check
+  * xdg-shell: Rename to xdg-toplevel-decoration.
+    That's the only bit handled in there now. This allows us to move
+    decoration related bits into the matching header too.
+  * layer-shell: Move handler into layer-shell related header.
+    We ought to rename the header too at some point but there's outstanding
+    MRs we don't want to break.
+  * output: Prefix handlers.
+    Now all public functions are properly namespaced.
+  * doc-check: Drop namespace exception.
+    Public methods are now properly prefixed.
+  * docs: Enable fatal warnings during doc build.
+    This makes sure we no longer ignore links that became stale or are
+    mistyped.
+    See phosh commit 8c4724e44c6727f36bed4fd67e853bddf17b6ccd
+  * view: Add and use phoc_view_add_child()
+    This ensures the child doesn't access the view's private data.
+  * view-child: Move adding to parent's list into constructed.
+    One more bit to get rid of phoc_view_child_setup().
+  * view-child: Move subsurface creation to constructed too.
+    This allows us to drop phoc_view_child_setup(). The only view child
+    private method left in view.c is phoc_view_child_subsurface_create()
+    which we can remove once subsurface creation becomes public.
+  * subsurface: Move into it's own file.
+    This disentangles subsurface handling from view handling (positioning,
+    window state, etc)
+  * subsurface: Add and use wlr-subsurface property
+  * subsurface: Move setup into constructed.
+    This makes subsurface creation for views and view-children more alike.
+  * view-child: Move subsurface creation out of view.
+    With subsurface being it's own class we can now move this bit
+    over to PhocViewChild too.
+  * subsurface: Make struct private.
+    Neither view nor view-child require direct member access anymore.
+  * view: Use subsurface constructor directly.
+    The fact that we don't store the ref isn't ideal. At some point we want
+    to move the `handle_destroy` handlers to their containers and drop the
+    ref there. This isn't worse than before though, it's just more visible.
+  * popup: Use self consistently.
+    When these bits were part of view.c we used `popup` to not confuse with
+    `self` meaning `view`. This can be fixed now.
+    Let's do this now since there can't be any outstanding MRs touching
+    this file.
+  * popup: Wait for commit before unconstraining popup.
+    This fixes a critical:
+      [types/xdg_shell/wlr_xdg_surface.c:169] A configure is scheduled for an uninitialized xdg_surface [address]
+  * view-child: Add and use view property getter.
+    This looks a bit nicer.
+  * output: Drop superfluous 'local' from damage helpers.
+    The names are long enough already
+  * view: Don't init subsurfaces twice.
+    The code in phoc_view_init_subsurfaces() does as same things the code in
+    map() just above the invocation does.
+    Fixes: c2e903e6 ("view: Move subsurface initialization to separate function")
+    which added the function but didn't remove the code in _map().
+
+ -- Guido Günther <agx@sigxcpu.org>  Tue, 02 Apr 2024 14:12:22 +0200
+
+phoc (0.37.0) experimental; urgency=medium
+
+  [ Guido Günther ]
+  * phosh-private: Add XF86Screensaver to the list of subscribable symbols.
+  * doc-check: Allow for pixman_region32_t to be unrsolved.
+    Some upcoming helpers will have this function argument.
+  * util: Introduce phoc_util_is_box_damaged.
+    This will be helpful for damage tracking when switching to render_pass.
+    It is similar to is_damge in the renderer but we want it public as e.g.
+    blings will want to use that too.
+  * output: Add helpers to transform boxes and regions.
+    This will be useful when switching to render_pass
+  * render: Clarify buffer render vs scanout rendering.
+    Rendering to a buffer uses the legacy renderer while rendering targeting
+    scanout is using render_pass. Make it clear where the view render
+    itertor fits in.
+  * render: Switch to wlr_render_pass.
+    This switches us to wlr_render_pass and to wlr_output_commit_state.
+    phoc_renderer_render_view_to_buffer keeps using wlr_renderer directly as
+    it needs wlr_renderer_readpixels. This will be fixed when switching to
+    0.18.x and wlr_texture_read_pixels.
+    Closes: https://gitlab.gnome.org/World/Phosh/phoc/-/issues/344
+    Closes: https://gitlab.gnome.org/World/Phosh/phoc/-/issues/346
+  * output: Add scale filter mode.
+    This allows to use different texture filters based on output scale.  For
+    fractional we use bilinear filtering and for integer scales the nearest
+    filtering (as we don't need to scale down).
+  * settings: Allow to set output scale-filter
+  * layer-shell-effects: Better document drag handle.
+    The current description made it impossible to figure out how it works
+    without looking at the code.
+  * server: Fix docstring.
+    Fixes: ac4e8bbc ("server: Exit when session exits")
+  * docs: Update dependent libraries.
+    Add phoc and glib. Since wlroots is documented in the source
+    code we link to the git repository.
+  * docs: Add urlmap.
+    This allows for external linking
+  * treewide: Add TODOs.
+    Add TODOs for the remaining classes we want to encapsulat
+  * treewide: Use phoc_server_get_desktop()
+    We had about all combinations:
+    - Fetching the server, then the desktop
+    - Fetching the server, then using server->desktop directly
+    - Using phoc_server_get_desktop ()
+    - Using phoc_server_get_default ()->desktop
+    As we want PhocDesktop in all cases use
+      PhocDesktop *desktop = phoc_server_get_desktop (phoc_server_get_default ());
+    consistently. Only in the few places that use server and desktop use
+      PhocDesktop *desktop = phoc_server_get_desktop (server);
+    We also move fetching the desktop to the top of functions and clean up
+    some minor misindents along the way.
+  * server: Make desktop private.
+    This makes sure we only access the desktop that way.
+  * server: Make session startup related variables private
+  * server: Make init flag private
+  * treewide: Add and use phoc_server_get_input()
+    This brings it in line with phoc_server_get_desktop() making
+    an explicit server variable unnecessary in many functions.
+  * server: Make input private
+  * server: Add and use phoc_server_get_config()
+    This gets it in line with phoc_server_get_desktop()
+  * server: Make config private
+  * server: Make flags private
+  * server: Fix doc string
+  * server: Add and use phoc_server_get_debug_flags()
+    This gets it in line with phoc_server_get_desktop()
+  * server: Make debug flags private
+  * treewide: Add and use phoc_server_get_wl_display()
+    This gets it in line with phoc_server_get_desktop()
+  * server: Make wl_display private
+  * server: Make wl_source private
+  * server: Make wlr_subcompositor private
+  * treewide: Add and use phoc_server_get_backend()
+    This gets it in line with phoc_server_get_desktop()
+  * server: Make backend private
+  * treewide: Use phoc_server_get_render()
+    This gets it in line with phoc_server_get_desktop()
+  * server: Make renderer private
+  * treewide: Add and use phoc_server_get_compositor()
+    This gets it in line with phoc_server_get_desktop()
+  * server: Make compositor private
+  * server: Make data device manager private
+  * server: Drop private data.
+    As the server is not derivable we can use `self` directly now
+    that all data members are private.
+  * layer-shell: Improve indent.
+    Use full line length, drop superfluos braces and add space before
+    function's (). No functional change.
+  * layer-shell: Drop phoc_ prefix
+  * layer-shell: Use wlr_ prefix for wlr's subsurfaces
+  * layer-shell: Drop phoc prefix from phoc's subsurface
+  * layer-shell: Add phoc prefix to layer_subsurface_new()
+    Make is consistent with other constructors.
+  * layer-shell: Prefix destructor.
+    Makes it consistent with the constructor
+  * text-input: Indent fixes
+  * utils: Fix prefix
+  * view: Uncrustify view_update_output.
+    Let's clean that up before making more changes.
+  * output: Move scale updates to separate function
+  * view: Move surface enter/leave handling to separate function
+  * utils: Update buffer scale when a surface enters/leaves an output.
+    Besides doing sending the preferred buffer scale on output scale changes
+    we also need to do so when a view moves to another output.
+    Fixes: 07315fc7 ("output: Refresh textures on scale changes")
+  * treewide: Add support for fractional-scale-v1 protocol.
+    Closes: https://gitlab.gnome.org/World/Phosh/phoc/-/issues/345
+  * view: Update surface scale on subsurface map.
+    Use our new helper for that.
+  * layer-shell: Send surface scale on map.
+    Use the surface helper to not only notify about output enter but also
+    buffer and fractional scale.
+  * tests: Use pixman renderer.
+    We mosty test positioning / stacking so use a renderer that works well
+    in containers.
+    If we want to test renderer related bits we can set the renderer
+    explicitly.
+  * xwayland-surface: Setup view before maximizing.
+    Otherwise initially maximized XWayland views aren't rendered.
+    Fixes: 1e9df0a2 ("treewide: Adjust to map logic changes")
+  * drag-icon: Move into it's own file.
+    There's no need for a GObject but it unclutters the seat. This is the
+    minimal code move.
+  * drag-icon: Add and use is_mapped()
+    As in phoc_view_is_mapped() we handle NULL gracefully to simplify
+    the checking.
+  * drag-icon: Add getters
+  * output: Use drag-icon getters
+  * drag-icon: Make struct private.
+    We don't bother with a GObject until we need properties for e.g.
+    animations.
+  * output: Use drag-icon header.
+    This allows us to drop the forward declaration
+
+  [ Sergey Lisov ]
+  * seat: Respect touchscreen to output mapping from wlroots
+    wlroots' touchscreen objects (struct wlr_touch) have the "output_name"
+    field, which specifies the corresponding output device, from wlroots' own
+    point of view. Use these mappings if present not explicitly overridden by
+    gsettings.
+    This fixes the issue where touch inputs do not get rotated with the screen
+    when changing device orientation on setups where wlroots provides this
+    information (such as when running nested).
+    Helps: https://gitlab.gnome.org/World/Phosh/phoc/-/issues/312
+
+ -- Guido Günther <agx@sigxcpu.org>  Wed, 06 Mar 2024 17:42:59 +0100
+
+phoc (0.36.0) experimental; urgency=medium
+
+  * ci: Use our ci template.
+    This avoids an external dependency and unbreaks ci
+  * ci: Update shared scripts.
+    Update shared scripts to commit 04a85df2f3311f3012b6c49bf353b376ae0f32b2
+    (matching the ci template).
+    This isn't strictly necessary but avoids config drift.
+  * po: Add de template.
+    We want one template to make the po check happy
+  * ci: Add po check.
+    Just use our shared ci template for that
+  * ci: Add commit message style checks.
+    Since we pulled in the config in the previous commit let's add the check
+    as well.
+  * d/control: Update URL.
+    While at that fix the section and update the standards version
+  * view: Prefix view_unmap.
+    No functional change.
+  * view: Prefix view_is_ getters.
+    This makes them show up in the docs
+  * view: Don't leak details of view arrangement.
+    Instead of leaking the details how view are layed out keep that
+    local to view.
+  * view: Use phoc_view_arrange()
+    Use phoc_view_arrange() internally too.
+  * keybindings: Avoid self for keybinding.
+    The object in this unit is PhocKeybindings so don't use self for a
+    single keybinding to avoid confusion.
+  * keybindings: Allow for a parameter
+  * keybindings: Use a single handler to move a view
+  * view: Name public functions consistently
+  * keybindings: Prefix parse_accelerator.
+    It's a public function
+  * gtk-shell: Make phoc_gtk_{shell,surface}_from_resource static.
+    No need to have them public.
+  * doc-check: Make namespace check more strict.
+    The only bits not properly namespaced are wlroots signal handlers that
+    are located in other compilation units.
+  * view: Fix doc string
+  * view-deco: New class for decoration handling.
+    We'll turn it into a full bling but let's move functionality into a
+    separate class first.  As we set the same decoration sizes keep this
+    internal to PhocViewDeco.
+  * view-deco: Make PhocViewDeco a bling.
+    This way we don't need special handling for decorations in
+    output and renderer
+  * view: Nuke view_update_decorated.
+    Just call phoc_view_set_decarated
+  * view: Drop decorated boolean.
+    We can use the pointer to the decoration object now instead.
+  * view: Drop view_get_deco_box.
+    Now unused
+  * xdg-shell: Use typedefs for enums and structs
+  * layer-shell: Use typedefs for enums and structs
+  * licenses: Move to LICENSES/ and add missing ones.
+    This also helps us to use `reuse` out of the box
+  * protocols: Add copyright header to phosh-private
+  * treewide: Add a bunch of missing copyright header
+  * treewide: Use GPL-3.0-or-later consistently
+  * reuse: Add licensing information
+  * ci: Check copyright and licenses via reuse
+  * desktop: Use g_new0. Avoids possible NULL dereference
+  * seat: Guard against NULL focus
+  * layer-shell-effects: Guard against NULL output
+  * view: Add G_NORETURN.
+    This makes building with clang less noisy
+  * testlib: Add G_NORETURN.
+    This makes building with clang less noisy
+  * build: Disable -Wcast-align with clang.
+    This tiggers for Wayland's wl_container_of() where it doesn' matter for
+    us.
+  * keybindings: Drop unused function
+  * phosh-private: Cast enum.
+    Silences the clang warning (and we already co it just above the
+    assignment).
+  * ci: Add clang build
+  * cursor: Drop unused assignment in handle_shell_reveal
+    wlr_layer_surface_v1_try_from_wlr_surface is only used to check
+    if it's a layer-surface, we don't need the assigned value.
+    While at that make things a bit easier to read.
+    Fixes: 8c363c72 ("cursor: Convert to try_from")
+  * desktop: Drop unused value
+  * server: Make session startup failure a critical.
+    We exit the compositor so a warning looks like too low severity.
+  * server: Avoid shell for argument parsing.
+    This avoids yet another exec during session launch.
+    See https://gitlab.gnome.org/World/Phosh/phosh/-/merge_requests/1352
+  * seat: Grab meta press.
+    Instead of just checking if it's pressed grab it so we cancel the
+    release event for the meta key "stand alone press".
+    This allows to move views via meta + mouse-drag without e.g. bringing up
+    phosh's the overview afterwards.
+    Closes: https://gitlab.gnome.org/World/Phosh/phoc/-/issues/322
+  * keyboard: Remove now unused phoc_keyboard_get_meta_key.
+    This prevents some more leaking of keyboard details into the seat.
+  * layer-shell: Don't center views unconditionally.
+    We only want to do so when using automaximize
+    Fixes: 08504c40 ("view: Don't leak details of view arrangement")
+
+ -- Guido Günther <agx@sigxcpu.org>  Wed, 31 Jan 2024 11:26:38 +0100
+
+phoc (0.35.0) experimental; urgency=medium
+
+  [ Guido Günther ]
+  * build: Allow to build with released wlroots 0.17.0.
+    0.17.0-dev is greater than 0.17.0
+  * packging: Fix phosh relationship
+    phosh 0.34.0 switched to ext-idle-notify
+  * packaging: Drop default -Dembed-wlroots=disabled.
+    Otherwise we end up with
+      -Dembed-wlroots=disabled -Dembed-wlroots=enabled
+    which works but looks confusing.
+  * packaging: Install NEWS and manpages.
+    Doesn't hurt to have them in the development builds too.
+  * build: Spell Xwayland like on wayland.fdo
+  * build: Make paths a bit simpler to read.
+    Avoid join_path and prefer '/'.
+  * build: Format meson options consistently
+  * tracing: Add support for systemtap probes.
+    We don't add any actual static trace points yet.
+  * helpers: Add tracing scripts.
+    Add example scripts that help tracing the render loop and with
+    activation.
+  * tracing: Allow to exempt functions from inlining.
+    Allow to exempt functions from inlining when tracing is enabled.
+  * output: Don't inline frame submission.
+    Don't inline frame submission when tracing is enabled
+  * packaging: Allow to enable tracing via a build profile
+  * d/control: Bump wlroots dependency to 0.17.0 too.
+    As we're building with the embeded variant only in CI noone noticed yet.
+  * wlroots: Bump to 0.17.1
+  * xdg-shell: Set mapped before damaging popup.
+    Otherwise the following phoc_view_child_damage_whole() will
+    always return early as the view isn't mapped yet.
+  * output: Drop support for surface rotation.
+    We're not using it, it complicates the code and it was broken
+    as we generated rotated boxes (e.g. in render_texture() and
+    get_surface_box() but never used them.
+  * utils: Remove now unused rotated bounds helpers.
+    We do this in a separate commit so they can be brought back
+    easily if needed.
+  * xdg-shell: Fix popup reposition damage.
+    Since 40fa76e34f1b4c33c09c377095e7ff9b4897aa55 we don't damage the whole
+    view containing a popup but only the popup itself reducing the damage
+    submitted. This worked well until we switched to xdg-shell >= 3 where
+    popups can be repositioned leaving traces of the old popup behind.
+    This can clearly be seen with GTK's magnifier when selecting text.
+    Damage the parent view on reposition to avoid this.
+    Closes: https://gitlab.gnome.org/World/Phosh/phoc/-/issues/355
+  * view: Take geometry into accout for fullscreen views.
+    If we hit the direct scanout path geometry doesn't matter for the
+    rendered surface but when the user e.g. opens a popup we hit the
+    rendering path and we need to take geometry into account as otherwise the
+    surface is shifted towards the bottom right edge.
+    This also fixes UI elements not being responsive in fullscreen.
+    Closes: https://gitlab.gnome.org/World/Phosh/phoc/-/issues/356
+    Closes: https://gitlab.gnome.org/World/Phosh/phoc/-/issues/357
+
+  [ Paul Cercueil ]
+  * output: Detect DPI screens as built-in.
+    Some phones (e.g. Galaxy S2) use a DPI screen. Detect them as built-in.
+
+ -- Guido Günther <agx@sigxcpu.org>  Wed, 03 Jan 2024 19:49:46 +0100
+
+phoc (0.34.0~beta1) experimental; urgency=medium
+
+  * testlib: Print name of taken screenshot. This allows to trace test cases easier
+  * output: Don't forget to enable output when config is in use
+  * output: Migrate to damage ring.
+    See https://gitlab.freedesktop.org/wlroots/wlroots/-/merge_requests/3530
+    See sway commit 7862fa670e208b4871c868f9b0e2a19b46a30e63
+    Closes: https://gitlab.gnome.org/World/Phosh/phoc/-/issues/327
+  * output: Remove now unused phoc_output_damage_add_box
+  * render: Simplify rendering condition.
+    This avoids the double negation:
+       !pixman_region32_not_empty()
+  * output: Use wlr_output_state when handling config changes.
+    This ensures we don't accidentally commit pending state.
+  * output: Use wlr_output_state when handling power mode changes.
+    This ensures we don't accidentally commit pending state.
+  * output: Rename phoc_output_set_mode to phoc_output_state_set_mode.
+    We set the mode on the pending output state,  not the output.
+  * keyboard: Don't ever blank output on power button press.
+    The shell can do this nowadays.
+  * desktop: Drop phoc_desktop_toggle_output_blank.
+    Now unused. This removes another place where we manipulate output
+    state directly
+  * output: Drop pending state tracking.
+    We use wlr_output_state everywhere except for
+    phoc_renderer_render_output() which we'll switch over when moving to
+    render_pass.
+    Closes: https://gitlab.gnome.org/World/Phosh/phoc/-/issues/328
+  * wlroots: Avoid crash when plugging in new output.
+    This is exposed now that we don't commit an enabled state early
+    anymore. This only triggers when there's a listener for output state
+    configuration changes like phosh.
+  * build: Bump wlroots dependency to >= 0.17.0-dev.
+    This makes sure we don't build against an older system lib accidentally
+  * d/control: Add libewmh-dev build-dependency for embedded wlroots build
+  * d/control: Add libdisplay-info-dev
+  * render: Drop surface->{sx,sy}
+    See sway commit 7ec9d07fc597c739760df5223469e9f15340db78
+  * desktop: Add layer-shell version
+  * server: Pass wl_display version
+  * desktop: Use variable for maximum supported version
+  * output: Listen to the output's request-state event.
+    See https://gitlab.freedesktop.org/wlroots/wlroots/-/merge_requests/2693
+  * server: Adapt to new wlr_backend_autocreate API.
+    See https://gitlab.freedesktop.org/wlroots/wlroots/-/merge_requests/3814
+    See sway commit 7623292734d6ba48bbfef1c32da28d02118dac38
+  * desktop: Convert to try_from
+  * cursor: Convert to try_from
+  * gtk-shell: Convert to try_from
+  * xdg-activation: Convert to try_from
+  * output: Adjust to removed events.{enable,mode}
+    See wlroots commit c8eb24d30e18c165728b8788a10716611c3b633d
+  * phosh-private: Switch from wl_shm_buffer to wlr_buffer
+    zwlr_screencopy_frame changed so we need to adjust
+    See wlroots commit c153ae3c5d0e330d5fe90d4db0114e2e5d792bf2
+  * d/control: Sort embedded wlroots build-deps alphabetically
+  * d/control: Build-dep on libliftoff and hwdata for embedded wlroots build
+  * ci: Use wlroots subproject build.
+    This allows us to build against git more easily. For that we pull in
+    recent wayland-protocols and wayland.
+  * ci: Use embedded wlroots for packaging test.
+    For that we also want to switch to trixie as it has the needed
+    dependencies.
+  * ci: Use trixie by default.
+    We were upgrading to sid but can now use trixie as it has the necessary
+    deps.
+  * subprojects: Rediff wlroots patch.
+    This makes it apply without fuzz. Otherwise meson might complain.
+  * wlroots: Update to 2023-05-04
+  * build: Drop custom post_install.
+    Just use the gnome module
+    See wlroots commit 8af00d5534998dbb53a60c2b0a1ab59a51d5cdf5
+  * view: Convert to try_from
+  * text_input: Convert to try_from
+  * layer_shell: Use wl_container_of to get layer surface.
+    This makes us independent from the `data` passed.
+    Needed when switching to the new map logic but useful on its own.
+  * xwayland-surface: Get wlr_xwayland_surface from self.
+    This makes us independent of the data passed
+    Needed when switching to the new map logic but useful on its own.
+  * treewide: Adjust to map logic changes.
+    See sway commit c9e1dab3187d22ada0232d699e759a628e0ed185
+    Forwards to wlroots-git 2023-06-05
+  * seat: Switch to wlr_cursor_set_buffer and wlr_cursor_set_xcursor.
+    Forwards to wlroots-git 2023-07-05
+  * xdg-shell: Use toplevel instead of surface.
+    See https://gitlab.freedesktop.org/wlroots/wlroots/-/merge_requests/4316
+    See sway commit 363c57984d08ff54bbf31f567ffcd4addad98753
+  * render: Use wlr_presentation_surface_scanned_out_on_output.
+    See https://gitlab.freedesktop.org/wlroots/wlroots/-/merge_requests/4081
+  * treewide: Drop support for wlr-idle.
+    See https://gitlab.freedesktop.org/wlroots/wlroots/-/merge_requests/3778
+  * output: Use actual state struct in handle_comitted.
+    See https://gitlab.freedesktop.org/wlroots/wlroots/-/merge_requests/4331
+    See sway commit 4326a26ad6fb64b8f8de7d32c1e7b6423e1f84f3
+  * wlroots.wrap: Forward to 2023-10-10
+  * seat: Use simpler wlr_cursor_unset_image
+  * Revert "wlroots: Avoid crash when plugging in new output"
+    This reverts commit 5772172f679400676daa3fc5de883879b73d54aa.
+    Not needed with 0.17
+  * output: Use wlr_output_state_init.
+    See wlroots commit be050979684ae8779a56e4b0166cfb21d1935d35
+  * cursor: Remove unused variable
+  * phosh-private: Use wlr_buffer_try_from_resource.
+    See wlroots commit 8ccbe45143eff1705c0516bcdb02376d7d627198
+  * render: Use wlr_output_is_direct_scanout_allowed.
+    This obsoletes the cursor check.
+  * desktop: Modernize indent in phoc_desktop_setup_xwayland
+  * server: Filter out xwayland-shell-v1. This is only meant for XWayland.
+  * phosh-private: Allow to get global
+  * layer-shell-effects: Allow to get global
+  * desktop: Assign more protocols.
+    We want these for security context checks
+  * desktop: Create security_context_manager_v1
+  * desktop: Add check for privileged protocols.
+    Allow to easily check if a global belongs to a privileged protocol
+    that shouldn't be exported to untrusted clients.
+  * server: Don't expose globals of privileged protocols to untrusted clients.
+    Clients that have a security-context-v1 attached shouldn't see those
+    globals so filter them out.
+    This is inspired by sway's MR https://github.com/swaywm/sway/pull/7648
+  * ci: Modernize sanitizer build. It won't build on such old versions
+  * ci: Use image with updated dependencies. This will allow us to recurring
+    package installations from CI
+  * ci: Simplify image update
+  * ci: Install dependencies for doc build and XWayland into image.
+    Speeds up CI. We also add uncrustify as this will become useful
+    for formatting checks soon.
+  * ci: Install build-deps for embedded wlroots build into the image.
+    This speeds up ci. Since we install with --no-install-recommends we need
+    to add more build-deps to ensure the x11 backends stays buildable.
+  * ci: Install ci deps into the image. Speeds up CI.
+  * treewide: Fix indent start columns in function bodies.
+    Several places either didn't indent by two spaces or misaligned under
+    opening braces or in switch statements. Fix that.
+  * treewide: Fix function definition opening brace.
+    We want it on a separate line. Fix places where that is off.
+  * treewide: Fix initial column of function parameters.
+    We want their types vertically aligned. Fix places where that's not the
+    case.  We don't bother alligning the parameter names yet.
+  * treewide: Fix function definition return types indent.
+    Make sure they're on a separte line
+  * treewide: Fix function call argument indent.
+    Function call parameters are separated by ", ".
+  * treewide: Avoid space before array brackets
+  * ci: Run merge requests in merge request pipelines.
+    This gives us access to more varibles so we can e.g. diff against
+    the base branch.
+  * ci: Check style in merge requests
+  * testlib: Print filename of failed screenshot
+  * output: Move output configuration handling to separate function
+  * output: Allow to test output config changes.
+    Another TODO done.
+  * output: Simplify
+  * settings: Drop unused includes
+  * output: Move output state configuration to separate function.
+    This makes phoc_output_initable_init() easier to read and will allow us
+    to reapply output config from other places too.
+  * output: Simplify enable during output setup.
+    Do this upfront which saves us one indentation level
+  * output: Use wlr_output_layout_add_auto if position isn't specified.
+    This gives a better automatic layout if multiple outputs are specified
+    in the configuration file but not all of them have a position.
+    So far they would all be put at 0,0.
+  * ci: Move style checks to separate stage.
+    Style checks often fail due to minor nits. When looking at the pipeline
+    state we want to see at a single glance if this is just a style check or
+    maybe an asan failure.
+    So make sure these aren't in the same stage.
+  * treewide: Drop unused version.h include
+  * desktop: Add phoc_desktop_find_output_by_name
+  * cursor: Identify relative pointer motion
+  * seat: Don't forget to map pointers.
+    This unbreaks running nested phoc with multiple outputs
+    Closes: https://gitlab.gnome.org/World/Phosh/phoc/-/issues/347
+  * settings: Split output name on '%'
+    Space is too common in EDID names. An alternative would be to reverse
+    the matching by constructing the string from the output information but
+    that's again fragile.
+  * settings: Allow for wildcards in output matches
+  * doc: Add manpage for phoc.ini
+  * build: Make it simple to switch glib versions
+  * build: Assume glib 2.74 as baseline.
+    It's in Debian stable
+  * server: Use g_spawn_check_wait_status. No need to care about older glib.
+  * gmobile: Switch to 0.0.4
+  * view: Use MIN() MIN() is easier to read than open coding it
+  * layer-shell-effects: Use MIN() and MAX(). Easier to read
+  * cursor: Use MAX(). Easier to read
+  * seat: Avoid misplacing when dragging maximized views.
+    If a toplevel is maximized initially there's no saved width or height.
+    Use the maximized width/height in this case. Otherwise the toplevel's top
+    left corner suddenly jumps to the cursor position when dragging this
+    toplevel via mouse pointer from it's maximized state.
+    This can be reproduced with firefox. Use
+       WLR_BACKENDS=wayland   _build/src/phoc -E firefox
+    and maximize firefox. Then close firefox. This will make it restore
+    the maximized state on next startup:
+       WLR_BACKENDS=wayland   _build/src/phoc -E firefox
+    Now drag the window on the titlebar and notice the top left corner
+    jumping to the cursor position. With this patch this will no longer
+    happen.
+    Closes: https://gitlab.gnome.org/World/Phosh/phoc/-/issues/349
+  * server: Don't crash when wl-display was never inited.
+    This can happen when we hit another failure early.
+  * server: Enable linux dmabuf.
+    This was so far inited implicitly via wlr_renderer_init_wl_display.
+    See https://gitlab.gnome.org/World/Phosh/phoc/-/issues/350
+  * view: Send linux_dmabuf_feedback_v1 for fullscreen views.
+    Closes: https://gitlab.gnome.org/World/Phosh/phoc/-/issues/350
+  * output: Don't forget to free output pending state struct.
+    This wasn't much of a problem as we don't set LUT or damage via this yet
+    but it's good to have it cleaned up.
+  * output: Wire up gamma-control handler.
+    See wlroots commit 36376e2ddf0d16baae37e6b733f0baf53f82ebb7
+    Closes: https://gitlab.gnome.org/World/Phosh/phoc/-/issues/348
+  * packaging: Drop unneeded build-deps.
+    The clients have been dropped from wlroots source tree.
+  * subprojects: Use depth=1 for wlroots too.
+    We can depthen the shallow clone if needed for development.
+  * subprojects: Update wlroots to 0.17.0
+  * ci: Don't enforce non-embedded wlroots for doc build.
+    Not needed and can break the build.
+  * ci: Improve uncrustify config
+    - Automatically drop braces on single line statements
+    - Remove duplicate semicolons
+    - Remove superfluous braces in case statements
+  * cursor: Don't forget to update the drag icons position.
+    We also need to move the icon when using touch.
+  * seat: Handle drag icon hotspot position.
+    The position is sent via wl_surface.offset requests.
+  * render: Remove unused render-start signal.
+    It wasn't a great idea as we'd better handle it per output
+  * output: Move render invocation to separate function
+  * render: Move sending frame-done events to output.
+    It's not related to any rendering. No functional change.
+  * render: Move scan_out_fullscreen_view to output.
+    There's no rendering going on.
+  * output: Mostly move damage ring handling to output.
+    Even after moving the full screen view scan out and the frame-done
+    event handling the current render pass is a mixed bag of rendering,
+    adding additional damage for debug options (touch-points, damage) and
+    committing the new output state.
+    As a next step move the rotation of the damage ring and the output
+    commit out of the render_output call.
+    This makes the render flow easier to track. We pass the render context
+    around for that and hence make it public. Context is a slightly better
+    fit than the generic data.
+  * render: Move adding the frame damage to the output.
+    The renderer isn't involved.
+  * output: Don't forget to submit the frame callback list.
+    This fixes some clients only making progress e.g. on cursor movement
+    (when there's actual damage submitted)
+    Closes: https://gitlab.gnome.org/World/Phosh/phoc/-/issues/354
+  * d/control: Add Breaks: for known clients using kde_kwin_idle
+
+ -- Guido Günther <agx@sigxcpu.org>  Thu, 30 Nov 2023 11:29:01 +0100
+
+phoc (0.33.0) experimental; urgency=medium
+
+  * seat: Use phoc_desktop_notify_activity to notify idle activity.
+    This will allow us to notify idle via different protocols
+  * cursor: Use phoc_desktop_notify_activity to notify idle activity.
+    This will allow us to notify idle via different protocols
+  * desktop: Notify via idle-ext-notify-v1 too.
+    Closes: https://gitlab.gnome.org/World/Phosh/phoc/-/issues/339
+  * protocols: Rename server_protocols to wayland_protocols.
+    We build them for servers and clients
+  * protocols: Allow to build protocols for client use only.
+    Less targets, faster build. Initial one is ext-idle-notify-v1.
+  * examples: Add example idle client.
+    Based in the idle example in wlroots
+
+ -- Guido Günther <agx@sigxcpu.org>  Wed, 25 Oct 2023 10:57:10 +0200
+
+phoc (0.32.0) experimental; urgency=medium
+
+  * device-state: Assert on invalid values in switch statement.
+    Closes: https://gitlab.gnome.org/World/Phosh/phoc/-/issues/334
+  * view: Reindent view_center.
+    We'll do some more changes there
+  * view: Always pass PhocOutput when an output is needed.
+    This boosts readability as we no longer have phoc_output, wlr_output
+    and output (the later sometimes meaning a PhocOutput and sometimes
+    a wlr_output). We also don't have to guess on function alements.
+    Another cleanup series finished.
+  * view: Nuke view_get_output. Use phoc_view_get_output() everywhere.
+  * seat: Make name private
+  * seat: Make exclusive client private. We already have getters and setters
+  * seat: Make input mapping settings private. Only used within the seat
+  * desktop: Reindent input_inhibit related handlers.
+    No changes expected here for some time so let's get this sorted out.
+    (spotted while looking at phoc_seat_set_exclusive_client).
+  * view: Reindent view_maximize. No other changes
+  * view: Add phoc_ prefix to view_maximize
+  * view,desktop,text-input,layer-shell: Untabify and the reindent remaining
+    bits. Since most parts use the "modern" indent let's move over the last
+    bits. Other changes kept to a minimum.
+  * keybindig: Handle move-to-monitor-{up,down}
+    Closes: https://gitlab.gnome.org/World/Phosh/phoc/-/issues/336
+  * xdg-shell: Sort popup signal unregistration.
+    Use the opposite order from registration/as they appear in the struct
+  * xdg_shell: Move popup_unconstrain further upwards. Code move only so
+    other functions can use it.
+  * xdg_shell: Handle reposition event. Unconstrain the popup as it can
+    otherwise be positioned oddly.
+  * view: Use output relative coordinates when damaging whole child view.
+    Otherwise we damage the wrong area. This doesn't show with a single
+    output at 0,0 but when e.g. doing
+       wlr-randr --output eDP-1 --pos 100,100
+    and then e.g opening the right click menu in gnome-terminal and closing
+    one can see that the content under the menu isn't redrawn properly.
+  * layer-shell: Move osk layer switching into a single function.
+    Make it public so it can be used from other parts of the compositor
+    Fix up some indent around code we'll change in the next commit
+  * text-input: Elevate OSK when text input gets enabled.
+    When text input gets enabled on a layer surface we possibly need to
+    elevate the OSK. This didn't matter until recently when we rearranged
+    the layers on every frame as arrange_layers raises the OSK as well.
+    Fixes: a6b3511f0eaadaee9e67843b8495d73ae0374fe3
+
+ -- Guido Günther <agx@sigxcpu.org>  Mon, 02 Oct 2023 14:25:39 +0200
+
+phoc (0.31.0) experimental; urgency=medium
+
+  * ci: Install gcovr.
+    Use that instead of lcov to make ninja happy
+  * utils: Drop long_side and short_side when calculating scale.
+    Otherwise we no longer match the correct width in mm to the
+    pixel width and physical height to the pixel height.
+  * Add missing includes.
+    The modules use wlr_subcompositor or PhocInputMethodRelay
+    but didn't include the headers.
+  * seat: Add types for GSLists
+  * seat: Name `self` as such.
+    We're not super consistent in seat.c yet but can fixup functions we
+    touch anyway.
+  * seat: Make on_tablet_destroy consistent with other on_*_destroy
+  * seat: Free device lists
+  * virtual: Fix indent
+  * pointer: Add missing G_{BEGIN,END}_DECLS
+  * switch: Make switches GObjects.
+    Helps to further unclutter the headers and improves separation: Switch
+    notifies and the seat acts on it.
+  * seat: Use `self` in seat_add_switch
+  * switch: Allow to infer switch type
+  * Simplify getting PhocSeat from wlr_seat.
+    No need to get an input (which often involves getting the server first)
+    and then iterate when we can infer it directly.
+  * render: Move wlr_box_from_pixman_box32 past struct declarations
+  * render: Untabify phoc_renderer_initable_init.
+    This removes the last tab in this file so we can drop it from
+    check-indent to not break the tests.
+  * render: Use G_LIKELY to check if touch point debugging is disabled.
+    It's likely off so let the compiler optimize for that. In cases
+    where we iterate over the list we can check that rather than the
+    debug flag.
+  * render: Move `continue` to separate line.
+    While at that fix some other indentation nits in
+    collect_touch_points().
+  * treewide: Use g_assert consistently.
+    We had some remaining plain `assert ()`. This makes sure we can use
+    G_DISABLE_ASSERT.
+  * cursor: Use G_UNLIKELY for debug flag
+  * cursor: Fix indentation
+  * cursor: Use explicit cast
+    Make use of the full line length and give every protocol that also
+    registers signals a small block to ease readability.
+    This also gets rid of tabs in that function which made indenting
+    harder than necessary.
+  * desktop: Enable support for wp_single_pixel_buffer protocol
+  * desktop: Fix formatting of handle_xwayland_*
+  * Set xwayland seat when XWayland comes up.
+    Since XWayland can run on demand setting it only on server startup
+    is not enough.
+    This unbreaks copy/paste between X11 and Wayland applications as
+    selection handling doesn't work without an assigned seat.
+    It also prevents emacs from hanging on close when trying to safe the
+    clipboard.
+  * seat: Rename seat_{set,get}_focus to seat_{set,get}_focus_view.
+    This makes it consistent with seat_set_focus_layer().
+  * view: Document phoc_view_activate
+  * server: Make it simple to get the last focused seat.
+    The current server -> input -> seat wasn't nice.
+  * view: Reindent and prefix view_initial_focus
+  * view: Reindent and prefix view_setup()
+  * view: Simplify phoc_view_set_initial_focus()
+    Just use phoc_server_get_last_active_seat ()
+  * view: Make the activation token a r/o property.
+    It's only supposed to be set by derived classes and those can use the
+    phoc_view_set_activation_token().
+    We could move that method to view-private.h but keep it in view.h
+    for the moment to keep code movement at bay.
+  * view: Allow to submit and clear the activation token.
+    Will be used in follow up commits
+  * xdg-activation: Just let the seat handle the activation.
+    The token is meant to focus the view so invoke phoc_seat_focus_view()
+    and handle the token submission there.
+    This also works for yet unmapped view as all view derived classes
+    call phoc_view_setup()
+           --> phoc_view_set_initial_focus()
+             --> phoc_set_set_focus_view ()
+  * view: Drag token type around.
+    This will allow us to flush tokens for other protocols too
+  * gtk-shell: Add TODO.
+    We should use the startup-id for activation.
+  * xwayland-surface: Use startup_id for activation.
+    Instead of just notifying that we received the startup-id use
+    it for actual activation.
+  * build: Don't redefine PHOC_XWAYLAND for the doc build.
+    We bring it in via phoc-config.h already
+  * doc-check: Fail on gi-docgen and (most) gir compiler warnings.
+    This way we can use it in ci. We filter out some warnings we don't want
+    to fix right away.
+  * ci: Fail on gi-docgen warnings.
+    Let's make sure we catch these.
+  * view: Reindent subsurface_destroy.
+    We're adding more code around that
+  * view: Implement subsurface:get_pos.
+    Closes: https://gitlab.gnome.org/World/Phosh/phoc/-/issues/331
+  * view: Drop fallback for ChildView without get_pos.
+    It's mandatory now
+  * render: No need to schedule frame after adding touch point damage
+    damage_touch_point_cb invokes wlr_output_damage_add which does that
+    already.
+  * render: Move damage checking to a separate function
+  * render: Stay clear of wlr_ namespace.
+    We use `box` instead of `wlr_box` in function and method names elsewhere.
+    This makes sure a function doesn't look like if it's coming from
+    wlroots.
+  * output: Move phoc_output_scale_box to utils.
+    The output argument is unused. This makes it clearer that we don't care
+    about any output rotation or scale in this function.
+  * output-shield: Use proper prefix
+  * utils: Document phoc_utils_compute_scale
+  * treewide: Use explicit cast for wlr_output->data.
+    This gives us some additional type checks.
+  * desktop: Make it simple to get the output at given layout coordinates
+  * cursor: Use phoc_desktop_layout_get_output.
+    This simplifies the back and forth between output and
+    wlr_output. PhocView's methods will soon switch to using PhocOutput
+    rather than wlr_output as arguments which will further simplify this.
+  * desktop: Simplify phoc_desktop_surface_at
+    wlr_output->data, phoc_output and output all refer to the same output.
+    Just use output everywhere.
+  * view: Use phoc_desktop_layout_get_output
+  * output: Invoke arrange-layers less
+    phoc_layer_shell_arrange() needs to be called on mode, scale and
+    transform changes to adjust the layer surfaces and available space for
+    views. It doesn't need to be called when we only submit damage or attach
+    new buffers. This reduces the number of invocations (and hence used CPU
+    time).
+    Fixes: 3d788792 ("Update to wlroots 0.13 and drop support for older versions")
+  * output: Handle mode changes in commit handler.
+    No need for an extra listener
+  * input: Invoke constructed of parent object first.
+    For consistency with other objects, doesn't change anything here.
+  * input: Use 'self' in 'handle_new_input'
+  * input: Make sure we always add a seat.
+    Otherwise the headless backend doesn't expose a wl_seat which makes it
+    hard to use for tests.
+  * layer-shell-effects: Drop version.
+    We want to check resource versions anyway so no need to track
+    the passed in version.
+  * desktop: Make phoc specific protocols private.
+    We want to empty out PhocDesktop and as we add a new protocol
+    this is another step in that direction.
+  * input: Add a doc string for phoc_input_get_seat()
+  * seat: Introduce private struct.
+    As with other objects we don't want to make more internal members
+    public. So introduce a private struct and should we have all members
+    private we can drop this again.
+    Let's start with PhocInput which will already help to e.g. unclutter
+    headers further.
+    There's a bunch of easy follow ups like the device lists.
+  * switch: Allow to query switch by type.
+    We use wlroots enums for the switch types.
+  * seat: Update capabilities for seat on switch changes too.
+    We want to update the device state caps as well.
+  * Add phoc-device-state-unstable protocol.
+    This is meant to inform interested clients about hardware device state
+    not handled via wl_seat's capabilities. This for now includes lid
+    and tablet mode switches but we can also extend that to cover hardware
+    keyboards later.
+    The `PhocSeat` dispatches between the signals emitted from the
+    `PhocSwitch` and the device-state protocol so we keep the switch
+    itself clear from caring about any protocol details.
+    Can be tested via the `device-state` example.
+    Helps: https://gitlab.gnome.org/World/Phosh/phoc/-/issues/320
+  * switch: Keep track of switch state.
+    This allows us to query the switch state at any time and not only when
+    receiving events.
+  * device-state: Send initial switch state.
+    Whenever a client connects send the switch state if known
+  * build: Bump required meson version to 0.63.0
+    diff_files was only introduces there and 1.0 is in Debian stable
+  * property-easer: Allow for unsigned int properties too
+  * output: cache renderer.
+    We need the renderer at different places, no need to get it over
+    and over again.
+  * view: Add method to get dimensions of the maximized box
+  * view: Use phoc_view_get_maximized_box in phoc_view_arrange_maximized.
+    Note that we don't take the geometry into account as this is the
+    clients geometry prior to resize anyway.
+  * view: Add method to get dimensions of the tiled box
+  * view: Use phoc_view_get_tiled_box in phoc_view_arrange_tiled
+  * output: Keep the outputs layout coordinates around.
+    We need them ever so often
+  * output: Simplify phoc_output_get_decoration_box.
+    By using phoc_utils_scale_box we also handle fractional scaling better.
+  * output: Make it simple to submit damage
+  * Add boxed types for colors and boxes.
+    We want to use these as GObject properties so create
+    thin wrappers.
+  * Add an interface to render blings.
+    To attach some graphical sugar in various spaces of the compositor
+    add an interface the objects can implement to get rendered.
+    This will allow us to have e.g. additional rects or quads in various
+    places when needed. We can combine this nicely with PhocTimedAnimation.
+  * view: Allow to add and render blings.
+    These are currently all rendered before the view.
+  * view: Add TODO.
+    We want decorations to use the bling interface too
+  * Add support for using colored rectangles as blings.
+    This allows them to be rendered e.g. when attached to views.
+  * output-shield: Add TODO.
+    The PhocOutputShields can use a PhocColorRect
+  * cursor: Suggest window state changes.
+    Instead of changing the size right away suggest the new size when tiling
+    and maximizing and only resize if still within the threshold when
+    releasing the button.
+    Closes: https://gitlab.gnome.org/World/Phosh/phoc/-/issues/309
+    Closes: https://gitlab.gnome.org/World/Phosh/phoc/-/issues/203
+  * cursor: Make phoc_cursor_handle_constraint_commit static.
+    Not needed outside the cursor code.
+  * cursor: Drop unnused view parameter from phoc_cursor_submit_pending_view_state_change
+  * cursor: Don't forget to apply state changes with touch.
+    Fixes: 3c14012350548d49cd074ac9327b4bfd17a7d28c
+
+ -- Guido Günther <agx@sigxcpu.org>  Thu, 31 Aug 2023 11:21:07 +0200
+
+phoc (0.30.0) experimental; urgency=medium
+
+  [ Guido Günther ]
+  * desktop: Specify xdg-shell protocol version
+  * seat: Get derived class via wlr_*_from_input_device.
+    Get the derived class from the wlr_input_device base class via the
+    corresponding wlr_<type>_from_input_device()
+  * gtk-shell: Use wlr_compository.h instead of deprecated wlr_surface.h
+  * xwayland-surface: Use xcb_size_hints_t directly.
+    See wlroots commit 640f3b9f2156a007c5d1a36afdee570e123c95e4
+    and https://gitlab.freedesktop.org/wlroots/wlroots/-/merge_requests/3495
+  * layer-shell-effects: Margins are now signed.
+    This is good news.
+    See https://gitlab.freedesktop.org/wlroots/wlroots/-/merge_requests/3404
+  * output: Look at popup's current coordinates
+  * switch: Get name from device
+  * phosh-private: Adjust thumbnail flags.
+    See wlroots commit 6832ae14aaa659929ea13057616db34536f7f724
+  * d/control: Bump wlroots dependency
+  * ci: Update image before installing dependencies
+  * ci: Install wlroots 0.16.0 from sid.  Update the CI image for that
+  * Drop check for wlr_seat_touch_notify_cancel.
+    It's part of wlroots 0.16
+  * output: Use wlr_output_state when setting up output.
+    While at that make sure we pass PhocOutput around rather than wlr_output
+    when functions are called phoc_outpu_<foo>.
+  * output: Make debugging more useful.
+    The output name tells us more than the address
+  * output: Fall back to other mode if preferred mode doesn't work
+  * output: Don't crash when adding new output.
+    We need to set a mode when committing the state as otherwise sending out
+    the head config asserts.
+  * render: Fix build without xwayland.
+    We need to check whether the user enabled xwayland support, not
+    if wlroots supports it.
+    Fixes e904c0975d480202279e7aafc42f70d28cf4164f
+  * dir-locals: Update from phosh.
+    This avoids tabs in meson files
+  * po: Add Linguas.
+    Otherwise msgfmt throws a warning on
+      meson setup _build
+  * ci: Set defaults.
+    This e.g. allows to interrupt builds on new commits
+    Taken verbatim from phosh.
+  * build: Use project_source_root.
+    Avoids a meson deprecation warning.
+  * build: Avoid cc.getdefine for subproject.
+    Otherwise we fail with
+       ERROR:  Dependencies must be external dependencies
+    See https://github.com/mesonbuild/meson/issues/4800
+  * packaging: Reset dh's wrap-mode.
+    We want to fallback for gmobile to have it available.
+  * build: Use meson wrap for the wlroots submodule.
+    This makes it more obvious what we're tracking and it gives
+    us a git archive after all so local development doesn't get
+    more complicated.
+  * build: Use meson wrap for the gmobile submodule.
+    It's a bit easier to handle than the git submodule giving us an explicit
+    reference in the source tree. It will then also be simpler to switch to
+    the shared library version once we have a stable API.
+  * build: No need to update git submodules anymore
+  * build: Fetch wlroots from the official repo.
+    This finally makes sure we don't have to mess with forks
+    somewhere. We still should upstream the one patch.
+  * desktop: Bump xdg-shell to 5.
+    Closes: https://gitlab.gnome.org/World/Phosh/phoc/-/issues/324
+  * xdg-shell: Set capabilities.
+    Phoc doesn't provide right click menus or minimize.
+  * view: Use `self` in map.
+    Old code parts use `view`, let's update this when making other changes.
+    See HACKING.
+  * view: Allow to retrieve pid.
+    This can be useful for force killing and supsending apps
+  * layer-shell-effects: Use wlr_layer_surface_v1_from_resource.
+    Available in 0.16
+  * output: Move public damage handling closer together
+  * output: Document some more functions
+  * xdg_shell: Use PhocXdgPopup consistently.
+    Avoids confustion whether PhocXdgPopup and struct phoc_xdg_popup
+    are the same type.
+  * view: Implement phoc_view_child_damage_whole for popups.
+    So far we damaged the parent surface which doesn't work well when the
+    popup extends out of the parent. It also avoids that we submit way
+    more damage than necessary.
+    Closes: https://gitlab.gnome.org/World/Phosh/phoc/-/issues/325
+  * build: Switch to wlroots 0.16
+    Closes: https://gitlab.gnome.org/World/Phosh/phoc/-/issues/272
+
+  [ Sebastian Krzyszkowiak ]
+  * treewide: Follow event rename for wlroots 0.16.
+    Events are now names wlr_<event_type>_event instead of
+    wlr_event_<event_type>. E.g. wlr_touch_motion_event
+  * treewide: Get event device from touch, pointer, etc.
+    The event does no longer carry the wlr_input_device. It's embedded
+    as base class in e.g. wlr_{touch,pointer,...} now.
+  * cursor: Adjust to wlr_output_layout_get_box signature change.
+    See https://gitlab.freedesktop.org/wlroots/wlroots/-/merge_requests/3439
+  * desktop: Adjust to wlr_output_layout_get_box signature change.
+    See https://gitlab.freedesktop.org/wlroots/wlroots/-/merge_requests/3439
+  * layer-shell-effects: Adjust to wlr_output_layout_get_box signature change.
+    See https://gitlab.freedesktop.org/wlroots/wlroots/-/merge_requests/3439
+  * output: Adjust to wlr_output_layout_get_box signature change.
+    See https://gitlab.freedesktop.org/wlroots/wlroots/-/merge_requests/3439
+  * view: Adjust to wlr_output_layout_get_box signature change.
+    See https://gitlab.freedesktop.org/wlroots/wlroots/-/merge_requests/3439
+  * keyboard: Get keyboard via wlr_keyboard_from_input_device
+  * xdg-surface: Adjust to toplevel changes
+    wlr_xdg_toplevel_* now take a toplevel rather than a wlr_xdg_surface
+  * Adjust popups to 0.16 API changes
+  * render: read_pixels dropped it's flag argument
+  * seat: Signals are now attached without the devices indirection
+  * Adjust includes
+  * server: Init subcompositor responsible for subsurfaces
+  * keyboard: End touch grab in Escape key binding.
+    Pointer and keyboard grabs are ended here, but touch has been forgotten.
+  * seat: End keyboard grab in set_focus_layer.
+    This matches what set_focus does for regular views already.
+  * cursor: Ignore touch grab when interacting with layer-surfaces.
+    This is needed in order to be able to use the shell (including virtual
+    keyboard) while some client has a xdg-popup grab without dismissing that
+    popup right away.
+    See https://gitlab.freedesktop.org/wlroots/wlroots/-/issues/3478
+  * cursor: Ignore pointer grab when interacting with layer-surfaces.
+    See the previous commit for explanation.
+
+ -- Guido Günther <agx@sigxcpu.org>  Mon, 31 Jul 2023 11:40:38 +0200
+
 phoc (0.29.0) experimental; urgency=medium
 
   * output: Log when we render a cutout.  This makes it easy from the logs to

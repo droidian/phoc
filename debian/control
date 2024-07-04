@@ -14,39 +14,57 @@ Build-Depends:
  libwayland-dev,
  libxkbcommon-dev,
  meson (>= 0.54.0),
- pkg-config,
+ pkgconf,
  wayland-protocols,
- libgirepository1.0-dev <!nodoc>,
  libxcb1-dev,
- libwlroots-dev (>= 0.12.0) <!pkg.phoc.embedwlroots>,
- libwlroots-dev (<< 0.16.0) <!pkg.phoc.embedwlroots>,
+ libwlroots-dev (>= 0.17.1) <!pkg.phoc.embedwlroots>,
+ libwlroots-dev (<< 0.18.0) <!pkg.phoc.embedwlroots>,
+ xwayland,
 # For wlroots subproject build
- libavformat-dev <pkg.phoc.embedwlroots>,
- libavcodec-dev <pkg.phoc.embedwlroots>,
+ hwdata <pkg.phoc.embedwlroots>,
  libcap-dev <pkg.phoc.embedwlroots>,
+ libdisplay-info-dev (>= 0.1.1) <pkg.phoc.embedwlroots>,
  libdrm-dev (>= 2.4.95) <pkg.phoc.embedwlroots>,
  libegl1-mesa-dev <pkg.phoc.embedwlroots>,
  libgbm-dev (>= 17.1.0) <pkg.phoc.embedwlroots>,
  libgles2-mesa-dev <pkg.phoc.embedwlroots>,
+ libliftoff-dev (>= 0.4.1) <pkg.phoc.embedwlroots>,
  libpng-dev <pkg.phoc.embedwlroots>,
  libseat-dev <pkg.phoc.embedwlroots>,
  libsystemd-dev <pkg.phoc.embedwlroots>,
+ libx11-xcb-dev <pkg.phoc.embedwlroots>,
  libxcb-composite0-dev <pkg.phoc.embedwlroots>,
+ libxcb-ewmh-dev <pkg.phoc.embedwlroots>,
  libxcb-icccm4-dev <pkg.phoc.embedwlroots>,
  libxcb-image0-dev <pkg.phoc.embedwlroots>,
  libxcb-render0-dev <pkg.phoc.embedwlroots>,
  libxcb-res0-dev <pkg.phoc.embedwlroots>,
  libxcb-xfixes0-dev <pkg.phoc.embedwlroots>,
  libxcb-xinput-dev <pkg.phoc.embedwlroots>,
- libx11-xcb-dev <pkg.phoc.embedwlroots>,
- xwayland <pkg.phoc.embedwlroots>,
-# to run the tests
+ libxcb-dri3-dev <pkg.phoc.embedwlroots>,
+ libxcb-present-dev <pkg.phoc.embedwlroots>,
+ libxcb-render0-dev <pkg.phoc.embedwlroots>,
+ libxcb-render-util0-dev <pkg.phoc.embedwlroots>,
+ libxcb-shm0-dev <pkg.phoc.embedwlroots>,
+# Needed to build the doc
+ libgirepository1.0-dev:native <!nodoc>,
+ python3-docutils <!nodoc>,
+ python3-jinja2 <!nodoc>,
+ python3:native <!nodoc>,
+ python3-pygments <!nodoc>,
+ python3-toml <!nodoc>,
+ python3-typogrify <!nodoc>,
+# Needed to run the tests
+ desktop-file-utils <!nocheck>,
+ libglib2.0-bin <!nocheck>,
  mutter-common <!nocheck>,
  xvfb <!nocheck>,
  xauth <!nocheck>,
-Standards-Version: 4.6.0
-Section: libs
-Homepage: https://source.puri.sm/librem5/phoc
+# Tracing
+ systemtap-sdt-dev <pkg.phoc.trace>,
+Standards-Version: 4.6.2
+Section: x11
+Homepage: https://gitlab.gnome.org/World/Phosh/phoc
 Rules-Requires-Root: no
 
 Package: phoc
@@ -58,7 +76,8 @@ Depends:
  mutter-common,
 Recommends: phosh
 Breaks:
- phosh (<< 0.25.0),
+ phog (<< 0.1.6~),
+ phosh (<< 0.34.0~),
 Description: Wayland compositor for mobile phones
  Tiny wayland compositor based on wlroots for use on mobile phones like the
  Librem 5.
