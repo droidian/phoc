@@ -2,6 +2,3 @@
 	path = subprojects/wlroots
 	url = https://source.puri.sm/Librem5/wlroots.git
 	branch = master
-[submodule "subprojects/gmobile"]
-	path = subprojects/gmobile
-	url = https://github.com/droidian/gmobile.git
