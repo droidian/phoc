@@ -17,6 +17,8 @@
 #include <wlr/backend/libinput.h>
 #include <wlr/types/wlr_input_device.h>
 
+#include <linux/input-event-codes.h>
+
 #define PHOC_INPUT_DEVICE_SELF(p) PHOC_PRIV_CONTAINER(PHOC_INPUT_DEVICE, PhocInputDevice, (p))
 
 enum {
@@ -31,7 +33,7 @@ enum {
   DEVICE_DESTROY,
   N_SIGNALS
 };
-static guint signals [N_SIGNALS];
+static guint signals[N_SIGNALS];
 
 /**
  * PhocInputDevice:
@@ -255,6 +257,36 @@ phoc_input_device_get_is_touchpad (PhocInputDevice *self)
     return FALSE;
 
   g_debug ("%s is a touchpad device", libinput_device_get_name (ldev));
+  return TRUE;
+}
+
+/**
+ * phoc_input_device_get_is_keyboard:
+ * @self: The %PhocInputDevice
+ *
+ * Returns: %TRUE if this is a keyboard
+ */
+gboolean
+phoc_input_device_get_is_keyboard (PhocInputDevice *self)
+{
+  struct libinput_device *ldev;
+  PhocInputDevicePrivate *priv;
+
+  g_assert (PHOC_IS_INPUT_DEVICE (self));
+  priv = phoc_input_device_get_instance_private (self);
+
+  if (!wlr_input_device_is_libinput (priv->device))
+    return FALSE;
+
+  ldev = phoc_input_device_get_libinput_device_handle (self);
+  /* A physical keyboard should at least have a space, enter and a letter */
+  if (!libinput_device_keyboard_has_key (ldev, KEY_A) ||
+      !libinput_device_keyboard_has_key (ldev, KEY_ENTER) ||
+      !libinput_device_keyboard_has_key (ldev, KEY_SPACE)) {
+    return FALSE;
+  }
+
+  g_debug ("%s is a keyboard device", libinput_device_get_name (ldev));
   return TRUE;
 }
 

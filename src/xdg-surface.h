@@ -26,4 +26,6 @@ struct wlr_surface *phoc_xdg_surface_get_wlr_surface_at (PhocXdgSurface *self,
                                                          double          *sub_x,
                                                          double          *sub_y);
 
+void                phoc_handle_xdg_shell_surface (struct wl_listener *listener, void *data);
+
 G_END_DECLS

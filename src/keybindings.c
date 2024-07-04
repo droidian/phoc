@@ -1,3 +1,10 @@
+/*
+ * Copyright (C) 2019 Purism SPC
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ * Author: Guido Günther <agx@sigxcpu.org>
+ */
+
 #define G_LOG_DOMAIN "phoc-keybindings"
 
 /**
@@ -8,6 +15,7 @@
 #include "phoc-config.h"
 #include "keybindings.h"
 #include "seat.h"
+#include "server.h"
 #include "keyboard.h"
 
 #include <wlr/types/wlr_keyboard.h>
@@ -17,15 +25,21 @@
 #define KEYBINDINGS_SCHEMA_ID "org.gnome.desktop.wm.keybindings"
 #define MUTTER_KEYBINDINGS_SCHEMA_ID "org.gnome.mutter.keybindings"
 
-typedef void (*PhocKeyHandlerFunc) (PhocSeat *);
+typedef void (*PhocKeyHandlerFunc) (PhocSeat *seat, GVariant *param);
 
-
+/**
+ * PhocKeybinding:
+ *
+ * A keybinding represents a handler with params that will be
+ * invoked on the given keybinding combinations.
+ */
 typedef struct
 {
-  gchar *name;
-  PhocKeyHandlerFunc func;
+  gchar              *name;
+  PhocKeyHandlerFunc  func;
+  GVariant           *param;
 
-  GSList *combos;
+  GSList             *combos;
 } PhocKeybinding;
 
 
@@ -40,119 +54,147 @@ typedef struct _PhocKeybindings
 
 G_DEFINE_TYPE (PhocKeybindings, phoc_keybindings, G_TYPE_OBJECT);
 
-static void
-handle_maximize (PhocSeat *seat)
-{
-  PhocView *focus = phoc_seat_get_focus(seat);
-
-  if (focus != NULL)
-    view_maximize(focus, NULL);
-}
 
 static void
-handle_unmaximize (PhocSeat *seat)
+handle_always_on_top (PhocSeat *seat, GVariant *param)
 {
-  PhocView *focus = phoc_seat_get_focus(seat);
-
-  if (focus != NULL)
-    view_restore(focus);
-}
-
-static void
-handle_tile_right (PhocSeat *seat)
-{
-  PhocView *view = phoc_seat_get_focus(seat);
+  PhocDesktop *desktop = phoc_server_get_desktop (phoc_server_get_default ());
+  PhocView *view = phoc_seat_get_focus_view (seat);
+  gboolean on_top;
 
   if (!view)
     return;
 
-  if (view_is_tiled (view) && phoc_view_get_tile_direction (view) == PHOC_VIEW_TILE_RIGHT)
-    view_restore (view);
-  else
-    view_tile (view, PHOC_VIEW_TILE_RIGHT, NULL);
+  on_top = !phoc_view_is_always_on_top (view);
+  g_debug ("always-on-top for %s: %d", phoc_view_get_app_id (view), on_top);
+  phoc_desktop_set_view_always_on_top (desktop, view, on_top);
 }
 
 
 static void
-handle_tile_left (PhocSeat *seat)
+handle_maximize (PhocSeat *seat, GVariant *param)
 {
-  PhocView *view = phoc_seat_get_focus(seat);
+  PhocView *view = phoc_seat_get_focus_view (seat);
 
   if (!view)
     return;
 
-  if (view_is_tiled (view) && phoc_view_get_tile_direction (view) == PHOC_VIEW_TILE_LEFT)
-    view_restore (view);
+  phoc_view_maximize (view, NULL);
+}
+
+static void
+handle_unmaximize (PhocSeat *seat, GVariant *param)
+{
+  PhocView *view = phoc_seat_get_focus_view (seat);
+
+  if (!view)
+    return;
+
+  phoc_view_restore (view);
+}
+
+
+static void
+handle_tile (PhocSeat *seat, GVariant *param)
+{
+  PhocView *view = phoc_seat_get_focus_view (seat);
+  PhocViewTileDirection dir;
+
+  if (!view)
+    return;
+
+  dir = g_variant_get_int32 (param);
+  if (phoc_view_is_tiled (view) && phoc_view_get_tile_direction (view) == dir)
+    phoc_view_restore (view);
   else
-    view_tile (view, PHOC_VIEW_TILE_LEFT, NULL);
+    phoc_view_tile (view, dir, NULL);
 }
 
 
 static void
-handle_toggle_maximized (PhocSeat *seat)
+handle_toggle_maximized (PhocSeat *seat, GVariant *param)
 {
-  PhocView *focus = phoc_seat_get_focus(seat);
+  PhocView *view = phoc_seat_get_focus_view (seat);
 
-  if (focus != NULL) {
-    if (view_is_maximized(focus))
-      view_restore(focus);
-    else
-      view_maximize(focus, NULL);
-  }
-}
+  if (!view)
+    return;
 
-static void
-handle_toggle_fullscreen (PhocSeat *seat)
-{
-  PhocView *focus = phoc_seat_get_focus(seat);
-
-  if (focus) {
-    phoc_view_set_fullscreen(focus, !view_is_fullscreen (focus), NULL);
-  }
-}
-
-
-static void handle_cycle_windows (PhocSeat *seat)
-{
-  phoc_seat_cycle_focus(seat, TRUE);
-}
-
-
-static void handle_cycle_windows_backwards (PhocSeat *seat)
-{
-  phoc_seat_cycle_focus(seat, FALSE);
-}
-
-
-static void handle_close (PhocSeat *seat)
-{
-  PhocView *focus = phoc_seat_get_focus(seat);
-
-  if (focus)
-    phoc_view_close (focus);
-}
-
-static void
-handle_move_to_monitor_right (PhocSeat *seat)
-{
-  PhocView *view = phoc_seat_get_focus(seat);
-
-  if (view)
-    view_move_to_next_output(view, WLR_DIRECTION_RIGHT);
+  if (phoc_view_is_maximized (view))
+    phoc_view_restore (view);
+  else
+    phoc_view_maximize (view, NULL);
 }
 
 
 static void
-handle_move_to_monitor_left (PhocSeat *seat)
+handle_toggle_fullscreen (PhocSeat *seat, GVariant *param)
 {
-  PhocView *view = phoc_seat_get_focus(seat);
+  PhocView *view = phoc_seat_get_focus_view (seat);
 
-  if (view)
-    view_move_to_next_output(view, WLR_DIRECTION_LEFT);
+  if (!view)
+    return;
+
+  phoc_view_set_fullscreen (view, !phoc_view_is_fullscreen (view), NULL);
 }
 
 
-static void handle_switch_input_source (PhocSeat *seat)
+static void
+handle_cycle_windows (PhocSeat *seat, GVariant *param)
+{
+  phoc_seat_cycle_focus (seat, TRUE);
+}
+
+
+static void
+handle_cycle_windows_backwards (PhocSeat *seat, GVariant *param)
+{
+  phoc_seat_cycle_focus (seat, FALSE);
+}
+
+
+static void
+handle_close (PhocSeat *seat, GVariant *param)
+{
+  PhocView *view = phoc_seat_get_focus_view (seat);
+
+  if (!view)
+    return;
+
+  phoc_view_close (view);
+}
+
+
+static void
+handle_move_to_monitor (PhocSeat *seat, GVariant *param)
+{
+  PhocView *view = phoc_seat_get_focus_view (seat);
+  enum wlr_direction dir;
+
+  if (!view)
+    return;
+
+  dir = g_variant_get_int32 (param);
+  phoc_view_move_to_next_output (view, dir);
+}
+
+
+static void
+handle_move_to_corner (PhocSeat *seat, GVariant *param)
+{
+  PhocView *view = phoc_seat_get_focus_view (seat);
+  PhocViewCorner corner;
+
+  corner = g_variant_get_int32 (param);
+
+  if (!view)
+    return;
+
+  phoc_view_move_to_corner (view, corner);
+}
+
+
+static void
+handle_switch_input_source (PhocSeat *seat, GVariant *param)
 {
   struct wlr_keyboard *wlr_keyboard = wlr_seat_get_keyboard (seat->seat);
   PhocKeyboard *keyboard;
@@ -283,20 +325,6 @@ is_hyper (const gchar *string)
 }
 
 static inline gboolean
-is_primary (const gchar *string)
-{
-  return ((string[0] == '<') &&
-          (string[1] == 'p' || string[1] == 'P') &&
-          (string[2] == 'r' || string[2] == 'R') &&
-          (string[3] == 'i' || string[3] == 'I') &&
-          (string[4] == 'm' || string[4] == 'M') &&
-          (string[5] == 'a' || string[5] == 'A') &&
-          (string[6] == 'r' || string[6] == 'R') &&
-          (string[7] == 'y' || string[7] == 'Y') &&
-          (string[8] == '>'));
-}
-
-static inline gboolean
 is_keycode (const gchar *string)
 {
   return (string[0] == '0' &&
@@ -305,8 +333,14 @@ is_keycode (const gchar *string)
           g_ascii_isxdigit (string[3]));
 }
 
+/**
+ * phoc_parse_accelerator: (skip)
+ *
+ * Parse strings representing keybindings into modifier
+ * and symbols.
+ */
 PhocKeyCombo *
-parse_accelerator (const gchar *accelerator)
+phoc_parse_accelerator (const gchar *accelerator)
 {
   PhocKeyCombo *combo;
   xkb_keysym_t keyval;
@@ -411,19 +445,20 @@ parse_accelerator (const gchar *accelerator)
 
 
 static void
-phoc_keybinding_free (PhocKeybinding *self)
+phoc_keybinding_free (PhocKeybinding *keybinding)
 {
-  g_slist_free_full (self->combos, (GDestroyNotify)g_free);
-  g_free (self->name);
-  g_free (self);
+  g_slist_free_full (keybinding->combos, (GDestroyNotify)g_free);
+  g_free (keybinding->name);
+  if (keybinding->param)
+    g_variant_unref (keybinding->param);
+  g_free (keybinding);
 }
 
 
 static gboolean
 key_combo_eq (const PhocKeyCombo *sym1, const PhocKeyCombo *sym2)
 {
-  return (sym1->modifiers == sym2->modifiers &&
-          sym1->keysym == sym2->keysym);
+  return (sym1->modifiers == sym2->modifiers && sym1->keysym == sym2->keysym);
 }
 
 
@@ -443,7 +478,7 @@ keybinding_by_key_combo (const PhocKeybinding *keybinding, const PhocKeyCombo *c
     if (key_combo_eq (elem->data, combo))
       return FALSE;
     elem = elem->next;
-  };
+  }
   return TRUE;
 }
 
@@ -480,7 +515,7 @@ on_keybinding_setting_changed (PhocKeybindings *self,
     PhocKeyCombo *combo;
 
     g_debug ("New keybinding %s for %s", key, accelerators[i]);
-    combo = parse_accelerator (accelerators[i]);
+    combo = phoc_parse_accelerator (accelerators[i]);
     if (combo)
       keybinding->combos = g_slist_append (keybinding->combos, combo);
   }
@@ -488,8 +523,11 @@ on_keybinding_setting_changed (PhocKeybindings *self,
 
 
 static gboolean
-phoc_add_keybinding (PhocKeybindings *self, GSettings *settings,
-                     const gchar *name, PhocKeyHandlerFunc func)
+phoc_add_keybinding (PhocKeybindings    *self,
+                     GSettings          *settings,
+                     const gchar        *name,
+                     PhocKeyHandlerFunc  func,
+                     GVariant           *param)
 {
   g_autofree gchar *signal_name = NULL;
   PhocKeybinding *binding;
@@ -502,6 +540,8 @@ phoc_add_keybinding (PhocKeybindings *self, GSettings *settings,
   binding = g_new0 (PhocKeybinding, 1);
   binding->name = g_strdup (name);
   binding->func = func;
+  if (param)
+    binding->param = g_variant_ref_sink (param);
 
   signal_name = g_strdup_printf ("changed::%s", name);
   g_signal_connect_swapped (settings, signal_name,
@@ -546,38 +586,57 @@ phoc_keybindings_constructed (GObject *object)
   G_OBJECT_CLASS (phoc_keybindings_parent_class)->constructed (object);
 
   self->settings = g_settings_new (KEYBINDINGS_SCHEMA_ID);
+  phoc_add_keybinding (self, self->settings, "always-on-top", handle_always_on_top, NULL);
+  phoc_add_keybinding (self, self->settings, "close", handle_close, NULL);
+  phoc_add_keybinding (self, self->settings, "cycle-windows", handle_cycle_windows, NULL);
   phoc_add_keybinding (self, self->settings,
-                       "close", handle_close);
+                       "cycle-windows-backward", handle_cycle_windows_backwards,
+                       NULL);
+  phoc_add_keybinding (self, self->settings, "maximize", handle_maximize, NULL);
+  phoc_add_keybinding (self, self->settings, "toggle-fullscreen", handle_toggle_fullscreen, NULL);
+  phoc_add_keybinding (self, self->settings, "toggle-maximized", handle_toggle_maximized, NULL);
   phoc_add_keybinding (self, self->settings,
-                       "cycle-windows", handle_cycle_windows);
+                       "move-to-monitor-up", handle_move_to_monitor,
+                       g_variant_new_int32 (WLR_DIRECTION_UP));
   phoc_add_keybinding (self, self->settings,
-                       "cycle-windows-backward", handle_cycle_windows_backwards);
+                       "move-to-monitor-down", handle_move_to_monitor,
+                       g_variant_new_int32 (WLR_DIRECTION_DOWN));
   phoc_add_keybinding (self, self->settings,
-                       "maximize", handle_maximize);
+                       "move-to-monitor-right", handle_move_to_monitor,
+                       g_variant_new_int32 (WLR_DIRECTION_RIGHT));
   phoc_add_keybinding (self, self->settings,
-                       "toggle-fullscreen", handle_toggle_fullscreen);
+                       "move-to-monitor-left", handle_move_to_monitor,
+                       g_variant_new_int32 (WLR_DIRECTION_LEFT));
   phoc_add_keybinding (self, self->settings,
-                       "toggle-maximized", handle_toggle_maximized);
+                       "move-to-corner-nw", handle_move_to_corner,
+                       g_variant_new_int32 (PHOC_VIEW_CORNER_NORTH_WEST));
   phoc_add_keybinding (self, self->settings,
-                       "move-to-monitor-right", handle_move_to_monitor_right);
+                       "move-to-corner-ne", handle_move_to_corner,
+                       g_variant_new_int32 (PHOC_VIEW_CORNER_NORTH_EAST));
   phoc_add_keybinding (self, self->settings,
-                       "move-to-monitor-left", handle_move_to_monitor_left);
+                       "move-to-corner-se", handle_move_to_corner,
+                       g_variant_new_int32 (PHOC_VIEW_CORNER_SOUTH_EAST));
+  phoc_add_keybinding (self, self->settings,
+                       "move-to-corner-sw", handle_move_to_corner,
+                       g_variant_new_int32 (PHOC_VIEW_CORNER_SOUTH_WEST));
   /* TODO: we need a real switch-applications but ALT-TAB should do s.th.
    * useful */
+  phoc_add_keybinding (self, self->settings, "switch-applications", handle_cycle_windows, NULL);
   phoc_add_keybinding (self, self->settings,
-                       "switch-applications", handle_cycle_windows);
+                       "switch-applications-backward", handle_cycle_windows_backwards,
+                       NULL);
+  phoc_add_keybinding (self, self->settings,"unmaximize", handle_unmaximize, NULL);
   phoc_add_keybinding (self, self->settings,
-                       "switch-applications-backward", handle_cycle_windows_backwards);
-  phoc_add_keybinding (self, self->settings,
-                       "unmaximize", handle_unmaximize);
-  phoc_add_keybinding (self, self->settings,
-                       "switch-input-source", handle_switch_input_source);
+                       "switch-input-source", handle_switch_input_source,
+                       NULL);
 
   self->mutter_settings = g_settings_new (MUTTER_KEYBINDINGS_SCHEMA_ID);
   phoc_add_keybinding (self, self->mutter_settings,
-                       "toggle-tiled-left", handle_tile_left);
+                       "toggle-tiled-left", handle_tile,
+                       g_variant_new_int32 (PHOC_VIEW_TILE_LEFT));
   phoc_add_keybinding (self, self->mutter_settings,
-                       "toggle-tiled-right", handle_tile_right);
+                       "toggle-tiled-right", handle_tile,
+                       g_variant_new_int32 (PHOC_VIEW_TILE_RIGHT));
 }
 
 
@@ -607,6 +666,11 @@ phoc_keybindings_new (void)
 
 /**
  * phoc_keybindings_handle_pressed:
+ * @self: The keybindings
+ * @modifiers: The currently pressed modifiers
+ * @pressed_keysyms: The currently pressed keysyms
+ * @length: The number of pressed keysyms
+ * @seat: The seat this is happening on
  *
  * Check if a keybinding is known and run the associated action
  *
@@ -614,10 +678,10 @@ phoc_keybindings_new (void)
  */
 gboolean
 phoc_keybindings_handle_pressed (PhocKeybindings *self,
-                                 guint32 modifiers,
-                                 xkb_keysym_t *pressed_keysyms,
-                                 guint32 length,
-                                 PhocSeat *seat)
+                                 guint32          modifiers,
+                                 xkb_keysym_t    *pressed_keysyms,
+                                 guint32          length,
+                                 PhocSeat        *seat)
 {
   PhocKeybinding *keybinding;
   GSList *elem;
@@ -638,6 +702,6 @@ phoc_keybindings_handle_pressed (PhocKeybindings *self,
   g_return_val_if_fail (elem->data, FALSE);
   keybinding = elem->data;
 
-  (*keybinding->func) (seat);
+  (*keybinding->func) (seat, keybinding->param);
   return TRUE;
 }

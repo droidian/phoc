@@ -1,4 +1,13 @@
+/*
+ * Copyright (C) 2019 Purism SPC
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ * Author: Guido Günther <agx@sigxcpu.org>
+ */
+
 #pragma once
+
+#include "output.h"
 
 #include <glib.h>
 #include <wlr/types/wlr_output_layout.h>
@@ -26,11 +35,20 @@ G_BEGIN_DECLS
  */
 #define PHOC_PRIV_CONTAINER(c, t, p)  (c)(PHOC_PRIV_CONTAINER_P(t,p))
 
-void phoc_utils_fix_transform (enum wl_output_transform *transform);
-void phoc_utils_rotate_child_position (double *sx, double *sy, double sw, double sh,
-                                       double pw, double ph, float rotation);
-void phoc_utils_rotated_bounds (struct wlr_box *dest, const struct wlr_box *box, float rotation);
+void       phoc_utils_fix_transform         (enum wl_output_transform *transform);
 float      phoc_utils_compute_scale         (int32_t phys_width, int32_t phys_height,
                                              int32_t width, int32_t height);
+void       phoc_utils_scale_box             (struct wlr_box *box, float scale);
+gboolean   phoc_utils_is_damaged            (const struct wlr_box    *box,
+                                             const pixman_region32_t *damage,
+                                             const struct wlr_box    *clip_box,
+                                             pixman_region32_t       *out_damage);
+
+void       phoc_utils_wlr_surface_update_scales (struct wlr_surface *surface);
+void       phoc_utils_wlr_surface_enter_output  (struct wlr_surface *wlr_surface,
+                                                 struct wlr_output  *wlr_output);
+void       phoc_utils_wlr_surface_leave_output  (struct wlr_surface *wlr_surface,
+                                                 struct wlr_output  *wlr_output);
+
 
 G_END_DECLS

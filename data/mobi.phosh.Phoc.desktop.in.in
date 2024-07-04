@@ -5,4 +5,4 @@ Comment=Wayland compositor for mobile
 Exec=@bindir@/phoc
 Categories=System;Core;
 NoDisplay=true
-Icon=sm.puri.Phoc
+Icon=mobi.phosh.Phoc

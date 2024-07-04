@@ -1,21 +1,25 @@
 /*
  * Copyright (C) 2021 Purism SPC
  *
- * SPDX-License-Identifier: GPL-3-or-later or MIT
+ * SPDX-License-Identifier: GPL-3.0-or-later or MIT
  */
 
 #define G_LOG_DOMAIN "phoc-cursor"
 
 #include "phoc-config.h"
+#include "color-rect.h"
 #include "server.h"
+#include "timed-animation.h"
 #include "gesture.h"
 #include "gesture-drag.h"
+#include "gesture-swipe.h"
 #include "layer-shell-effects.h"
 
 #define _XOPEN_SOURCE 700
 #include <assert.h>
 #include <math.h>
 #include <stdlib.h>
+#include <wlr/types/wlr_subcompositor.h>
 #include <wlr/types/wlr_xcursor_manager.h>
 #include <wlr/util/edges.h>
 #include <wlr/util/log.h>
@@ -26,6 +30,9 @@
 #include "utils.h"
 #include "view.h"
 #include "xcursor.h"
+
+#define PHOC_ANIM_SUGGEST_STATE_CHANGE_COLOR    (PhocColor){0.0f, 0.6f, 1.0f, 0.5f}
+#define PHOC_ANIM_DURATION_SUGGEST_STATE_CHANGE 200
 
 enum {
   PROP_0,
@@ -41,17 +48,203 @@ typedef struct _PhocCursorPrivate {
 
   /* The compositor tracked touch points */
   GHashTable       *touch_points;
+
+  struct {
+    PhocColorRect         *rect;
+    PhocView              *view;
+    PhocViewState          state;
+    PhocViewTileDirection  tile_dir;
+    PhocOutput            *output;
+    PhocTimedAnimation    *anim;
+  } view_state;
 } PhocCursorPrivate;
 
 
 G_DEFINE_TYPE_WITH_PRIVATE (PhocCursor, phoc_cursor, G_TYPE_OBJECT)
 
-static void handle_pointer_motion (struct wl_listener *listener, void *data);
+static void handle_pointer_motion_relative (struct wl_listener *listener, void *data);
 static void handle_pointer_motion_absolute (struct wl_listener *listener, void *data);
 static void handle_pointer_button (struct wl_listener *listener, void *data);
 static void handle_pointer_axis (struct wl_listener *listener, void *data);
 static void handle_pointer_frame (struct wl_listener *listener, void *data);
 static void handle_touch_frame (struct wl_listener *listener, void *data);
+
+
+static void
+phoc_cursor_view_state_set_view (PhocCursor *self, PhocView *view)
+{
+  PhocCursorPrivate *priv;
+
+  g_assert (PHOC_IS_CURSOR (self));
+  priv = phoc_cursor_get_instance_private (self);
+
+  if (priv->view_state.view == view)
+    return;
+
+  if (priv->view_state.view)
+    g_object_remove_weak_pointer (G_OBJECT (priv->view_state.view),
+                                  (gpointer *)&priv->view_state.view);
+
+  priv->view_state.view = view;
+
+  if (priv->view_state.view) {
+    g_object_add_weak_pointer (G_OBJECT (priv->view_state.view),
+                               (gpointer *)&priv->view_state.view);
+  }
+}
+
+
+static void
+phoc_cursor_view_state_set_output (PhocCursor *self, PhocOutput *output)
+{
+  PhocCursorPrivate *priv;
+
+  g_assert (PHOC_IS_CURSOR (self));
+  priv = phoc_cursor_get_instance_private (self);
+
+  if (priv->view_state.output == output)
+    return;
+
+  if (priv->view_state.output)
+    g_object_remove_weak_pointer (G_OBJECT (priv->view_state.output),
+                                  (gpointer *)&priv->view_state.output);
+
+  priv->view_state.output = output;
+
+  if (priv->view_state.output) {
+    g_object_add_weak_pointer (G_OBJECT (priv->view_state.output),
+                               (gpointer *)&priv->view_state.output);
+  }
+}
+
+
+static void
+phoc_cursor_suggest_view_state_change (PhocCursor            *self,
+                                       PhocView              *view,
+                                       PhocOutput            *output,
+                                       PhocViewState          state,
+                                       PhocViewTileDirection  dir)
+{
+  PhocCursorPrivate *priv;
+  struct wlr_box view_box, suggested_box;
+  g_autoptr (PhocPropertyEaser) easer = NULL;
+
+  g_assert (PHOC_IS_CURSOR (self));
+  g_assert (PHOC_IS_VIEW (view));
+  g_assert (PHOC_IS_OUTPUT (output));
+  priv = phoc_cursor_get_instance_private (self);
+
+  if (priv->view_state.view)
+    return;
+
+  switch (state) {
+  case PHOC_VIEW_STATE_TILED:
+  case PHOC_VIEW_STATE_MAXIMIZED:
+    priv->view_state.state = state;
+    priv->view_state.tile_dir = dir;
+    break;
+  case PHOC_VIEW_STATE_FLOATING:
+  default:
+    g_assert_not_reached ();
+  }
+
+  phoc_cursor_view_state_set_view (self, view);
+  phoc_cursor_view_state_set_output (self, output);
+  phoc_view_get_box (view, &view_box);
+  priv->view_state.rect = phoc_color_rect_new ((PhocBox *)&view_box,
+                                               &PHOC_ANIM_SUGGEST_STATE_CHANGE_COLOR);
+  phoc_view_add_bling (view, PHOC_BLING (priv->view_state.rect));
+
+  switch (state) {
+  case PHOC_VIEW_STATE_MAXIMIZED:
+    if (!phoc_view_get_maximized_box (view, output, &suggested_box)) {
+      g_warning ("Failed to get target box for %d on %s", state, phoc_output_get_name (output));
+      return;
+    }
+    break;
+  case PHOC_VIEW_STATE_TILED:
+    if (!phoc_view_get_tiled_box (view, dir, output, &suggested_box)) {
+      g_warning ("Failed to get target box for %d on %s", state, phoc_output_get_name (output));
+      return;
+    }
+    break;
+  default:
+    g_assert_not_reached ();
+  }
+
+  g_debug ("Suggest %s: %d,%d %dx%d for %p on %s",
+           state == PHOC_VIEW_STATE_MAXIMIZED ? "maximize" : "tile",
+           suggested_box.x, suggested_box.y, suggested_box.width, suggested_box.height,
+           view, phoc_output_get_name (output));
+  easer = g_object_new (PHOC_TYPE_PROPERTY_EASER,
+                        "target", priv->view_state.rect,
+                        "easing", PHOC_EASING_EASE_OUT_QUAD,
+                        NULL);
+
+  phoc_property_easer_set_props (easer,
+                                 "x", view_box.x, suggested_box.x,
+                                 "y", view_box.y, suggested_box.y,
+                                 "width", view_box.width, suggested_box.width,
+                                 "height", view_box.height, suggested_box.height,
+                                 NULL);
+
+  priv->view_state.anim = g_object_new (PHOC_TYPE_TIMED_ANIMATION,
+                                        "duration", PHOC_ANIM_DURATION_SUGGEST_STATE_CHANGE,
+                                        "property-easer", easer,
+                                        "animatable", output,
+                                        "dispose-on-done", FALSE,
+                                        NULL);
+  phoc_bling_map (PHOC_BLING (priv->view_state.rect));
+  phoc_timed_animation_play (priv->view_state.anim);
+}
+
+
+static void
+phoc_cursor_clear_view_state_change (PhocCursor *self)
+{
+  PhocCursorPrivate *priv;
+
+  g_assert (PHOC_IS_CURSOR (self));
+  priv = phoc_cursor_get_instance_private (self);
+
+  if (priv->view_state.view) {
+    phoc_view_remove_bling (priv->view_state.view, PHOC_BLING (priv->view_state.rect));
+    g_clear_object (&priv->view_state.rect);
+    g_clear_object (&priv->view_state.anim);
+  }
+
+  phoc_cursor_view_state_set_view (self, NULL);
+  phoc_cursor_view_state_set_output (self, NULL);
+}
+
+
+static void
+phoc_cursor_submit_pending_view_state_change (PhocCursor *self)
+{
+  PhocCursorPrivate *priv;
+
+  g_assert (PHOC_IS_CURSOR (self));
+  priv = phoc_cursor_get_instance_private (self);
+
+  g_assert (PHOC_IS_VIEW (priv->view_state.view));
+
+  switch (priv->view_state.state) {
+  case PHOC_VIEW_STATE_MAXIMIZED:
+    phoc_view_maximize (priv->view_state.view, priv->view_state.output);
+    break;
+  case PHOC_VIEW_STATE_TILED:
+    phoc_view_tile (priv->view_state.view, priv->view_state.tile_dir, priv->view_state.output);
+    break;
+  case PHOC_VIEW_STATE_FLOATING:
+    /* Nothing to do */
+    break;
+  default:
+    g_return_if_reached();
+  }
+
+  /* Dispose animation and color-rect */
+  phoc_cursor_clear_view_state_change (self);
+}
 
 
 static bool
@@ -64,9 +257,10 @@ should_ignore_touch_grab (PhocSeat           *seat,
     return false;
 
   struct wlr_surface *root = wlr_surface_get_root_surface (surface);
+  struct wlr_layer_surface_v1 *layer_surface = wlr_layer_surface_v1_try_from_wlr_surface (root);
 
   // FIXME: return false if the grab comes from a xdg-popup that belongs to a layer-surface
-  return wlr_seat_touch_has_grab (seat->seat) && wlr_surface_is_layer_surface (root);
+  return layer_surface && wlr_seat_touch_has_grab (seat->seat);
 }
 
 
@@ -80,9 +274,10 @@ should_ignore_pointer_grab (PhocSeat           *seat,
     return false;
 
   struct wlr_surface *root = wlr_surface_get_root_surface (surface);
+  struct wlr_layer_surface_v1 *layer_surface = wlr_layer_surface_v1_try_from_wlr_surface (root);
 
   // FIXME: return false if the grab comes from a xdg-popup that belongs to a layer-surface
-  return wlr_seat_pointer_has_grab (seat->seat) && wlr_surface_is_layer_surface (root);
+  return layer_surface && wlr_seat_pointer_has_grab (seat->seat);
 }
 
 
@@ -103,7 +298,8 @@ send_pointer_enter (PhocSeat           *seat,
 
 static void
 send_pointer_clear_focus (PhocSeat           *seat,
-                          struct wlr_surface *surface) {
+                          struct wlr_surface *surface)
+{
   if (should_ignore_pointer_grab (seat, surface)) {
     wlr_seat_pointer_clear_focus (seat->seat);
     return;
@@ -118,7 +314,8 @@ send_pointer_motion (PhocSeat           *seat,
                      struct wlr_surface *surface,
                      uint32_t            time,
                      double              sx,
-                     double              sy) {
+                     double              sy)
+{
   if (should_ignore_pointer_grab (seat, surface)) {
     wlr_seat_pointer_send_motion (seat->seat, time, sx, sy);
     return;
@@ -132,7 +329,8 @@ send_pointer_button (PhocSeat             *seat,
                      struct wlr_surface   *surface,
                      uint32_t              time,
                      uint32_t              button,
-                     enum wlr_button_state state) {
+                     enum wlr_button_state state)
+{
   if (should_ignore_pointer_grab (seat, surface)) {
     wlr_seat_pointer_send_button (seat->seat, time, button, state);
     return;
@@ -149,7 +347,8 @@ send_pointer_axis (PhocSeat                 *seat,
                    enum wlr_axis_orientation orientation,
                    double                    value,
                    int32_t                   value_discrete,
-                   enum wlr_axis_source      source) {
+                   enum wlr_axis_source      source)
+{
   if (should_ignore_pointer_grab (seat, surface)) {
     wlr_seat_pointer_send_axis (seat->seat, time, orientation, value, value_discrete, source);
     return;
@@ -259,13 +458,13 @@ phoc_cursor_add_touch_point (PhocCursor *self, struct wlr_touch_down_event *even
   touch_point->lx = lx;
   touch_point->ly = ly;
 
- if (!g_hash_table_insert (priv->touch_points,
-                           GINT_TO_POINTER (event->touch_id),
-                           touch_point)) {
-   g_critical ("Touch point %d already tracked, ignoring", event->touch_id);
- }
+  if (!g_hash_table_insert (priv->touch_points,
+                            GINT_TO_POINTER (event->touch_id),
+                            touch_point)) {
+    g_critical ("Touch point %d already tracked, ignoring", event->touch_id);
+  }
 
- return touch_point;
+  return touch_point;
 }
 
 
@@ -347,27 +546,6 @@ phoc_cursor_get_property (GObject    *object,
 }
 
 /**
- * cursor_gestures_handle_event:
- *
- * Let gestures associated with a cursor handle an event.
- */
-static void
-cursor_gestures_handle_event (PhocCursor *cursor, const PhocEvent *event, double lx, double ly)
-{
-  GSList *gestures = phoc_cursor_get_gestures (cursor);
-
-  if (gestures == NULL)
-    return;
-
-  for (GSList *elem = gestures; elem; elem = elem->next) {
-    PhocGesture *gesture = PHOC_GESTURE (elem->data);
-
-    g_assert (PHOC_IS_GESTURE (gesture));
-    phoc_gesture_handle_event (gesture, event, lx, ly);
-  }
-}
-
-/**
  * handle_gestures_for_event_at:
  *
  * Feed an event that has layout coordinates into the gesture system.
@@ -381,8 +559,17 @@ handle_gestures_for_event_at (PhocCursor   *self,
                               gsize         size)
 {
   g_autoptr (PhocEvent) event = phoc_event_new (type, wlr_event, size);
+  GSList *gestures = phoc_cursor_get_gestures (self);
 
-  cursor_gestures_handle_event (self, event, lx, ly);
+  if (gestures == NULL)
+    return;
+
+  for (GSList *elem = gestures; elem; elem = elem->next) {
+    PhocGesture *gesture = PHOC_GESTURE (elem->data);
+
+    g_assert (PHOC_IS_GESTURE (gesture));
+    phoc_gesture_handle_event (gesture, event, lx, ly);
+  }
 }
 
 
@@ -399,7 +586,7 @@ seat_view_deco_motion (PhocSeatView *view, double deco_sx, double deco_sy)
     sy = view->grab_sy;
   }
 
-  PhocViewDecoPart parts = view_get_deco_part (view->view, sx, sy);
+  PhocViewDecoPart parts = phoc_view_get_deco_part (view->view, sx, sy);
 
   bool is_titlebar = (parts & PHOC_VIEW_DECO_PART_TITLEBAR);
   uint32_t edges = 0;
@@ -452,7 +639,7 @@ seat_view_deco_button (PhocSeatView *view, double sx,
     view->has_button_grab = false;
   }
 
-  PhocViewDecoPart parts = view_get_deco_part (view->view, sx, sy);
+  PhocViewDecoPart parts = phoc_view_get_deco_part (view->view, sx, sy);
 
   if (state == WLR_BUTTON_RELEASED && (parts & PHOC_VIEW_DECO_PART_TITLEBAR)) {
     phoc_seat_maybe_set_cursor (view->seat, NULL);
@@ -462,36 +649,33 @@ seat_view_deco_button (PhocSeatView *view, double sx,
 static bool
 phoc_handle_shell_reveal (struct wlr_surface *surface, double lx, double ly, int threshold)
 {
-  PhocServer *server = phoc_server_get_default ();
-  PhocDesktop *desktop = server->desktop;
+  PhocDesktop *desktop = phoc_server_get_desktop (phoc_server_get_default ());
 
   if (surface) {
-    struct wlr_surface *root = wlr_surface_get_root_surface (surface), *iter = root;
+    struct wlr_xdg_surface *wlr_xdg_surface;
+    struct wlr_surface *iter = wlr_surface_get_root_surface (surface);
 
-    while (wlr_surface_is_xdg_surface (iter)) {
-      struct wlr_xdg_surface *xdg_surface = wlr_xdg_surface_from_wlr_surface (iter);
-      if (xdg_surface->role == WLR_XDG_SURFACE_ROLE_POPUP) {
-        iter = xdg_surface->popup->parent;
+    wlr_xdg_surface = wlr_xdg_surface_try_from_wlr_surface (iter);
+    while (wlr_xdg_surface) {
+
+      if (wlr_xdg_surface->role == WLR_XDG_SURFACE_ROLE_POPUP) {
+        iter = wlr_xdg_surface->popup->parent;
+        wlr_xdg_surface = wlr_xdg_surface_try_from_wlr_surface (iter);
       } else {
         break;
       }
     }
 
-    if (wlr_surface_is_layer_surface (iter)) {
+    if (wlr_layer_surface_v1_try_from_wlr_surface (iter))
       return false;
-    }
   }
 
-  struct wlr_output *wlr_output = wlr_output_layout_output_at (desktop->layout, lx, ly);
-
-  if (!wlr_output) {
+  PhocOutput *output = phoc_desktop_layout_get_output (desktop, lx, ly);
+  if (!output)
     return false;
-  }
-
-  PhocOutput *output = wlr_output->data;
 
   struct wlr_box output_box;
-  wlr_output_layout_get_box (desktop->layout, wlr_output, &output_box);
+  wlr_output_layout_get_box (desktop->layout, output->wlr_output, &output_box);
 
   PhocLayerSurface *layer_surface;
   bool left = false, right = false, top = false, bottom = false;
@@ -535,27 +719,23 @@ phoc_handle_shell_reveal (struct wlr_surface *surface, double lx, double ly, int
   return false;
 }
 
+
 static void
-phoc_passthrough_cursor (PhocCursor *self,
-                          uint32_t    time)
+phoc_passthrough_cursor (PhocCursor *self, uint32_t time)
 {
-  PhocServer *server = phoc_server_get_default ();
+  PhocDesktop *desktop = phoc_server_get_desktop (phoc_server_get_default ());
   double sx, sy;
   PhocView *view = NULL;
   PhocSeat *seat = self->seat;
-  PhocDesktop *desktop = server->desktop;
-  struct wlr_surface *surface = phoc_desktop_surface_at (desktop,
-                                                         self->cursor->x, self->cursor->y, &sx, &sy, &view);
-
   struct wl_client *client = NULL;
+  struct wlr_surface *surface;
 
-  if (surface) {
+  surface = phoc_desktop_wlr_surface_at (desktop, self->cursor->x, self->cursor->y, &sx, &sy, &view);
+  if (surface)
     client = wl_resource_get_client (surface->resource);
-  }
 
-  if (surface && !phoc_seat_allow_input (seat, surface->resource)) {
+  if (surface && !phoc_seat_allow_input (seat, surface->resource))
     return;
-  }
 
   if (self->cursor_client != client || !client) {
     phoc_seat_maybe_set_cursor (seat, NULL);
@@ -565,16 +745,14 @@ phoc_passthrough_cursor (PhocCursor *self,
   if (view) {
     PhocSeatView *seat_view = phoc_seat_view_from_view (seat, view);
 
-    if (self->pointer_view &&
-        !self->wlr_surface && (surface || seat_view != self->pointer_view)) {
+    if (self->pointer_view && !self->wlr_surface && (surface || seat_view != self->pointer_view))
       seat_view_deco_leave (self->pointer_view);
-    }
 
     self->pointer_view = seat_view;
 
-    if (!surface) {
+    if (!surface)
       seat_view_deco_motion (seat_view, sx, sy);
-    }
+
   } else {
     self->pointer_view = NULL;
   }
@@ -583,15 +761,15 @@ phoc_passthrough_cursor (PhocCursor *self,
 
   if (surface) {
     send_pointer_enter (seat, surface, sx, sy);
-    send_pointer_motion (seat, surface, time, sx ,sy);
+    send_pointer_motion (seat, surface, time, sx,sy);
   } else {
     send_pointer_clear_focus (seat, seat->seat->pointer_state.focused_surface);
   }
 
-  if (seat->drag_icon != NULL) {
+  if (seat->drag_icon != NULL)
     phoc_drag_icon_update_position (seat->drag_icon);
-  }
 }
+
 
 static inline int64_t
 timespec_to_msec (const struct timespec *a)
@@ -611,7 +789,7 @@ phoc_cursor_constructed (GObject *object)
   g_assert (self->xcursor_manager);
 
   wl_signal_add (&wlr_cursor->events.motion, &self->motion);
-  self->motion.notify = handle_pointer_motion;
+  self->motion.notify = handle_pointer_motion_relative;
 
   wl_signal_add (&wlr_cursor->events.motion_absolute, &self->motion_absolute);
   self->motion_absolute.notify = handle_pointer_motion_absolute;
@@ -646,6 +824,7 @@ phoc_cursor_finalize (GObject *object)
   PhocCursor *self = PHOC_CURSOR (object);
   PhocCursorPrivate *priv = phoc_cursor_get_instance_private (self);
 
+  phoc_cursor_clear_view_state_change (self);
   g_clear_pointer (&priv->touch_points, g_hash_table_destroy);
   g_clear_pointer (&priv->gestures, free_gestures);
 
@@ -701,7 +880,7 @@ phoc_cursor_class_init (PhocCursorClass *klass)
 static void
 on_drag_begin (PhocGesture *gesture, double lx, double ly, PhocCursor *self)
 {
-  PhocDesktop *desktop = phoc_server_get_default ()->desktop;
+  PhocDesktop *desktop = phoc_server_get_desktop (phoc_server_get_default ());
   PhocLayerSurface *layer_surface;
   PhocCursorPrivate *priv = phoc_cursor_get_instance_private (self);
   PhocDraggableLayerSurface *drag_surface;
@@ -797,9 +976,43 @@ on_drag_cancel (PhocGesture *gesture, gpointer sequence, PhocCursor *self)
 
 
 static void
+on_swipe (PhocGestureSwipe *swipe_gesture, double vx, double vy, gpointer data)
+{
+  PhocCursor *self = PHOC_CURSOR (data);
+  PhocDesktop *desktop = phoc_server_get_desktop (phoc_server_get_default ());
+  PhocLayerSurface *layer_surface;
+  PhocDraggableLayerSurface *drag_surface;
+  PhocEventSequence *sequence;
+  double lx, ly;
+
+  g_assert (PHOC_IS_GESTURE_SWIPE (swipe_gesture));
+
+  sequence = phoc_gesture_get_last_updated_sequence (PHOC_GESTURE (swipe_gesture));
+  if (!phoc_gesture_get_point (PHOC_GESTURE (swipe_gesture), sequence, &lx, &ly)) {
+    g_warning ("Failed to get event point for %p", sequence);
+    return;
+  }
+
+  layer_surface = phoc_desktop_layer_surface_at (desktop, lx, ly, NULL, NULL);
+  if (!layer_surface)
+    return;
+
+  drag_surface = phoc_desktop_get_draggable_layer_surface (desktop, layer_surface);
+  if (!drag_surface)
+    return;
+
+  if (!phoc_draggable_layer_surface_fling (drag_surface, lx, ly, vx, vy))
+    return;
+
+  send_touch_cancel (self->seat, layer_surface->layer_surface->surface);
+}
+
+
+static void
 phoc_cursor_init (PhocCursor *self)
 {
-  g_autoptr (PhocGesture) gesture = NULL;
+  g_autoptr (PhocGestureDrag) drag_gesture = NULL;
+  g_autoptr (PhocGestureSwipe) swipe_gesture = NULL;
   PhocCursorPrivate *priv = phoc_cursor_get_instance_private (self);
 
   self->cursor = wlr_cursor_create ();
@@ -812,14 +1025,18 @@ phoc_cursor_init (PhocCursor *self)
   /*
    * Drag gesture starting at the current cursor position
    */
-  gesture = PHOC_GESTURE (phoc_gesture_drag_new ());
-  g_object_connect (gesture,
+  drag_gesture = phoc_gesture_drag_new ();
+  g_object_connect (drag_gesture,
                     "signal::drag-begin", on_drag_begin, self,
                     "signal::drag-update", on_drag_update, self,
                     "signal::drag-end", on_drag_end, self,
                     "signal::cancel", on_drag_cancel, self,
                     NULL);
-  phoc_cursor_add_gesture (self, gesture);
+  phoc_cursor_add_gesture (self, PHOC_GESTURE (drag_gesture));
+
+  swipe_gesture = phoc_gesture_swipe_new ();
+  g_signal_connect (swipe_gesture, "swipe", G_CALLBACK (on_swipe), self);
+  phoc_cursor_add_gesture (self, PHOC_GESTURE (swipe_gesture));
 }
 
 
@@ -834,11 +1051,9 @@ phoc_cursor_update_focus (PhocCursor *self)
 }
 
 void
-phoc_cursor_update_position (PhocCursor *self,
-                             uint32_t    time)
+phoc_cursor_update_position (PhocCursor *self, uint32_t time)
 {
-  PhocServer *server = phoc_server_get_default ();
-  PhocDesktop *desktop = server->desktop;
+  PhocDesktop *desktop = phoc_server_get_desktop (phoc_server_get_default ());
   PhocSeat *seat = self->seat;
   PhocView *view;
 
@@ -847,36 +1062,46 @@ phoc_cursor_update_position (PhocCursor *self,
     phoc_passthrough_cursor (self, time);
     break;
   case PHOC_CURSOR_MOVE:
-    view = phoc_seat_get_focus (seat);
+    view = phoc_seat_get_focus_view (seat);
     if (view != NULL) {
       struct wlr_box geom;
       phoc_view_get_geometry (view, &geom);
       double dx = self->cursor->x - self->offs_x;
       double dy = self->cursor->y - self->offs_y;
-
-      struct wlr_output *wlr_output = wlr_output_layout_output_at (desktop->layout, self->cursor->x, self->cursor->y);
+      PhocOutput *output = phoc_desktop_layout_get_output (desktop, self->cursor->x, self->cursor->y);
       struct wlr_box output_box;
-      wlr_output_layout_get_box (desktop->layout, wlr_output, &output_box);
+      wlr_output_layout_get_box (desktop->layout, output->wlr_output, &output_box);
 
       bool output_is_landscape = output_box.width > output_box.height;
 
-      if (view_is_fullscreen (view)) {
-        phoc_view_set_fullscreen (view, true, wlr_output);
+      if (phoc_view_is_fullscreen (view)) {
+        phoc_view_set_fullscreen (view, true, output);
       } else if (self->cursor->y < output_box.y + PHOC_EDGE_SNAP_THRESHOLD) {
-        view_maximize (view, wlr_output);
-      } else if (output_is_landscape && self->cursor->x < output_box.x + PHOC_EDGE_SNAP_THRESHOLD) {
-        view_tile (view, PHOC_VIEW_TILE_LEFT, wlr_output);
-      } else if (output_is_landscape && self->cursor->x > output_box.x + output_box.width - PHOC_EDGE_SNAP_THRESHOLD) {
-        view_tile (view, PHOC_VIEW_TILE_RIGHT, wlr_output);
+        phoc_cursor_suggest_view_state_change (self, view, output, PHOC_VIEW_STATE_MAXIMIZED, -1);
+      } else if (output_is_landscape &&
+                 self->cursor->x < output_box.x + PHOC_EDGE_SNAP_THRESHOLD) {
+        phoc_cursor_suggest_view_state_change (self,
+                                               view,
+                                               output,
+                                               PHOC_VIEW_STATE_TILED,
+                                               PHOC_VIEW_TILE_LEFT);
+      } else if (output_is_landscape &&
+                 self->cursor->x > output_box.x + output_box.width - PHOC_EDGE_SNAP_THRESHOLD) {
+        phoc_cursor_suggest_view_state_change (self,
+                                               view,
+                                               output,
+                                               PHOC_VIEW_STATE_TILED,
+                                               PHOC_VIEW_TILE_RIGHT);
       } else {
-        view_restore (view);
+        phoc_cursor_clear_view_state_change (self);
+        phoc_view_restore (view);
         phoc_view_move (view, self->view_x + dx - geom.x * phoc_view_get_scale (view),
                         self->view_y + dy - geom.y * phoc_view_get_scale (view));
       }
     }
     break;
   case PHOC_CURSOR_RESIZE:
-    view = phoc_seat_get_focus (seat);
+    view = phoc_seat_get_focus_view (seat);
     if (view != NULL) {
       struct wlr_box geom;
       phoc_view_get_geometry (view, &geom);
@@ -904,9 +1129,7 @@ phoc_cursor_update_position (PhocCursor *self,
       } else if (self->resize_edges & WLR_EDGE_RIGHT) {
         width += dx;
       }
-      phoc_view_move_resize (view, x, y,
-                             width < 1 ? 1 : width,
-                             height < 1 ? 1 : height);
+      phoc_view_move_resize (view, x, y, MAX (1, width), MAX (1, height));
     }
     break;
   default:
@@ -915,177 +1138,170 @@ phoc_cursor_update_position (PhocCursor *self,
 }
 
 static void
-phoc_cursor_press_button (PhocCursor *self,
-                          struct wlr_input_device *device, uint32_t time, uint32_t button,
-                          uint32_t state, double lx, double ly)
+phoc_cursor_press_button (PhocCursor              *self,
+                          struct wlr_input_device *device,
+                          uint32_t                 time,
+                          uint32_t                 button,
+                          uint32_t                 state,
+                          double                   lx,
+                          double                   ly)
 {
-  PhocServer *server = phoc_server_get_default ();
+  PhocDesktop *desktop = phoc_server_get_desktop (phoc_server_get_default ());
+  PhocCursorPrivate *priv = phoc_cursor_get_instance_private (self);
   PhocSeat *seat = self->seat;
-  PhocDesktop *desktop = server->desktop;
-
   bool is_touch = device->type == WLR_INPUT_DEVICE_TOUCH;
-
   double sx, sy;
   PhocView *view;
-  struct wlr_surface *surface = phoc_desktop_surface_at (desktop,
-                                                         lx, ly, &sx, &sy, &view);
+  struct wlr_surface *surface;
 
-  if (state == WLR_BUTTON_PRESSED && view &&
-      phoc_seat_has_meta_pressed (seat)) {
-    phoc_seat_set_focus (seat, view);
+  surface = phoc_desktop_wlr_surface_at (desktop, lx, ly, &sx, &sy, &view);
+  if (state == WLR_BUTTON_PRESSED && view && phoc_seat_grab_meta_press (seat)) {
+    phoc_seat_set_focus_view (seat, view);
 
-    uint32_t edges;
     switch (button) {
     case BTN_LEFT:
       phoc_seat_begin_move (seat, view);
       break;
-    case BTN_RIGHT:
-      edges = 0;
-      if (sx < view->wlr_surface->current.width/2) {
+    case BTN_RIGHT: {
+      uint32_t edges = 0;
+
+      if (sx < view->wlr_surface->current.width/2)
         edges |= WLR_EDGE_LEFT;
-      } else {
+      else
         edges |= WLR_EDGE_RIGHT;
-      }
-      if (sy < view->wlr_surface->current.height/2) {
+
+      if (sy < view->wlr_surface->current.height/2)
         edges |= WLR_EDGE_TOP;
-      } else {
+      else
         edges |= WLR_EDGE_BOTTOM;
-      }
+
       phoc_seat_begin_resize (seat, view, edges);
       break;
+    }
     default:
       /* don't care */
       break;
     }
   } else {
-    if (view && !surface && self->pointer_view) {
-      seat_view_deco_button (self->pointer_view,
-                             sx, sy, button, state);
-    }
+    if (view && !surface && self->pointer_view)
+      seat_view_deco_button (self->pointer_view, sx, sy, button, state);
 
-    if (state == WLR_BUTTON_RELEASED &&
-        self->mode != PHOC_CURSOR_PASSTHROUGH) {
+    if (state == WLR_BUTTON_RELEASED && self->mode != PHOC_CURSOR_PASSTHROUGH) {
+      if (priv->view_state.view)
+        phoc_cursor_submit_pending_view_state_change (self);
       self->mode = PHOC_CURSOR_PASSTHROUGH;
       phoc_cursor_update_focus (self);
     }
 
     if (state == WLR_BUTTON_PRESSED) {
-      if (view) {
-        phoc_seat_set_focus (seat, view);
-      }
-      if (surface && wlr_surface_is_layer_surface (surface)) {
-        struct wlr_layer_surface_v1 *layer =
-          wlr_layer_surface_v1_from_wlr_surface (surface);
-        if (layer->current.keyboard_interactive) {
+      if (view)
+        phoc_seat_set_focus_view (seat, view);
+
+      if (surface) {
+        struct wlr_layer_surface_v1 *layer = wlr_layer_surface_v1_try_from_wlr_surface (surface);
+        if (layer && layer->current.keyboard_interactive)
           phoc_seat_set_focus_layer (seat, layer);
-        }
       }
     }
   }
 
-  if (!phoc_handle_shell_reveal (surface, lx, ly, PHOC_SHELL_REVEAL_POINTER_THRESHOLD) && !is_touch) {
+  if (!phoc_handle_shell_reveal (surface, lx, ly, PHOC_SHELL_REVEAL_POINTER_THRESHOLD) && !is_touch)
     send_pointer_button (seat, surface, time, button, state);
-  }
 }
 
 
 static void
-handle_pointer_motion (struct wl_listener *listener, void *data)
+phoc_cursor_pointer_motion (PhocCursor              *self,
+                            struct wlr_input_device *device,
+                            double                   dx,
+                            double                   dy,
+                            double                   dx_unaccel,
+                            double                   dy_unaccel,
+                            guint32                  time_msec)
+{
+  PhocDesktop *desktop = phoc_server_get_desktop (phoc_server_get_default ());
+
+  phoc_desktop_notify_activity (desktop, self->seat);
+
+  wlr_relative_pointer_manager_v1_send_relative_motion (desktop->relative_pointer_manager,
+                                                        self->seat->seat,
+                                                        (uint64_t)time_msec * 1000,
+                                                        dx, dy,
+                                                        dx_unaccel, dy_unaccel);
+
+  if (self->active_constraint && device->type == WLR_INPUT_DEVICE_POINTER) {
+    struct wlr_surface *wlr_surface;
+    double sx, sy, sx_out, sy_out;
+
+    wlr_surface = phoc_desktop_wlr_surface_at (desktop,
+                                               self->cursor->x, self->cursor->y,
+                                               &sx, &sy,
+                                               NULL);
+
+    if (self->active_constraint->surface != wlr_surface)
+      return;
+
+    if (!wlr_region_confine (&self->confine, sx, sy, sx + dx, sy + dy, &sx_out, &sy_out))
+      return;
+
+    dx = sx_out - sx;
+    dy = sy_out - sy;
+  }
+
+  wlr_cursor_move (self->cursor, device, dx, dy);
+  phoc_cursor_update_position (self, time_msec);
+}
+
+
+static void
+handle_pointer_motion_relative (struct wl_listener *listener, void *data)
 {
   PhocCursor *self = wl_container_of (listener, self, motion);
   struct wlr_pointer_motion_event *event = data;
-  PhocServer *server = phoc_server_get_default ();
-  PhocDesktop *desktop = server->desktop;
   double dx = event->delta_x;
   double dy = event->delta_y;
 
-  double dx_unaccel = event->unaccel_dx;
-  double dy_unaccel = event->unaccel_dy;
-
-  wlr_idle_notify_activity (desktop->idle, self->seat->seat);
-
-  wlr_relative_pointer_manager_v1_send_relative_motion (
-    server->desktop->relative_pointer_manager,
-    self->seat->seat, (uint64_t)event->time_msec * 1000, dx, dy,
-    dx_unaccel, dy_unaccel);
-
-  if (self->active_constraint) {
-    PhocView *view = self->pointer_view->view;
-    assert (view);
-
-    double lx1 = self->cursor->x;
-    double ly1 = self->cursor->y;
-
-    double lx2 = lx1 + dx;
-    double ly2 = ly1 + dy;
-
-    double sx1 = lx1 - view->box.x;
-    double sy1 = ly1 - view->box.y;
-
-    double sx2 = lx2 - view->box.x;
-    double sy2 = ly2 - view->box.y;
-
-    double sx2_confined, sy2_confined;
-    if (!wlr_region_confine (&self->confine, sx1, sy1, sx2, sy2,
-                             &sx2_confined, &sy2_confined)) {
-      return;
-    }
-
-    dx = sx2_confined - sx1;
-    dy = sy2_confined - sy1;
-  }
-
-  wlr_cursor_move (self->cursor, &event->pointer->base, dx, dy);
-  phoc_cursor_update_position (self, event->time_msec);
+  phoc_cursor_pointer_motion (self,
+                              &event->pointer->base,
+                              dx,
+                              dy,
+                              event->unaccel_dx,
+                              event->unaccel_dy,
+                              event->time_msec);
 }
+
 
 static void
 handle_pointer_motion_absolute (struct wl_listener *listener, void *data)
 {
   PhocCursor *self = wl_container_of (listener, self, motion_absolute);
   struct wlr_pointer_motion_absolute_event *event = data;
-  PhocServer *server = phoc_server_get_default ();
-  PhocDesktop *desktop = server->desktop;
-  double lx, ly;
+  double dx, dy, lx, ly;
 
-  wlr_idle_notify_activity (desktop->idle, self->seat->seat);
-  wlr_cursor_absolute_to_layout_coords (self->cursor, &event->pointer->base, event->x,
-                                        event->y, &lx, &ly);
-
-  double dx = lx - self->cursor->x;
-  double dy = ly - self->cursor->y;
+  wlr_cursor_absolute_to_layout_coords (self->cursor,
+                                        &event->pointer->base,
+                                        event->x, event->y,
+                                        &lx, &ly);
 
   handle_gestures_for_event_at (self, lx, ly, PHOC_EVENT_MOTION_NOTIFY, event, sizeof (*event));
 
-  wlr_relative_pointer_manager_v1_send_relative_motion (
-    server->desktop->relative_pointer_manager,
-    self->seat->seat, (uint64_t)event->time_msec * 1000, dx, dy, dx, dy);
+  dx = lx - self->cursor->x;
+  dy = ly - self->cursor->y;
 
-  if (self->pointer_view) {
-    PhocView *view = self->pointer_view->view;
-
-    if (self->active_constraint &&
-        !pixman_region32_contains_point (&self->confine,
-                                         floor (lx - view->box.x), floor (ly - view->box.y), NULL)) {
-      return;
-    }
-  }
-
-  wlr_cursor_warp_closest (self->cursor, &event->pointer->base, lx, ly);
-  phoc_cursor_update_position (self, event->time_msec);
+  phoc_cursor_pointer_motion (self, &event->pointer->base, dx, dy, dx, dy, event->time_msec);
 }
+
 
 static void
 handle_pointer_button (struct wl_listener *listener, void *data)
 {
+  PhocDesktop *desktop = phoc_server_get_desktop (phoc_server_get_default ());
   PhocCursor *self = wl_container_of (listener, self, button);
   struct wlr_pointer_button_event *event = data;
-  PhocServer *server = phoc_server_get_default ();
-  PhocDesktop *desktop = server->desktop;
   PhocEventType type;
   bool is_touch = event->pointer->base.type == WLR_INPUT_DEVICE_TOUCH;
 
-  wlr_idle_notify_activity (desktop->idle, self->seat->seat);
+  phoc_desktop_notify_activity (desktop, self->seat);
   g_debug ("%s %d is_touch: %d", __func__, __LINE__, is_touch);
   if (!is_touch) {
     type = event->state ? PHOC_EVENT_BUTTON_PRESS : PHOC_EVENT_BUTTON_RELEASE;
@@ -1119,12 +1335,11 @@ phoc_cursor_handle_event (PhocCursor   *self,
 static void
 handle_pointer_axis (struct wl_listener *listener, void *data)
 {
+  PhocDesktop *desktop = phoc_server_get_desktop (phoc_server_get_default ());
   PhocCursor *self = wl_container_of (listener, self, axis);
   struct wlr_pointer_axis_event *event = data;
-  PhocServer *server = phoc_server_get_default ();
-  PhocDesktop *desktop = server->desktop;
 
-  wlr_idle_notify_activity (desktop->idle, self->seat->seat);
+  phoc_desktop_notify_activity (desktop, self->seat);
   send_pointer_axis (self->seat, self->seat->seat->pointer_state.focused_surface, event->time_msec,
                      event->orientation, event->delta, event->delta_discrete, event->source);
 }
@@ -1132,11 +1347,10 @@ handle_pointer_axis (struct wl_listener *listener, void *data)
 static void
 handle_pointer_frame (struct wl_listener *listener, void *data)
 {
+  PhocDesktop *desktop = phoc_server_get_desktop (phoc_server_get_default ());
   PhocCursor *self = wl_container_of (listener, self, frame);
-  PhocServer *server = phoc_server_get_default ();
-  PhocDesktop *desktop = server->desktop;
 
-  wlr_idle_notify_activity (desktop->idle, self->seat->seat);
+  phoc_desktop_notify_activity (desktop, self->seat);
   wlr_seat_pointer_notify_frame (self->seat->seat);
 
   // make sure to always send frame events when necessary even when bypassing seat grabs
@@ -1150,7 +1364,7 @@ phoc_cursor_handle_touch_down (PhocCursor                  *self,
                                struct wlr_touch_down_event *event)
 {
   PhocServer *server = phoc_server_get_default ();
-  PhocDesktop *desktop = server->desktop;
+  PhocDesktop *desktop = phoc_server_get_desktop (server);
   PhocSeat *seat = self->seat;
   PhocTouchPoint *touch_point;
   double lx, ly;
@@ -1168,7 +1382,7 @@ phoc_cursor_handle_touch_down (PhocCursor                  *self,
 
   double sx, sy;
   PhocView *view;
-  struct wlr_surface *surface = phoc_desktop_surface_at (desktop, lx, ly, &sx, &sy, &view);
+  struct wlr_surface *surface = phoc_desktop_wlr_surface_at (desktop, lx, ly, &sx, &sy, &view);
   bool shell_revealed = phoc_handle_shell_reveal (surface, lx, ly, PHOC_SHELL_REVEAL_TOUCH_THRESHOLD);
 
   if (!shell_revealed && surface && phoc_seat_allow_input (seat, surface->resource)) {
@@ -1177,19 +1391,18 @@ phoc_cursor_handle_touch_down (PhocCursor                  *self,
     send_touch_down (seat, surface, event, sx, sy);
 
     if (view)
-      phoc_seat_set_focus (seat, view);
+      phoc_seat_set_focus_view (seat, view);
 
-    if (wlr_surface_is_layer_surface (root)) {
-      struct wlr_layer_surface_v1 *wlr_layer = wlr_layer_surface_v1_from_wlr_surface (root);
-
+    struct wlr_layer_surface_v1 *wlr_layer = wlr_layer_surface_v1_try_from_wlr_surface (root);
+    if (wlr_layer) {
       /* TODO: Use press gesture */
       if (wlr_layer->current.keyboard_interactive) {
-          phoc_seat_set_focus_layer (seat, wlr_layer);
+        phoc_seat_set_focus_layer (seat, wlr_layer);
       }
     }
   }
 
-  if (server->debug_flags & PHOC_SERVER_DEBUG_FLAG_TOUCH_POINTS) {
+  if (G_UNLIKELY (phoc_server_check_debug_flags (server, PHOC_SERVER_DEBUG_FLAG_TOUCH_POINTS))) {
     PhocOutput *output;
     wl_list_for_each (output, &desktop->outputs, link) {
       if (wlr_output_layout_contains_point (desktop->layout, output->wlr_output, lx, ly)) {
@@ -1201,7 +1414,7 @@ phoc_cursor_handle_touch_down (PhocCursor                  *self,
           .width = 1,
           .height = 1
         };
-        wlr_output_damage_add_box (output->damage, &box);
+        wlr_damage_ring_add_box (&output->damage_ring, &box);
       }
     }
   }
@@ -1215,6 +1428,10 @@ phoc_cursor_handle_touch_up (PhocCursor                *self,
   struct wlr_touch_point *point =
     wlr_seat_touch_get_point (self->seat->seat, event->touch_id);
   PhocTouchPoint *touch_point;
+  PhocCursorPrivate *priv;
+
+  g_assert (PHOC_IS_CURSOR (self));
+  priv = phoc_cursor_get_instance_private (self);
 
   touch_point = phoc_cursor_get_touch_point (self, event->touch_id);
 
@@ -1234,6 +1451,9 @@ phoc_cursor_handle_touch_up (PhocCursor                *self,
     return;
 
   if (self->mode != PHOC_CURSOR_PASSTHROUGH) {
+    if (priv->view_state.view)
+      phoc_cursor_submit_pending_view_state_change (self);
+
     self->mode = PHOC_CURSOR_PASSTHROUGH;
     phoc_cursor_update_focus (self);
   }
@@ -1246,8 +1466,7 @@ void
 phoc_cursor_handle_touch_motion (PhocCursor                    *self,
                                  struct wlr_touch_motion_event *event)
 {
-  PhocServer *server = phoc_server_get_default ();
-  PhocDesktop *desktop = server->desktop;
+  PhocDesktop *desktop = phoc_server_get_desktop (phoc_server_get_default ());
   struct wlr_touch_point *point;
   PhocTouchPoint *touch_point;
   double lx, ly;
@@ -1263,31 +1482,27 @@ phoc_cursor_handle_touch_motion (PhocCursor                    *self,
   if (!point)
     return;
 
-  struct wlr_output *wlr_output =
-    wlr_output_layout_output_at (desktop->layout, lx, ly);
-
-  if (!wlr_output)
+  PhocOutput *output = phoc_desktop_layout_get_output (desktop, lx, ly);
+  if (!output)
     return;
-
-  PhocOutput *phoc_output = wlr_output->data;
 
   double sx, sy;
   struct wlr_surface *surface = point->surface;
 
   // TODO: test with input regions
-
   if (surface) {
     bool found = false;
     float scale = 1.0;
 
     struct wlr_surface *root = wlr_surface_get_root_surface (surface);
-    if (wlr_surface_is_layer_surface (root)) {
-      struct wlr_layer_surface_v1 *wlr_layer_surface = wlr_layer_surface_v1_from_wlr_surface (root);
+    struct wlr_layer_surface_v1 *wlr_layer_surface = wlr_layer_surface_v1_try_from_wlr_surface (root);
+    if (wlr_layer_surface) {
+
       struct wlr_box output_box;
-      wlr_output_layout_get_box (desktop->layout, wlr_output, &output_box);
+      wlr_output_layout_get_box (desktop->layout, output->wlr_output, &output_box);
 
       PhocLayerSurface *layer_surface;
-      wl_list_for_each_reverse (layer_surface, &phoc_output->layer_surfaces, link)
+      wl_list_for_each_reverse (layer_surface, &output->layer_surfaces, link)
       {
         if (layer_surface->layer != wlr_layer_surface->current.layer)
           continue;
@@ -1300,7 +1515,7 @@ phoc_cursor_handle_touch_motion (PhocCursor                    *self,
         }
       }
       // try the overlay layer as well since the on-screen keyboard might have been elevated there
-      wl_list_for_each_reverse (layer_surface, &phoc_output->layer_surfaces, link)
+      wl_list_for_each_reverse (layer_surface, &output->layer_surfaces, link)
       {
         if (layer_surface->layer != ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY)
           continue;
@@ -1321,14 +1536,17 @@ phoc_cursor_handle_touch_motion (PhocCursor                    *self,
         found = true;
       } else {
         // FIXME: buggy fallback, but at least handles xdg_popups for now...
-        surface = phoc_desktop_surface_at (desktop, lx, ly, &sx, &sy, NULL);
+        surface = phoc_desktop_wlr_surface_at (desktop, lx, ly, &sx, &sy, NULL);
       }
     }
 
     if (found) {
       struct wlr_surface *sub = surface;
-      while (sub && wlr_surface_is_subsurface (sub)) {
-        struct wlr_subsurface *subsurface = wlr_subsurface_from_wlr_surface (sub);
+      while (sub) {
+        struct wlr_subsurface *subsurface = wlr_subsurface_try_from_wlr_surface (sub);
+        if (subsurface == NULL)
+          break;
+
         sx -= subsurface->current.x;
         sy -= subsurface->current.y;
         sub = subsurface->parent;
@@ -1347,6 +1565,9 @@ phoc_cursor_handle_touch_motion (PhocCursor                    *self,
       wlr_cursor_warp (self->cursor, NULL, lx, ly);
       phoc_cursor_update_position (self, event->time_msec);
     }
+
+    if (self->seat->drag_icon != NULL)
+      phoc_drag_icon_update_position (self->seat->drag_icon);
   }
 }
 
@@ -1413,23 +1634,19 @@ void
 phoc_cursor_handle_request_set_cursor (PhocCursor                                       *self,
                                        struct wlr_seat_pointer_request_set_cursor_event *event)
 {
-  struct wlr_surface *focused_surface =
-    event->seat_client->seat->pointer_state.focused_surface;
-  bool has_focused =
-    focused_surface != NULL && focused_surface->resource != NULL;
+  struct wlr_surface *focused_surface = event->seat_client->seat->pointer_state.focused_surface;
+  bool has_focused = focused_surface != NULL && focused_surface->resource != NULL;
   struct wl_client *focused_client = NULL;
 
-  if (has_focused) {
+  if (has_focused)
     focused_client = wl_resource_get_client (focused_surface->resource);
-  }
-  if (event->seat_client->client != focused_client ||
-      self->mode != PHOC_CURSOR_PASSTHROUGH) {
+
+  if (event->seat_client->client != focused_client || self->mode != PHOC_CURSOR_PASSTHROUGH) {
     g_debug ("Denying request to set cursor from unfocused client");
     return;
   }
 
-  wlr_cursor_set_surface (self->cursor, event->surface, event->hotspot_x,
-                          event->hotspot_y);
+  wlr_cursor_set_surface (self->cursor, event->surface, event->hotspot_x, event->hotspot_y);
   self->cursor_client = event->seat_client->client;
 }
 
@@ -1437,7 +1654,7 @@ void
 phoc_cursor_handle_focus_change (PhocCursor                                 *self,
                                  struct wlr_seat_pointer_focus_change_event *event)
 {
-  PhocServer *server = phoc_server_get_default ();
+  PhocDesktop *desktop = phoc_server_get_desktop (phoc_server_get_default ());
   double sx = event->sx;
   double sy = event->sy;
 
@@ -1449,22 +1666,21 @@ phoc_cursor_handle_focus_change (PhocCursor                                 *sel
 
   phoc_cursor_constrain (self,
                          wlr_pointer_constraints_v1_constraint_for_surface (
-                           server->desktop->pointer_constraints,
+                           desktop->pointer_constraints,
                            event->new_surface, self->seat->seat),
                          sx, sy);
 }
 
-void
+static void
 phoc_cursor_handle_constraint_commit (PhocCursor *self)
 {
-  PhocServer *server = phoc_server_get_default ();
-  PhocDesktop *desktop = server->desktop;
+  PhocDesktop *desktop = phoc_server_get_desktop (phoc_server_get_default ());
 
   double sx, sy;
-  struct wlr_surface *surface = phoc_desktop_surface_at (desktop,
-                                                         self->cursor->x,
-                                                         self->cursor->y,
-                                                         &sx, &sy, NULL);
+  struct wlr_surface *surface = phoc_desktop_wlr_surface_at (desktop,
+                                                             self->cursor->x,
+                                                             self->cursor->y,
+                                                             &sx, &sy, NULL);
 
   // This should never happen but views move around right when they're
   // created from (0, 0) to their actual coordinates.
@@ -1480,7 +1696,7 @@ handle_constraint_commit (struct wl_listener *listener,
 {
   PhocCursor *self = wl_container_of (listener, self, constraint_commit);
 
-  assert (self->active_constraint->surface == data);
+  g_assert (self->active_constraint->surface == data);
   phoc_cursor_handle_constraint_commit (self);
 }
 
@@ -1492,28 +1708,21 @@ phoc_cursor_constrain (PhocCursor *self,
   if (self->active_constraint == constraint)
     return;
 
-  g_debug ("phoc_cursor_constrain(%p, %p)",
-           self, constraint);
-  g_debug ("self->active_constraint: %p",
-           self->active_constraint);
+  g_debug ("cursor constrain: %p, new: %p, old: %p", self, constraint, self->active_constraint);
 
   wl_list_remove (&self->constraint_commit.link);
   wl_list_init (&self->constraint_commit.link);
-  if (self->active_constraint) {
-    wlr_pointer_constraint_v1_send_deactivated (
-      self->active_constraint);
-  }
+
+  if (self->active_constraint)
+    wlr_pointer_constraint_v1_send_deactivated (self->active_constraint);
 
   self->active_constraint = constraint;
-
   if (constraint == NULL)
     return;
 
   wlr_pointer_constraint_v1_send_activated (constraint);
 
-  wl_list_remove (&self->constraint_commit.link);
-  wl_signal_add (&constraint->surface->events.commit,
-                 &self->constraint_commit);
+  wl_signal_add (&constraint->surface->events.commit, &self->constraint_commit);
   self->constraint_commit.notify = handle_constraint_commit;
 
   pixman_region32_clear (&self->confine);
@@ -1521,32 +1730,33 @@ phoc_cursor_constrain (PhocCursor *self,
   pixman_region32_t *region = &constraint->region;
 
   if (!pixman_region32_contains_point (region, floor (sx), floor (sy), NULL)) {
-    // Warp into region if possible
+    /* Warp into region if possible */
     int nboxes;
     pixman_box32_t *boxes = pixman_region32_rectangles (region, &nboxes);
+
     if (nboxes > 0) {
       PhocView *view = self->pointer_view->view;
 
-      double lx = view->box.x + (boxes[0].x1 + boxes[0].x2) / 2.;
-      double ly = view->box.y + (boxes[0].y1 + boxes[0].y2) / 2.;
+      double lx = view->box.x + (boxes[0].x1 + boxes[0].x2) / 2.0;
+      double ly = view->box.y + (boxes[0].y1 + boxes[0].y2) / 2.0;
 
       wlr_cursor_warp_closest (self->cursor, NULL, lx, ly);
     }
   }
 
-  // A locked pointer will result in an empty region, thus disallowing all movement
-  if (constraint->type == WLR_POINTER_CONSTRAINT_V1_CONFINED) {
+  /* A locked pointer will result in an empty region, thus disallowing
+   * all movement */
+  if (constraint->type == WLR_POINTER_CONSTRAINT_V1_CONFINED)
     pixman_region32_copy (&self->confine, region);
-  }
 }
 
 
 PhocCursor *
 phoc_cursor_new (PhocSeat *seat)
 {
-  return PHOC_CURSOR (g_object_new (PHOC_TYPE_CURSOR,
-                                    "seat", seat,
-                                    NULL));
+  return g_object_new (PHOC_TYPE_CURSOR,
+                       "seat", seat,
+                       NULL);
 }
 
 

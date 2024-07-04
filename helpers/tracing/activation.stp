@@ -1,0 +1,32 @@
+# Print render loop execution time
+#
+# Usage:
+#
+# stap -v helpers/tracing/activation.stp /usr/bin/phoc /usr/libexec/phosh
+#
+
+probe begin
+{
+  printf("Tracking activation tokens, press ctrl-C to stop...\n")
+}
+
+probe process(@1).function("phoc_xdg_activation_v1_handle_request_activate")
+{
+  token = @cast($data, "struct wlr_xdg_activation_v1_request_activate_event")->token->token;
+  printf("Phoc: Activation request with token: %s\n", user_string(token));
+}
+
+probe process(@2).function("on_app_launch_failed")
+{
+  printf("Phosh: app launched finished %s\n", user_string($startup_id));
+}
+
+probe process(@2).function("update_app_state")
+{
+  printf("Phosh: update app state: %s: %d\n", user_string($startup_id), $flags);
+}
+
+probe process(@2).function("on_app_launched")
+{
+  printf("Phosh: app launched finished\n");
+}

@@ -1,5 +1,5 @@
-From 663278d168152f990cf76a3df9d31ca4c6511604 Mon Sep 17 00:00:00 2001
-Message-Id: <663278d168152f990cf76a3df9d31ca4c6511604.1690371072.git.agx@sigxcpu.org>
+From 4ec4c290b04c5c87ffb7b64e590477e3a58f8547 Mon Sep 17 00:00:00 2001
+Message-ID: <4ec4c290b04c5c87ffb7b64e590477e3a58f8547.1700567169.git.agx@sigxcpu.org>
 From: =?UTF-8?q?Guido=20G=C3=BCnther?= <agx@sigxcpu.org>
 Date: Fri, 1 Jan 2021 13:58:55 +0100
 Subject: [PATCH] Revert "layer-shell: error on 0 dimension without anchors"
@@ -8,40 +8,29 @@ This reverts commit 8dec751a6d84335fb04288b8efab6dd5c90288d3.
 
 Revert this until phosh has a fixed release.
 ---
- types/wlr_layer_shell_v1.c | 20 --------------------
- 1 file changed, 20 deletions(-)
+ types/wlr_layer_shell_v1.c | 2 ++
+ 1 file changed, 2 insertions(+)
 
 diff --git a/types/wlr_layer_shell_v1.c b/types/wlr_layer_shell_v1.c
-index fa054d3c..062fa96d 100644
+index 37256db6..2c722a79 100644
 --- a/types/wlr_layer_shell_v1.c
 +++ b/types/wlr_layer_shell_v1.c
-@@ -316,26 +316,6 @@ static void layer_surface_role_commit(struct wlr_surface *wlr_surface) {
- 	struct wlr_layer_surface_v1 *surface =
- 		wlr_layer_surface_v1_from_wlr_surface(wlr_surface);
+@@ -335,6 +335,7 @@ static void layer_surface_role_commit(struct wlr_surface *wlr_surface) {
+ 		return;
+ 	}
  
--	const uint32_t horiz = ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT |
--		ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT;
--	if (surface->pending.desired_width == 0 &&
--		(surface->pending.anchor & horiz) != horiz) {
--		wl_resource_post_error(surface->resource,
--			ZWLR_LAYER_SURFACE_V1_ERROR_INVALID_SIZE,
--			"width 0 requested without setting left and right anchors");
--		return;
--	}
--
--	const uint32_t vert = ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP |
--		ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM;
--	if (surface->pending.desired_height == 0 &&
--		(surface->pending.anchor & vert) != vert) {
--		wl_resource_post_error(surface->resource,
--			ZWLR_LAYER_SURFACE_V1_ERROR_INVALID_SIZE,
--			"height 0 requested without setting top and bottom anchors");
--		return;
--	}
--
- 	surface->current = surface->pending;
- 	surface->pending.committed = 0;
++#if 0
+ 	const uint32_t horiz = ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT |
+ 		ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT;
+ 	if (surface->pending.desired_width == 0 &&
+@@ -354,6 +355,7 @@ static void layer_surface_role_commit(struct wlr_surface *wlr_surface) {
+ 			"height 0 requested without setting top and bottom anchors");
+ 		return;
+ 	}
++#endif
  
+ 	if (surface->surface->unmap_commit) {
+ 		layer_surface_reset(surface);
 -- 
-2.40.1
+2.42.0
 

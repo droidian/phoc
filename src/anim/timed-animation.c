@@ -37,6 +37,8 @@ static guint signals[N_SIGNALS];
 /**
  * PhocTimedAnimation:
  *
+ * An animation that ends after the given period of time.
+ *
  * [type@TimedAnimation] implements a timed animation using the given
  * [type@PropertyEaser] to animate properties of the [type@Animatable].
  */
@@ -369,7 +371,7 @@ phoc_timed_animation_init (PhocTimedAnimation *self)
 PhocTimedAnimation *
 phoc_timed_animation_new (void)
 {
-  return PHOC_TIMED_ANIMATION (g_object_new (PHOC_TYPE_TIMED_ANIMATION, NULL));
+  return g_object_new (PHOC_TYPE_TIMED_ANIMATION, NULL);
 }
 
 
@@ -485,9 +487,9 @@ phoc_timed_animation_skip (PhocTimedAnimation *self)
 
   g_signal_emit (self, signals[DONE], 0);
   if (self->dispose_on_done) {
-    g_object_unref (self);
     /* Only do this once */
     self->dispose_on_done = FALSE;
+    g_object_unref (self);
   }
 }
 
@@ -516,7 +518,7 @@ phoc_timed_animation_get_state (PhocTimedAnimation *self)
  *
  * Whether the animation tracks it's own reference.
  *
- * Returns: Whether [prop@TimedAnimation:dispose-on-done] is set.
+ * Returns: Whether [property@TimedAnimation:dispose-on-done] is set.
  */
 gboolean
 phoc_timed_animation_get_dispose_on_done (PhocTimedAnimation *self)

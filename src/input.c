@@ -47,11 +47,13 @@ phoc_input_get_device_type (enum wlr_input_device_type type)
   }
 }
 
-
 /**
  * phoc_input_get_seat:
  * @self: The input to look up the seat on
  * @name: The seats name
+ *
+ * Looks up a seat by name and if it doesn't exist creates
+ * a new one.
  *
  * Returns: (transfer none): The seat of the given name.
  */
@@ -77,15 +79,16 @@ phoc_input_get_seat (PhocInput *self, char *name)
   return seat;
 }
 
+
 static void
 handle_new_input (struct wl_listener *listener, void *data)
 {
   struct wlr_input_device *device = data;
-  PhocInput *input = wl_container_of (listener, input, new_input);
-
+  PhocInput *self = wl_container_of (listener, self, new_input);
   char *seat_name = PHOC_CONFIG_DEFAULT_SEAT_NAME;
-  PhocSeat *seat = phoc_input_get_seat (input, seat_name);
+  PhocSeat *seat;
 
+  seat = phoc_input_get_seat (self, seat_name);
   if (!seat) {
     g_warning ("could not create PhocSeat");
     return;
@@ -104,14 +107,19 @@ phoc_input_constructed (GObject *object)
 {
   PhocInput *self = PHOC_INPUT (object);
   PhocServer *server = phoc_server_get_default ();
+  PhocDesktop *desktop = phoc_server_get_desktop (server);
+  struct wlr_backend *wlr_backend = phoc_server_get_backend (server);
 
   g_debug ("Initializing phoc input");
-  assert (server->desktop);
+  g_assert (desktop);
 
-  self->new_input.notify = handle_new_input;
-  wl_signal_add (&server->backend->events.new_input, &self->new_input);
   G_OBJECT_CLASS (phoc_input_parent_class)->constructed (object);
 
+  self->new_input.notify = handle_new_input;
+  wl_signal_add (&wlr_backend->events.new_input, &self->new_input);
+
+  /* Add the default seat */
+  phoc_input_get_seat (self, PHOC_CONFIG_DEFAULT_SEAT_NAME);
 }
 
 static void
@@ -145,31 +153,6 @@ phoc_input_new (void)
   return g_object_new (PHOC_TYPE_INPUT, NULL);
 }
 
-
-/**
- * phoc_input_seat_from_wlr_seat:
- * @self: The input
- * @wlr_seat: The wlr_seat
- *
- * Returns: (nullable)(transfer none): The [class@Seat] associated with the given wlr_seat
- */
-PhocSeat *
-phoc_input_seat_from_wlr_seat (PhocInput       *self,
-                               struct wlr_seat *wlr_seat)
-{
-  g_assert (PHOC_IS_INPUT (self));
-
-  for (GSList *elem = phoc_input_get_seats (self); elem; elem = elem->next) {
-    PhocSeat *seat = PHOC_SEAT (elem->data);
-
-    g_assert (PHOC_IS_SEAT (seat));
-    if (seat->seat == wlr_seat) {
-      return seat;
-    }
-  }
-  return NULL;
-}
-
 bool
 phoc_input_view_has_focus (PhocInput *self, PhocView *view)
 {
@@ -182,7 +165,7 @@ phoc_input_view_has_focus (PhocInput *self, PhocView *view)
     PhocSeat *seat = PHOC_SEAT (elem->data);
 
     g_assert (PHOC_IS_SEAT (seat));
-    if (view == phoc_seat_get_focus (seat)) {
+    if (view == phoc_seat_get_focus_view (seat)) {
       return true;
     }
   }

@@ -5,6 +5,12 @@ compiled = gnome.compile_schemas(
   build_by_default: true
 )
 
+compile_schemas = find_program('glib-compile-schemas', required: false)
+if compile_schemas.found()
+  test('Validate schema file', compile_schemas,
+       args: ['--strict', '--dry-run', meson.current_source_dir()])
+endif
+
 install_data(
   schemas,
   install_dir: 'share/glib-2.0/schemas'
@@ -12,8 +18,8 @@ install_data(
 
 desktopconf = configuration_data()
 desktopconf.set('bindir', bindir)
-desktop_file = 'sm.puri.Phoc.desktop'
-i18n.merge_file(
+desktop_file = 'mobi.phosh.Phoc.desktop'
+merged = i18n.merge_file(
   input: configure_file(
     input: desktop_file + '.in.in',
     output: desktop_file + '.in',
@@ -25,6 +31,13 @@ i18n.merge_file(
   install_dir: desktopdir,
   type: 'desktop'
 )
+
+desktop_utils = find_program('desktop-file-validate', required: false)
+if desktop_utils.found()
+  test('Validate desktop file',
+       desktop_utils, args: [merged],
+      )
+endif
 
 devconf = configuration_data()
 devconf.set('compositor', meson.project_build_root() / 'src' / 'phoc')

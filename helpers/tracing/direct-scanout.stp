@@ -1,0 +1,36 @@
+# Print render loop execution time
+#
+# Usage:
+#
+# stap -v helpers/tracing/direct-scanout.stp _build/src/phoc
+#
+
+global scanning_out
+global was_scanning_out
+
+probe begin
+{
+  printf("Checking for direct scanout, press ctrl-C to stop...\n")
+}
+
+probe process(@1).function("scan_out_fullscreen_view").return
+{
+  output = @entry($self);
+  scanning_out[output]=$return;
+}
+
+probe process(@1).function("phoc_output_draw").return
+{
+  name = user_string(@entry($self->wlr_output->name));
+  output = @entry($self)
+
+  if (scanning_out[output] != was_scanning_out[output]) {
+    printf("Direct scanout of %10s changed: %d -> %d\n",
+	   name,
+	   was_scanning_out[output],
+	   scanning_out[output]);
+   }
+
+  was_scanning_out[output] = scanning_out[output];
+  scanning_out[output] = 0;
+}

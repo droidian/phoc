@@ -116,7 +116,6 @@ void        phoc_cursor_handle_request_set_cursor (PhocCursor                   
                                                    struct wlr_seat_pointer_request_set_cursor_event *event);
 void        phoc_cursor_handle_focus_change (PhocCursor                                  *self,
                                              struct wlr_seat_pointer_focus_change_event  *event);
-void        phoc_cursor_handle_constraint_commit (PhocCursor                             *self);
 void        phoc_cursor_update_position (PhocCursor                                      *self,
                                          uint32_t                                         time);
 void        phoc_cursor_update_focus (PhocCursor                                         *self);

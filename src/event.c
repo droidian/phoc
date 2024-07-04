@@ -94,10 +94,10 @@ phoc_event_copy (const PhocEvent *event)
   *new_event = *event;
 
   switch (event->type) {
-    /* Nothing todo here atm */
+  /* Nothing todo here atm */
   default:
-      break;
-    }
+    break;
+  }
 
   return new_event;
 }
@@ -113,7 +113,7 @@ phoc_event_free (PhocEvent *event)
 {
   if (G_LIKELY (event != NULL)) {
     switch (event->type) {
-      /* Nothing to do here atm */
+    /* Nothing to do here atm */
     default:
       break;
     }
@@ -141,7 +141,7 @@ phoc_event_get_event_sequence (const PhocEvent *event)
       event->type == PHOC_EVENT_TOUCH_UPDATE ||
       event->type == PHOC_EVENT_TOUCH_END ||
       event->type == PHOC_EVENT_TOUCH_CANCEL) {
-    /* All wlr_touch_*_event have the touch_id at the same position */
+    /* All wlr_touch_*_event have the touch_id at the same struct offset */
     return GUINT_TO_POINTER (event->touch_up.touch_id);
   }
 

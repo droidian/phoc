@@ -1,22 +1,18 @@
 /*
- * Copyright (C) 2023 Guido Günther <agx@sigxcpu.org>
+ * Copyright (C) 2023 The Phosh Developers
  *
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
 #pragma once
 
-#include <glib-object.h>
+#include "xdg-surface.h"
+#include "xdg-toplevel-decoration.h"
 
-#include <wlr/types/wlr_xdg_shell.h>
+#include <glib-object.h>
 
 G_BEGIN_DECLS
 
-typedef struct phoc_xdg_popup PhocXdgPopup;
-typedef struct phoc_xdg_toplevel_decoration PhocXdgToplevelDecoration;
-
-PhocXdgPopup      *phoc_xdg_popup_create           (PhocView             *view,
-                                                    struct wlr_xdg_popup *wlr_popup);
 void               phoc_xdg_surface_set_decoration (PhocXdgSurface            *self,
                                                     PhocXdgToplevelDecoration *decoration);
 PhocXdgToplevelDecoration *

@@ -113,7 +113,6 @@ typedef enum
 } PhocEventSequenceState;
 
 typedef struct _PhocEventSequence            PhocEventSequence;
-typedef struct _PhocAnyEvent                 PhocAnyEvent;
 typedef struct _PhocEvent                    PhocEvent;
 
 /**

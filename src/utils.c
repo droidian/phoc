@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2020,2021 Purism SPC
+ *                    2024 The Phosh Developers
  *
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
@@ -10,11 +11,15 @@
 
 #define G_LOG_DOMAIN "phoc-utils"
 
+#include "output.h"
+#include "utils.h"
+
+#include <wlr/types/wlr_fractional_scale_v1.h>
+
 #include <inttypes.h>
 #include <math.h>
 #include <wlr/util/box.h>
-#include <wlr/version.h>
-#include "utils.h"
+
 
 void
 phoc_utils_fix_transform (enum wl_output_transform *transform)
@@ -44,61 +49,17 @@ phoc_utils_fix_transform (enum wl_output_transform *transform)
   }
 }
 
-/**
- * phoc_utils_rotate_child_position:
- *
- * Rotate a child's position relative to a parent. The parent size is (pw, ph),
- * the child position is (*sx, *sy) and its size is (sw, sh).
- */
-void
-phoc_utils_rotate_child_position (double *sx, double *sy, double sw, double sh,
-                                  double pw, double ph, float rotation)
+/* Some manufacturers hardcode the aspect-ratio of the output in the physical
+ * size field. */
+static gboolean
+phys_size_is_aspect_ratio (guint phys_width, guint phys_height)
 {
-  if (rotation == 0.0) {
-    return;
-  }
-
-  // Coordinates relative to the center of the subsurface
-  double cx = *sx - pw/2 + sw/2,
-         cy = *sy - ph/2 + sh/2;
-  // Rotated coordinates
-  double rx = cos (rotation)*cx - sin (rotation)*cy,
-         ry = cos (rotation)*cy + sin (rotation)*cx;
-
-  *sx = rx + pw/2 - sw/2;
-  *sy = ry + ph/2 - sh/2;
-}
-
-/**
- * phoc_utils_rotated_bounds:
- *
- * Stores the smallest box that can contain provided box after rotating it
- * by specified rotation into *dest.
- */
-void
-phoc_utils_rotated_bounds (struct wlr_box *dest, const struct wlr_box *box, float rotation)
-{
-  if (rotation == 0) {
-    *dest = *box;
-    return;
-  }
-
-  double ox = box->x + (double) box->width / 2;
-  double oy = box->y + (double) box->height / 2;
-
-  double c = fabs (cos (rotation));
-  double s = fabs (sin (rotation));
-
-  double x1 = ox + (box->x - ox) * c + (box->y - oy) * s;
-  double x2 = ox + (box->x + box->width - ox) * c + (box->y + box->height - oy) * s;
-
-  double y1 = oy + (box->x - ox) * s + (box->y - oy) * c;
-  double y2 = oy + (box->x + box->width - ox) * s + (box->y + box->height - oy) * c;
-
-  dest->x = floor (fmin (x1, x2));
-  dest->width = ceil (fmax (x1, x2) - fmin (x1, x2));
-  dest->y = floor (fmin (y1, y2));
-  dest->height = ceil (fmax (y1, y2) - fmin (y1, y2));
+  return (phys_width == 1600 && phys_height == 900) ||
+    (phys_width == 1600 && phys_height == 1000) ||
+    (phys_width == 160 && phys_height == 90) ||
+    (phys_width == 160 && phys_height == 100) ||
+    (phys_width == 16 && phys_height == 9) ||
+    (phys_width == 16 && phys_height == 10);
 }
 
 #define MIN_WIDTH       360.0
@@ -106,21 +67,28 @@ phoc_utils_rotated_bounds (struct wlr_box *dest, const struct wlr_box *box, floa
 #define MAX_DPI_TARGET  180.0
 #define INCH_IN_MM      25.4
 
+/**
+ * phoc_utils_compute_scale:
+ * @phys_width: The physical width
+ * @phys_height: The physical height
+ * @width: The width in pixels
+ * @height: The height in pixels
+ *
+ * Compute a suitable output scale based on the physical size and resolution.
+ *
+ * Returns: The output scale
+ */
 float
 phoc_utils_compute_scale (int32_t phys_width, int32_t phys_height,
                           int32_t width, int32_t height)
 {
-  float dpi, long_side, short_side, max_scale, scale;
+  float dpi, max_scale, scale;
 
-  if (width > height) {
-    long_side = width;
-    short_side = height;
-  } else {
-    long_side = height;
-    short_side = width;
-  }
-  // Ensure scaled resolution won't be inferior to minimum values
-  max_scale = fminf (long_side / MIN_HEIGHT, short_side / MIN_WIDTH);
+  if (phys_size_is_aspect_ratio (phys_width, phys_height))
+      return 1.0;
+
+  /* Ensure scaled resolution won't be inferior to minimum values */
+  max_scale = fminf (height / MIN_HEIGHT, width / MIN_WIDTH);
 
   /*
    * Round the maximum scale to a sensible value:
@@ -146,4 +114,96 @@ phoc_utils_compute_scale (int32_t phys_width, int32_t phys_height,
            dpi, width, height, scale);
 
   return scale;
+}
+
+
+static int
+scale_length (int length, int offset, float scale)
+{
+  return round ((offset + length) * scale) - round (offset * scale);
+}
+
+/**
+ * phoc_utils_scale_box:
+ * @box: (inout): The box to scale
+ * @scale: The scale to apply
+ *
+ * Scales the passed in box by scale.
+ */
+void
+phoc_utils_scale_box (struct wlr_box *box, float scale)
+{
+  box->width = scale_length (box->width, box->x, scale);
+  box->height = scale_length (box->height, box->y, scale);
+  box->x = round (box->x * scale);
+  box->y = round (box->y * scale);
+}
+
+/**
+ * phoc_util_is_box_damaged:
+ * @box: The box to check
+ * @damage: The damaged area
+ * @clip_box:(nullable): Box to clip damage to
+ * @overlap_damage: (out): The overlap of the rectangle with the damaged area.
+ *   Don't init the pixman region `is_damaged` does that for you.
+ *
+ * Checks if a given rectangle in `box` overlaps with a given damage area. If so
+ * returns `TRUE` and fills `out_damage` with the overlap.
+ *
+ * If the optional `clip_box` is specified the damage is clipped to
+ * that box.
+ *
+ * Returns: %TRUE on overlap otherwise %FALSE
+ */
+gboolean
+phoc_utils_is_damaged (const struct wlr_box    *box,
+                       const pixman_region32_t *damage,
+                       const struct wlr_box    *clip_box,
+                       pixman_region32_t       *out_damage)
+{
+  pixman_region32_init (out_damage);
+  pixman_region32_union_rect (out_damage, out_damage,
+                              box->x, box->y, box->width, box->height);
+  pixman_region32_intersect (out_damage, out_damage, damage);
+
+  if (clip_box) {
+    pixman_region32_intersect_rect (out_damage, out_damage,
+                                    clip_box->x, clip_box->y, clip_box->width, clip_box->height);
+  }
+
+  return !!pixman_region32_not_empty (out_damage);
+}
+
+
+void
+phoc_utils_wlr_surface_update_scales (struct wlr_surface *surface)
+{
+  float scale = 1.0;
+
+  struct wlr_surface_output *surface_output;
+  wl_list_for_each (surface_output, &surface->current_outputs, link) {
+    if (surface_output->output->scale > scale)
+      scale = surface_output->output->scale;
+  }
+
+  wlr_fractional_scale_v1_notify_scale (surface, scale);
+  wlr_surface_set_preferred_buffer_scale (surface, ceil (scale));
+}
+
+
+void
+phoc_utils_wlr_surface_enter_output (struct wlr_surface *wlr_surface, struct wlr_output *wlr_output)
+{
+  wlr_surface_send_enter (wlr_surface, wlr_output);
+
+  phoc_utils_wlr_surface_update_scales (wlr_surface);
+}
+
+
+void
+phoc_utils_wlr_surface_leave_output (struct wlr_surface *wlr_surface, struct wlr_output *wlr_output)
+{
+  wlr_surface_send_leave (wlr_surface, wlr_output);
+
+  phoc_utils_wlr_surface_update_scales (wlr_surface);
 }

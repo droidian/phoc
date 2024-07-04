@@ -255,7 +255,7 @@ phoc_gesture_swipe_init (PhocGestureSwipe *self)
 PhocGestureSwipe *
 phoc_gesture_swipe_new (void)
 {
-  return PHOC_GESTURE_SWIPE (g_object_new (PHOC_TYPE_GESTURE_SWIPE, NULL));
+  return g_object_new (PHOC_TYPE_GESTURE_SWIPE, NULL);
 }
 
 /**

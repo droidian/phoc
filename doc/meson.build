@@ -35,6 +35,7 @@ custom_target('phoc-doc',
     '--output-dir=@OUTPUT@',
     '--no-namespace-dir',
     '--content-dir=@0@'.format(meson.current_source_dir()),
+    '--fatal-warnings',
     '@INPUT1@',
   ],
   depend_files: [ expand_content_md_files ],
@@ -48,6 +49,8 @@ endif
 if get_option('man')
   manpages = [
     ['phoc', 1],
+    ['phoc.gsettings', 5],
+    ['phoc.ini', 5],
   ]
 
   rst2man = find_program('rst2man', 'rst2man.py', required: false)

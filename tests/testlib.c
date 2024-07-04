@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2020 Purism SPC
- * SPDX-License-Identifier: GPL-3.0+
+ * SPDX-License-Identifier: GPL-3.0-or-later
  * Author: Guido Günther <agx@sigxcpu.org>
  */
 
@@ -102,6 +102,7 @@ screencopy_frame_handle_ready (void *data, struct zwlr_screencopy_frame_v1 *hand
   frame->done = TRUE;
 }
 
+G_NORETURN
 static void
 screencopy_frame_handle_failed(void *data, struct zwlr_screencopy_frame_v1 *frame)
 {
@@ -326,7 +327,7 @@ static void registry_handle_global(void *data, struct wl_registry *registry,
     globals->gtk_shell1 = wl_registry_bind (registry, name, &gtk_shell1_interface, 3);
   } else if (!g_strcmp0 (interface, zphoc_layer_shell_effects_v1_interface.name)) {
     globals->layer_shell_effects = wl_registry_bind (registry, name,
-                                                     &zphoc_layer_shell_effects_v1_interface, 2);
+                                                     &zphoc_layer_shell_effects_v1_interface, 3);
   } else if (!g_strcmp0 (interface, zxdg_decoration_manager_v1_interface.name)) {
     globals->decoration_manager = wl_registry_bind (registry, name,
                                                      &zxdg_decoration_manager_v1_interface, 1);

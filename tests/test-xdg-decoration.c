@@ -1,7 +1,9 @@
 /*
- * Copyright (C) 2023 Guido Günther <agx@sigxcpu.org>
+ * Copyright (C) 2023 The Phosh Developers
  *
- * SPDX-License-Identifier: GPL-3.0+
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * Author: Guido Günther <agx@sigxcpu.org>
  */
 
 #include "testlib.h"
@@ -48,7 +50,7 @@ test_client_xdg_decoration_server_side (PhocTestClientGlobals *globals, gpointer
 static gboolean
 test_client_xdg_decoration_server_prepare (PhocServer *server, gpointer data)
 {
-  PhocDesktop *desktop = server->desktop;
+  PhocDesktop *desktop = phoc_server_get_desktop (server);
   gboolean maximize = GPOINTER_TO_INT (data);
 
   g_assert_nonnull (desktop);

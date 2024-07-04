@@ -1,3 +1,10 @@
+/* Copyright (C) 2019 Purism SPC
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * Author: Guido Günther <agx@sigxcpu.org>
+ */
+
 #pragma once
 
 #include <wayland-server-core.h>

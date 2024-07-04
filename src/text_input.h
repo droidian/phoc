@@ -24,19 +24,19 @@ G_BEGIN_DECLS
  * wl_keyboard focused doesn't mean that text-input will be focused.
  */
 typedef struct _PhocInputMethodRelay {
-	PhocSeat *seat;
+  PhocSeat *seat;
 
-	struct wl_list text_inputs; // PhocTextInput::link
-	struct wlr_input_method_v2 *input_method; // doesn't have to be present
+  struct wl_list text_inputs; // PhocTextInput::link
+  struct wlr_input_method_v2 *input_method; // doesn't have to be present
 
-	struct wl_listener text_input_new;
+  struct wl_listener text_input_new;
 
-	struct wl_listener input_method_new;
-	struct wl_listener input_method_commit;
-	struct wl_listener input_method_grab_keyboard;
-	struct wl_listener input_method_destroy;
+  struct wl_listener input_method_new;
+  struct wl_listener input_method_commit;
+  struct wl_listener input_method_grab_keyboard;
+  struct wl_listener input_method_destroy;
 
-	struct wl_listener input_method_keyboard_grab_destroy;
+  struct wl_listener input_method_keyboard_grab_destroy;
 } PhocInputMethodRelay;
 
 void phoc_input_method_relay_init      (PhocSeat *seat, PhocInputMethodRelay *relay);

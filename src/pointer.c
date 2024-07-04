@@ -16,12 +16,12 @@
  * A pointer input device
  */
 struct _PhocPointer {
-  PhocInputDevice          parent;
+  PhocInputDevice parent;
 
   /* private */
-  gboolean                 touchpad;
-  GSettings               *touchpad_settings;
-  GSettings               *mouse_settings;
+  gboolean        touchpad;
+  GSettings      *touchpad_settings;
+  GSettings      *mouse_settings;
 };
 
 G_DEFINE_TYPE (PhocPointer, phoc_pointer, PHOC_TYPE_INPUT_DEVICE);
@@ -44,7 +44,7 @@ on_mouse_settings_changed (PhocPointer *self,
   if (!phoc_input_device_get_is_libinput (PHOC_INPUT_DEVICE (self)))
     return;
 
-  ldev = phoc_input_device_get_libinput_device_handle(PHOC_INPUT_DEVICE (self));
+  ldev = phoc_input_device_get_libinput_device_handle (PHOC_INPUT_DEVICE (self));
   if (libinput_device_config_scroll_has_natural_scroll (ldev)) {
     enabled = g_settings_get_boolean (settings, "natural-scroll");
     libinput_device_config_scroll_set_natural_scroll_enabled (ldev, enabled);
@@ -56,8 +56,7 @@ on_mouse_settings_changed (PhocPointer *self,
   }
 
   speed = g_settings_get_double (settings, "speed");
-  libinput_device_config_accel_set_speed (ldev,
-                                          CLAMP (speed, -1, 1));
+  libinput_device_config_accel_set_speed (ldev, CLAMP (speed, -1, 1));
 
   if (libinput_device_config_left_handed_is_available (ldev)) {
     enabled = g_settings_get_boolean (self->mouse_settings, "left-handed");
@@ -131,8 +130,7 @@ on_touchpad_settings_changed (PhocPointer *self,
   libinput_device_config_scroll_set_method (ldev, current | method);
 
   speed = g_settings_get_double (settings, "speed");
-  libinput_device_config_accel_set_speed (ldev,
-                                          CLAMP (speed, -1, 1));
+  libinput_device_config_accel_set_speed (ldev, CLAMP (speed, -1, 1));
 
   handedness = g_settings_get_enum (self->touchpad_settings, "left-handed");
   switch (handedness) {
@@ -187,7 +185,7 @@ phoc_pointer_constructed (GObject *object)
 
 
 static void
-phoc_pointer_dispose(GObject *object)
+phoc_pointer_dispose (GObject *object)
 {
   PhocPointer *self = PHOC_POINTER (object);
 

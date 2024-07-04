@@ -202,9 +202,9 @@ phoc_property_easer_set_property (GObject      *object,
 
 static void
 phoc_property_easer_get_property (GObject    *object,
-                     guint       property_id,
-                     GValue     *value,
-                     GParamSpec *pspec)
+                                  guint       property_id,
+                                  GValue     *value,
+                                  GParamSpec *pspec)
 {
   PhocPropertyEaser *self = PHOC_PROPERTY_EASER (object);
 
@@ -302,9 +302,9 @@ phoc_property_easer_init (PhocPropertyEaser *self)
 PhocPropertyEaser *
 phoc_property_easer_new (GObject *target)
 {
-  return PHOC_PROPERTY_EASER (g_object_new (PHOC_TYPE_PROPERTY_EASER,
-                                            "target", target,
-                                            NULL));
+  return g_object_new (PHOC_TYPE_PROPERTY_EASER,
+                       "target", target,
+                       NULL);
 }
 
 /**
@@ -413,6 +413,9 @@ phoc_property_easer_set_props_valist (PhocPropertyEaser *self,
     } else if (pspec->value_type == G_TYPE_INT) {
       start = va_arg (var_args, int);
       end = va_arg (var_args, int);
+    } else if (pspec->value_type == G_TYPE_UINT) {
+      start = va_arg (var_args, guint);
+      end = va_arg (var_args, guint);
     } else {
       g_warning ("'%s' is not a float or int property", name);
       continue;

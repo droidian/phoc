@@ -5,7 +5,6 @@
 
 #include <xf86drmMode.h>
 #include <wlr/types/wlr_input_device.h>
-#include <wlr/types/wlr_switch.h>
 #include <wlr/types/wlr_output_layout.h>
 
 G_BEGIN_DECLS
@@ -22,12 +21,16 @@ typedef struct _PhocOutputConfig {
   enum wl_output_transform transform;
   int                      x, y;
   float                    scale;
+  PhocOutputScaleFilter    scale_filter;
+  bool                     drm_panel_orientation;
 
-  struct Mode {
+  struct PhocMode {
     int   width, height;
     float refresh_rate;
   } mode;
   GSList                  *modes;
+
+  guint                    phys_width, phys_height;
 } PhocOutputConfig;
 
 typedef struct _PhocConfig {

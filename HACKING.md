@@ -7,7 +7,7 @@ Pull requests
 Before filing a pull request run the tests:
 
 ```sh
-ninja -C _build test
+meson test -C _build
 ```
 
 Use descriptive commit messages, see
@@ -22,19 +22,19 @@ for good examples.
 
 Coding Style
 ============
-The code base currently uses two coding styles
+We're mostly using [libhandy's Coding Style][1].
 
-1. the one followed in [libhandy][1]
-2. the [wlroots][2] one (for files taken from wlroots)
+These are the differences:
 
-New files should use [libhandy][1] style. For other files use the style
-prevalent in that file. It's also o.k. to use [libhandy][1] style for
-completely new functions and structs in a file indented otherwise but don't mix
-indentation within a single function or struct.
+- We're not picky about GTK+ style function argument indentation, that is
+  having multiple arguments on one line is also o.k.
+- Since we're not a library we usually use `G_DEFINE_TYPE` instead of
+  `G_DEFINE_TYPE_WITH_PRIVATE` (except when we need a derivable
+  type) since it makes the rest of the code more compact.
 
 ## Function names
 
-New public functions and structs should have a `phoc_` prefix for consistencty
+New public functions and structs should have a `phoc_` prefix for consistency
 and so they get picked up with documentation builds
 
 ## `wl_listener` callbacks
@@ -57,5 +57,4 @@ Callbacks for GObject signals should be prefixed with `on_`.
                             seat);
 ```
 
-[1]: https://source.puri.sm/Librem5/libhandy/blob/main/HACKING.md
-[2]: https://github.com/swaywm/wlroots/blob/main/CONTRIBUTING.md
+[1]: https://gitlab.gnome.org/GNOME/libhandy/-/blob/main/HACKING.md

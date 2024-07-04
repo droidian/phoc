@@ -1,6 +1,8 @@
 /*
  * Copyright (C) 2020 Purism SPC
- * SPDX-License-Identifier: GPL-3.0+
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
  * Author: Guido Günther <agx@sigxcpu.org>
  */
 
@@ -73,7 +75,7 @@ test_client_xdg_shell_toplevel_maximized (PhocTestClientGlobals *globals, gpoint
 static gboolean
 test_client_xdg_shell_server_prepare (PhocServer *server, gpointer data)
 {
-  PhocDesktop *desktop = server->desktop;
+  PhocDesktop *desktop = phoc_server_get_desktop (server);
   gboolean maximize = GPOINTER_TO_INT (data);
 
   g_assert_nonnull (desktop);

@@ -1,6 +1,9 @@
 /*
- * Copyright (C) 2023 Guido Günther <agx@sigxcpu.org>
- * SPDX-License-Identifier: GPL-3.0+
+ * Copyright (C) 2023 The Phosh Developers
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * Author: Guido Günther <agx@sigxcpu.org>
  */
 
 #include "settings.h"

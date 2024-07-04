@@ -19,3 +19,13 @@ executable('phosh-private',
   sources: ['phosh-private.c', client_protos_headers, protos_sources],
   dependencies: [glib, wayland_client],
 )
+
+executable('device-state',
+  sources: ['device-state.c', client_protos_headers, protos_sources],
+  dependencies: [glib, wayland_client],
+)
+
+executable('idle',
+  sources: ['idle.c', client_protos_headers, protos_sources],
+  dependencies: [glib, wayland_client],
+)

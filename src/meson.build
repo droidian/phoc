@@ -2,9 +2,10 @@ subdir('anim')
 
 phoc_enum_headers = files(
   [
-    'phosh-private.h',
-    'layer-shell-effects.h',
     'event.h',
+    'layer-shell-effects.h',
+    'output.h',
+    'phosh-private.h',
   ])
 phoc_enum_sources = gnome.mkenums_simple(
   'phoc-enums',
@@ -16,12 +17,20 @@ phoc_marshalers = gnome.genmarshal('phoc-marshalers',
   valist_marshallers : true)
 
 sources = files(
+  'bling.c',
+  'bling.h',
+  'color-rect.c',
+  'color-rect.h',
   'cursor.c',
   'cursor.h',
   'cutouts-overlay.c',
   'cutouts-overlay.h',
   'desktop.c',
   'desktop.h',
+  'device-state.c',
+  'device-state.h',
+  'drag-icon.c',
+  'drag-icon.h',
   'event.c',
   'event.h',
   'gesture.h',
@@ -56,6 +65,8 @@ sources = files(
   'output.h',
   'output-shield.c',
   'output-shield.h',
+  'phoc-types.h',
+  'phoc-types.c',
   'phosh-private.c',
   'phosh-private.h',
   'pointer.c',
@@ -69,6 +80,8 @@ sources = files(
   'server.h',
   'settings.c',
   'settings.h',
+  'subsurface.c',
+  'subsurface.h',
   'switch.c',
   'switch.h',
   'tablet.c',
@@ -81,21 +94,35 @@ sources = files(
   'utils.h',
   'view.c',
   'view.h',
+  'view-child.c',
+  'view-child-private.h',
+  'view-deco.c',
+  'view-deco.h',
   'virtual.c',
   'virtual.h',
   'xdg-activation-v1.c',
   'xdg-activation-v1.h',
-  'xdg_shell.c',
+  'xdg-popup.c',
+  'xdg-popup.h',
   'xdg-surface.c',
   'xdg-surface.h',
+  'xdg-toplevel-decoration.c',
+  'xdg-toplevel-decoration.h',
 ) + phoc_anim_sources
+
 libphoc_generated_sources = [
-  phoc_config_h,
-  phoc_anim_enum_sources,
-  phoc_enum_sources,
-  phoc_marshalers,
-  server_protos_headers,
+  phoc_anim_enum_sources[0],
+  phoc_enum_sources[0],
+  phoc_marshalers[0],
   protos_sources,
+]
+
+libphoc_generated_headers = [
+  phoc_config_h,
+  phoc_anim_enum_sources[1],
+  phoc_enum_sources[1],
+  phoc_marshalers[1],
+  server_protos_headers,
 ]
 
 phoc_deps = [
@@ -108,6 +135,7 @@ phoc_deps = [
   gsettings_desktop_schemas_dep,
   math,
   pixman,
+  udev,
   wayland_server,
   wlroots,
   xkbcommon,
@@ -124,6 +152,7 @@ phoc_lib = both_libraries(
   'phoc',
   sources,
   libphoc_generated_sources,
+  libphoc_generated_headers,
   include_directories: phoc_anim_inc,
   dependencies: phoc_deps,
   install: false,
@@ -135,7 +164,7 @@ libphoc_dep = declare_dependency(
                         protocol_inc],
   link_with: phoc_lib,
   dependencies: phoc_deps,
-  sources: libphoc_generated_sources)
+  sources: libphoc_generated_headers)
 
 libphoc_static_dep = declare_dependency(
   include_directories: [include_directories('.'),
@@ -143,16 +172,12 @@ libphoc_static_dep = declare_dependency(
                         protocol_inc],
   link_with: phoc_lib.get_static_lib(),
   dependencies: phoc_deps,
-  sources: libphoc_generated_sources)
+  sources: libphoc_generated_headers)
 
 if get_option('gtk_doc')
   phoc_gir_extra_args = [
     '--quiet',
   ]
-
-  if have_xwayland
-    phoc_gir_extra_args += '-DPHOC_XWAYLAND'
-  endif
 
   gir_sources = sources + phoc_anim_enum_sources + phoc_enum_sources
 

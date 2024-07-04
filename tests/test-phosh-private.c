@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2020 Purism SPC
- * SPDX-License-Identifier: GPL-3.0+
+ * SPDX-License-Identifier: GPL-3.0-or-later
  * Author: Sebastian Krzyszkowiak <sebastian.krzyszkowiak@puri.sm>
  */
 
@@ -77,10 +77,7 @@ test_phosh_private_thumbnail_simple (void)
   };
 
   /* pixman renderer can work in containers, skip tests otherwise */
-  if (g_strcmp0 (g_getenv ("WLR_RENDERER"), "pixman")) {
-    g_test_skip ("Not using pixman renderer");
-    return;
-  }
+  g_assert_cmpstr (g_getenv ("WLR_RENDERER"), ==, "pixman");
 
   phoc_test_client_run (TEST_PHOC_CLIENT_TIMEOUT, &iface, GINT_TO_POINTER (FALSE));
 }

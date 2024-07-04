@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2022 Purism SPC
- * SPDX-License-Identifier: GPL-3.0+
+ * SPDX-License-Identifier: GPL-3.0-or-later
  * Author: Guido Günther <agx@sigxcpu.org>
  */
 
@@ -14,6 +14,7 @@ enum {
   PROP_0,
   PROP_I,
   PROP_F,
+  PROP_U,
   PROP_LAST_PROP
 };
 static GParamSpec *props[PROP_LAST_PROP];
@@ -23,6 +24,7 @@ struct _PhocTestObj {
 
   int                   prop_i;
   float                 prop_f;
+  guint                 prop_u;
 };
 G_DEFINE_TYPE (PhocTestObj, phoc_test_obj, G_TYPE_OBJECT)
 
@@ -41,6 +43,9 @@ phoc_test_obj_set_property (GObject      *object,
     break;
   case PROP_F:
     self->prop_f = g_value_get_float (value);
+    break;
+  case PROP_U:
+    self->prop_u = g_value_get_uint (value);
     break;
   default:
     G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -63,6 +68,9 @@ phoc_test_obj_get_property (GObject    *object,
     break;
   case PROP_F:
     g_value_set_float (value, self->prop_f);
+    break;
+  case PROP_U:
+    g_value_set_uint (value, self->prop_u);
     break;
   default:
     G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -92,6 +100,13 @@ phoc_test_obj_class_init (PhocTestObjClass *klass)
                         0.0,
                         G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
 
+  props[PROP_U] =
+    g_param_spec_uint ("prop-u", "", "",
+                       0,
+                       1000,
+                       0,
+                       G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+
   g_object_class_install_properties (object_class, PROP_LAST_PROP, props);
 }
 
@@ -118,6 +133,7 @@ test_phoc_property_easer_props_va_list (void)
   PhocEasing cmp_easing;
   float cmp_f;
   int cmp_i;
+  guint cmp_u;
   g_autoptr (PhocPropertyEaser) easer = NULL;
 
   easer = g_object_new (PHOC_TYPE_PROPERTY_EASER,
@@ -133,13 +149,15 @@ test_phoc_property_easer_props_va_list (void)
   phoc_property_easer_set_props (easer,
                                  "prop-i", 0, 10,
                                  "prop-f", -100.0, 100.0,
+                                 "prop-u", 0, 101,
                                  NULL);
 
   g_object_set (easer, "progress", 1.0, NULL);
-  g_object_get (obj, "prop-i", &cmp_i, "prop-f", &cmp_f, NULL);
+  g_object_get (obj, "prop-i", &cmp_i, "prop-f", &cmp_f, "prop-u", &cmp_u, NULL);
 
   g_assert_cmpint (cmp_i, ==, 10);
   g_assert_cmpfloat_with_epsilon (cmp_f, 100.0, FLT_EPSILON);
+  g_assert_cmpint (cmp_u, ==, 101);
 }
 
 
@@ -149,26 +167,30 @@ test_phoc_property_easer_props_variant (void)
   g_autoptr (PhocTestObj) obj = phoc_test_obj_new ();
   float cmp_f;
   int cmp_i;
+  guint cmp_u;
   g_autoptr (PhocPropertyEaser) easer = NULL;
   g_autoptr (GVariantBuilder) builder = g_variant_builder_new (G_VARIANT_TYPE_ARRAY);
 
   g_variant_builder_add (builder, "(sdd)", "prop-f", -100.0, 100.0);
   g_variant_builder_add (builder, "(sdd)", "prop-i", 0.0, 10.0);
+  g_variant_builder_add (builder, "(sdd)", "prop-u", 0.0, 100.0);
 
   easer = g_object_new (PHOC_TYPE_PROPERTY_EASER,
                         "target", obj,
                         "properties", g_variant_builder_end (builder),
                         "easing", PHOC_EASING_EASE_IN_CUBIC,
                         NULL);
-  g_object_get (obj, "prop-i", &cmp_i, "prop-f", &cmp_f, NULL);
+  g_object_get (obj, "prop-i", &cmp_i, "prop-f", &cmp_f, "prop-u", &cmp_u, NULL);
   g_assert_cmpint (cmp_i, ==, 0);
   g_assert_cmpfloat_with_epsilon (cmp_f, -100.0, FLT_EPSILON);
+  g_assert_cmpint (cmp_u, ==, 0);
 
   g_object_set (easer, "progress", 1.0, NULL);
-  g_object_get (obj, "prop-i", &cmp_i, "prop-f", &cmp_f, NULL);
+  g_object_get (obj, "prop-i", &cmp_i, "prop-f", &cmp_f, "prop-u", &cmp_u, NULL);
 
   g_assert_cmpint (cmp_i, ==, 10);
   g_assert_cmpfloat_with_epsilon (cmp_f, 100.0, FLT_EPSILON);
+  g_assert_cmpint (cmp_u, ==, 100);
 }
 
 

@@ -1,11 +1,24 @@
 include:
- - 'https://source.puri.sm/Librem5/librem5-ci/raw/master/librem5-pipeline-definitions.yml'
+ - project: 'guidog/meta-phosh'
+   ref: '04a85df2f3311f3012b6c49bf353b376ae0f32b2'
+   file: '/ci/phosh-common-jobs.yml'
+ - remote: 'https://gitlab.freedesktop.org/freedesktop/ci-templates/-/raw/d03cddbcff35f26861429fc816c00323f48e99af/templates/ci-fairy.yml'
 
 stages:
  - build
  - test+docs
+ - style-checks
  - package
  - deploy
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+    # Don't trigger a branch pipeline if there is an open MR
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+      when: never
+    - if: $CI_COMMIT_TAG
+    - if: $CI_COMMIT_BRANCH
 
 default:
   # Protect CI infra from rogue jobs
@@ -22,13 +35,19 @@ default:
       - 'stuck_or_timeout_failure'
 
 variables:
-  DEPS: git lcov
+  # For ci-fairy
+  FDO_UPSTREAM_REPO: World/Phosh/phoc
   ALPINE_EDGE_DEPS: |
         git meson ninja gnome-desktop-dev gobject-introspection-dev
-        libinput-dev wayland-dev wayland-protocols libxkbcommon-dev wlroots-dev
-        xwayland-dev
+        libinput-dev wayland-dev wayland-protocols libxkbcommon-dev
+        xwayland-dev json-glib-dev
+  ALPINE_EDGE_WLROOTS_DEPS: |
+        eudev-dev ffmpeg-dev glslang libdisplay-info-dev
+        libliftoff-dev mesa-dev pixman-dev vulkan-headers vulkan-loader-dev
+        wayland-dev wayland-protocols xcb-util-image-dev xcb-util-renderutil-dev
+        xcb-util-wm-dev libseat-dev hwdata-dev libdisplay-info-dev
   XVFB_RUN: xvfb-run -s -noreset
-  DEBIAN_IMAGE: $CI_REGISTRY/world/phosh/phoc/debian:v0.0.20230722
+  DEBIAN_IMAGE: $CI_REGISTRY/world/phosh/phoc/debian:v0.0.2024-04-04
 
 .build: &build
   script:
@@ -39,25 +58,38 @@ variables:
 
 .before_script_debian: &before_script_debian
   - rm -f ../* || true
-  - eatmydata apt-get -y update
-  - eatmydata apt-get -y install $DEPS xwayland python3-docutils
+  # Don't accidentally pull in system headers
+  - eatmydata apt-get -y remove --purge libwlroots-dev
   - dpkg -l
 
 .before_script_alpine: &before_script_alpine
   - apk -q add alpine-sdk
-  - apk -q add $ALPINE_EDGE_DEPS
+  - apk -q add $ALPINE_EDGE_DEPS $ALPINE_EDGE_WLROOTS_DEPS
 
-.before_script_pureos: &before_script_pureos
-  - echo "deb http://repo.pureos.net/pureos octarine main" > /etc/apt/sources.list.d/octarine.list
-  - apt-get -y update
-  - apt-get -y install -t octarine libwlroots-dev
-
-build-with-xwayland-debian-bookworm:
+build-with-xwayland-debian-trixie:
   stage: build
   image: ${DEBIAN_IMAGE}
   before_script: *before_script_debian
   variables:
-     BUILD_ARGS: -Dembed-wlroots=disabled -Dxwayland=enabled -Db_coverage=true
+     BUILD_ARGS: -Dembed-wlroots=enabled -Dxwayland=enabled -Db_coverage=true
+  <<: *build
+  artifacts:
+    paths:
+      - _build
+  except:
+    variables:
+      - $PKG_ONLY == "1"
+
+build-with-xwayland-debian-trixie-clang:
+  stage: build
+  image: ${DEBIAN_IMAGE}
+  variables:
+    CC: clang
+    BUILD_ARGS: -Dembed-wlroots=enabled -Dxwayland=enabled -Db_coverage=true --werror
+  before_script:
+    - eatmydata apt-get update
+    - eatmydata apt-get -y remove --purge libwlroots-dev
+    - eatmydata apt-get -y install clang
   <<: *build
   artifacts:
     paths:
@@ -71,7 +103,7 @@ build-with-xwayland-alpinelinux-edge:
   image: alpine:edge
   before_script: *before_script_alpine
   variables:
-     BUILD_ARGS: -Dxwayland=enabled
+     BUILD_ARGS: -Dembed-wlroots=enabled -Dxwayland=enabled
   <<: *build
   allow_failure: true
   except:
@@ -83,7 +115,7 @@ build-without-xwayland-alpinelinux-edge:
   image: alpine:edge
   before_script: *before_script_alpine
   variables:
-     BUILD_ARGS: -Dembed-wlroots=disabled -Dxwayland=disabled
+     BUILD_ARGS: -Dembed-wlroots=enabled -Dxwayland=disabled
   <<: *build
   allow_failure: true
   except:
@@ -91,11 +123,11 @@ build-without-xwayland-alpinelinux-edge:
       - $PKG_ONLY == "1"
 
 
-unit-test-with-xwayland-debian-bookworm:
+unit-test-with-xwayland-debian-trixie:
   stage: test+docs
   image: ${DEBIAN_IMAGE}
   needs:
-    - build-with-xwayland-debian-bookworm
+    - build-with-xwayland-debian-trixie
   before_script: *before_script_debian
   script:
     - WLR_RENDERER=pixman ${XVFB_RUN} meson test --print-errorlogs -C _build
@@ -112,7 +144,7 @@ unit-test-with-xwayland-debian-bookworm:
     variables:
       - $PKG_ONLY == "1"
 
-asan-test-native-debian-bookworm:
+asan-test-native-debian-trixie:
   stage: test+docs
   image: ${DEBIAN_IMAGE}
   tags: [ asan ]
@@ -132,12 +164,12 @@ build-gtkdoc:
   image: ${DEBIAN_IMAGE}
   before_script: *before_script_debian
   variables:
-    BUILD_ARGS: -Dgtk_doc=true -Dembed-wlroots=disabled
+    BUILD_ARGS: -Dgtk_doc=true -Dembed-wlroots=enabled
   script:
     - git clean -dfx
     - 'echo "Build opts: ${BUILD_ARGS}"'
     - meson . _build $BUILD_ARGS
-    - ninja -C _build
+    - helpers/doc-check _build
     - test -f _build/doc/phoc-*/index.html
     - mv _build/doc/phoc-*/ _reference/
   artifacts:
@@ -147,26 +179,87 @@ build-gtkdoc:
     variables:
       - $PKG_ONLY == "1"
 
-package-debian-bookworm:arm64:
+check-po:
+  stage: test+docs
+  extends: .phosh-check-po
+  except:
+    variables:
+      - $PKG_ONLY == "1"
+
+format-check:
+  stage: style-checks
+  image: ${DEBIAN_IMAGE}
+  needs: []
+  before_script: *before_script_debian
+  script:
+    - |
+      if [ -n "$CI_MERGE_REQUEST_TARGET_BRANCH_NAME" ]; then
+        git remote add target $CI_MERGE_REQUEST_PROJECT_URL.git
+        echo "Fetching MR target branch $CI_MERGE_REQUEST_TARGET_BRANCH_NAME from $CI_MERGE_REQUEST_PROJECT_URL"
+        git fetch target "$CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
+        git fetch --deepen=100 origin HEAD
+        merge_base=$(git merge-base "target/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME" HEAD)
+        if [ -z "$merge_base" ]; then
+          echo "Could't determine merge base"
+          exit 1
+        fi
+        echo "Merge base: $merge_base"
+        ./.gitlab-ci/check-style.py --dry-run --sha $merge_base
+      else
+        echo "Not a merge request"
+      fi
+  allow_failure: true
+
+# Sanity checks of MR settings and commit logs
+commit-log-check:
+  extends:
+    - .fdo.ci-fairy
+  stage: style-checks
   variables:
-    L5_DOCKER_IMAGE: debian:bookworm
+    GIT_DEPTH: "100"
+  needs: []
+  script: |
+    ci-fairy check-commits --junit-xml=commit-message-junit-report.xml
+  artifacts:
+    reports:
+      junit: commit-message-junit-report.xml
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == $CI_DEFAULT_BRANCH'
+
+license-check:
+  stage: style-checks
+  image: ${DEBIAN_IMAGE}
+  needs: []
+  before_script:
+    - eatmydata apt-get update
+    - eatmydata apt-get -y install reuse
+  script:
+    reuse lint
+  artifacts:
+    paths:
+      - _build
+  except:
+    variables:
+      - $PKG_ONLY == "1"
+
+package-deb-debian-trixie:arm64:
+  stage: package
+  variables:
+    PHOSH_DOCKER_IMAGE: debian:trixie
+    DEB_BUILD_PROFILES: 'pkg.phoc.embedwlroots'
+  extends: .phosh-build-debian-package
   tags:
     - aarch64
-  extends: .l5-build-debian-package
-  before_script:
-    - echo "deb http://deb.debian.org/debian/ sid main" > /etc/apt/sources.list.d/sid.list
-    - apt-get -y update
-    - apt-get -y -t sid build-dep .
 
-package-pureos-byzantium:sanitizers:arm64:
+package-deb-debian-trixie:sanitizers:arm64:
+  stage: package
   variables:
-    L5_DOCKER_IMAGE: pureos/byzantium
+    PHOSH_DOCKER_IMAGE: debian:trixie
     DEB_BUILD_PROFILES: 'pkg.phoc.embedwlroots pkg.phoc.sanitizers'
-  before_script: *before_script_pureos
+  extends: .phosh-build-debian-package
   tags:
     - aarch64
   when: manual
-  extends: .l5-build-debian-package
 
 pages:
   stage: deploy
