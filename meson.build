@@ -77,6 +77,7 @@ else
 endif
 wlroots_has_xwayland = wlroots.get_variable(pkgconfig: 'have_xwayland',
                                             internal: 'have_xwayland') == 'true'
+wlroots_has_android_renderer = cc.has_header('wlr/render/android.h', dependencies: wlroots)
 
 if get_option('xwayland').enabled() and not wlroots_has_xwayland
   error('Cannot enable Xwayland in phoc: wlroots has been built without Xwayland support')
@@ -162,6 +163,10 @@ config_h.set('PHOC_XWAYLAND', have_xwayland,
 	     description: 'Whether xwayland is enabled')
 config_h.set('PHOC_USE_DTRACE', use_dtrace,
 	     description: 'Whether tracing via dtrace/stp is enabled')
+if wlroots_has_android_renderer
+	config_h.set('WLROOTS_HAS_ANDROID_RENDERER', wlroots_has_android_renderer,
+		     description: 'Whether wlroots has the android renderer')
+endif
 
 phoc_config_h = configure_file(
   output: 'phoc-config.h',

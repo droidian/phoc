@@ -24,6 +24,10 @@
 #include <wlr/xwayland.h>
 #include <wlr/xwayland/shell.h>
 
+#ifdef WLROOTS_HAS_ANDROID_RENDERER
+#include <wlr/render/android.h>
+#endif /* WLROOTS_HAS_ANDROID_RENDERER */
+
 #include <errno.h>
 
 /* Maximum protocol versions we support */
@@ -300,6 +304,12 @@ phoc_server_initable_init (GInitable    *initable,
   }
   wlr_renderer = phoc_renderer_get_wlr_renderer (self->renderer);
   wlr_renderer_init_wl_shm (wlr_renderer, self->wl_display);
+
+#ifdef WLROOTS_HAS_ANDROID_RENDERER
+  if (wlr_renderer_is_android (wlr_renderer)) {
+      wlr_android_renderer_init_wl_display (wlr_renderer, self->wl_display);
+  }
+#endif /* WLROOTS_HAS_ANDROID_RENDERER */
 
   if (wlr_renderer_get_dmabuf_texture_formats (wlr_renderer)) {
     wlr_drm_create (self->wl_display, wlr_renderer);
