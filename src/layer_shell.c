@@ -854,7 +854,7 @@ handle_unmap (struct wl_listener *listener, void *data)
 
   wl_list_remove (&layer_surface->new_subsurface.link);
 
-  phoc_layer_surface_unmap (layer_surface);
+  phoc_layer_surface_damage (layer_surface);
   phoc_input_update_cursor_focus (input);
 
   if (output)
@@ -946,6 +946,7 @@ phoc_layer_shell_update_osk (PhocOutput *output, gboolean arrange)
   PhocLayerSurface *osk;
   GSList *seats = phoc_input_get_seats (input);
   gboolean force_overlay = FALSE;
+  enum zwlr_layer_shell_v1_layer old_layer;
 
   g_assert (PHOC_IS_OUTPUT (output));
 
@@ -967,11 +968,17 @@ phoc_layer_shell_update_osk (PhocOutput *output, gboolean arrange)
     }
   }
 
+  old_layer = osk->layer;
   if (force_overlay && osk->layer != ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY)
     osk->layer = ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY;
 
   if (!force_overlay && osk->layer != osk->layer_surface->pending.layer)
     osk->layer = osk->layer_surface->pending.layer;
+
+  if (old_layer != osk->layer) {
+    phoc_output_set_layer_dirty (output, old_layer);
+    phoc_output_set_layer_dirty (output, osk->layer);
+  }
 
   if (force_overlay && arrange)
     phoc_layer_shell_arrange (output);

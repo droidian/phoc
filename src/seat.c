@@ -58,6 +58,9 @@ typedef struct _PhocSeatPrivate {
   struct wl_client      *exclusive_client;
 
   GHashTable            *input_mapping_settings;
+
+  uint32_t               last_button_serial;
+  uint32_t               last_touch_serial;
 } PhocSeatPrivate;
 
 G_DEFINE_TYPE_WITH_PRIVATE (PhocSeat, phoc_seat, G_TYPE_OBJECT)
@@ -2057,4 +2060,40 @@ PhocSeat *
 phoc_seat_from_wlr_seat (struct wlr_seat *wlr_seat)
 {
   return PHOC_SEAT (wlr_seat->data);
+}
+
+
+uint32_t
+phoc_seat_get_last_button_or_touch_serial (PhocSeat *self)
+{
+  PhocSeatPrivate *priv;
+
+  g_assert (PHOC_IS_SEAT (self));
+  priv = phoc_seat_get_instance_private (self);
+
+  return MAX (priv->last_button_serial, priv->last_touch_serial);
+}
+
+
+void
+phoc_seat_update_last_touch_serial (PhocSeat *self, uint32_t serial)
+{
+  PhocSeatPrivate *priv;
+
+  g_assert (PHOC_IS_SEAT (self));
+  priv = phoc_seat_get_instance_private (self);
+
+  priv->last_touch_serial = serial;
+}
+
+
+void
+phoc_seat_update_last_button_serial (PhocSeat *self, uint32_t serial)
+{
+  PhocSeatPrivate *priv;
+
+  g_assert (PHOC_IS_SEAT (self));
+  priv = phoc_seat_get_instance_private (self);
+
+  priv->last_button_serial = serial;
 }

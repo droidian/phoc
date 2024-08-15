@@ -60,14 +60,17 @@ typedef struct _PhocCursor {
 
   PhocCursorMode                    mode;
 
-  // state from input (review if this is necessary)
   struct wlr_xcursor_manager       *xcursor_manager;
   struct wl_client                 *cursor_client;
+
+  /* For moving and resizing surfaces */
   int                               offs_x, offs_y;
   int                               view_x, view_y, view_width, view_height;
   uint32_t                          resize_edges;
 
+  /* SeatView (nullable) under the cursor */
   PhocSeatView                     *pointer_view;
+  /* Surface (nullable) under the cursor */
   struct wlr_surface               *wlr_surface;
 
   struct wl_listener                motion;

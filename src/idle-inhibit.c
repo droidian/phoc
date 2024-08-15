@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023 The Phosh Developers
+ * Copyright (C) 2023-2024 The Phosh Developers
  *
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
@@ -41,6 +41,7 @@ typedef struct _PhocIdleInhibitorV1 {
   PhocIdleInhibit              *idle_inhibit;
   PhocView                     *view;
   guint                         cookie;
+  GCancellable                 *cancellable;
 
   struct wlr_idle_inhibitor_v1 *wlr_inhibitor;
 
@@ -86,7 +87,7 @@ screensaver_idle_inhibit (PhocIdleInhibit *self, PhocIdleInhibitorV1 *inhibitor,
                      g_variant_new ("(ss)", app_id, _("Inhibiting idle session")),
                      G_DBUS_CALL_FLAGS_NONE,
                      -1,
-                     self->cancellable,
+                     inhibitor->cancellable,
                      on_screensaver_inhibit_finish,
                      inhibitor);
 }
@@ -125,7 +126,7 @@ screensaver_idle_uninhibit (PhocIdleInhibit *self, PhocIdleInhibitorV1 *inhibito
                      g_variant_new ("(u)", inhibitor->cookie),
                      G_DBUS_CALL_FLAGS_NO_AUTO_START,
                      -1,
-                     self->cancellable,
+                     inhibitor->cancellable,
                      on_screensaver_idle_uninhibit_finish,
                      GUINT_TO_POINTER (inhibitor->cookie));
   inhibitor->cookie = 0;
@@ -144,6 +145,8 @@ phoc_idle_inhibit_destroy_inhibitor_v1 (PhocIdleInhibit *self, PhocIdleInhibitor
   self->inhibitors_v1 = g_slist_remove (self->inhibitors_v1, inhibitor);
   wl_list_remove (&inhibitor->inhibitor_v1_destroy.link);
 
+  g_cancellable_cancel (inhibitor->cancellable);
+  g_clear_object (&inhibitor->cancellable);
   g_free (inhibitor);
 }
 
@@ -192,6 +195,7 @@ handle_idle_inhibitor_v1 (struct wl_listener *listener, void *data)
 
   inhibitor->idle_inhibit = self;
   inhibitor->wlr_inhibitor = wlr_inhibitor;
+  inhibitor->cancellable = g_cancellable_new ();
 
   self->inhibitors_v1 = g_slist_prepend (self->inhibitors_v1, inhibitor);
 

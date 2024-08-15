@@ -122,7 +122,7 @@ phoc_layer_surface_finalize (GObject *object)
   PhocOutput *output = phoc_layer_surface_get_output (self);
 
   if (self->layer_surface->surface->mapped)
-    phoc_layer_surface_unmap (self);
+    phoc_layer_surface_damage (self);
 
   wl_list_remove (&self->link);
   if (output)
@@ -189,27 +189,28 @@ phoc_layer_surface_new (struct wlr_layer_surface_v1 *layer_surface)
 
 
 /**
- * phoc_layer_surface_unmap:
- * @self: The layer surface to unmap
+ * phoc_layer_surface_damage:
+ * @self: The layer surface to damage
  *
- * Unmaps a layer surface
+ * Damage a layer surface
  */
 void
-phoc_layer_surface_unmap (PhocLayerSurface *self)
+phoc_layer_surface_damage (PhocLayerSurface *self)
 {
-  struct wlr_layer_surface_v1 *layer_surface;
+  struct wlr_layer_surface_v1 *wlr_layer_surface;
   struct wlr_output *wlr_output;
 
   g_assert (PHOC_IS_LAYER_SURFACE (self));
-  layer_surface = self->layer_surface;
+  wlr_layer_surface = self->layer_surface;
 
-  wlr_output = layer_surface->output;
-  if (wlr_output != NULL) {
-    phoc_output_damage_whole_surface (wlr_output->data,
-                                      layer_surface->surface,
-                                      self->geo.x,
-                                      self->geo.y);
-  }
+  wlr_output = wlr_layer_surface->output;
+  if (!wlr_output)
+    return;
+
+  phoc_output_damage_whole_surface (PHOC_OUTPUT (wlr_output->data),
+                                    wlr_layer_surface->surface,
+                                    self->geo.x,
+                                    self->geo.y);
 }
 
 

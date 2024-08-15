@@ -786,7 +786,7 @@ phoc_output_fill_state (PhocOutput              *self,
     if (output_config->phys_width)
       self->wlr_output->phys_width = output_config->phys_width;
 
-    if (output_config->phys_width)
+    if (output_config->phys_height)
       self->wlr_output->phys_height = output_config->phys_height;
 
     if (output_config->mode.width)

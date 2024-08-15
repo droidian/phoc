@@ -49,6 +49,7 @@ typedef struct _PhocCursorPrivate {
   /* The compositor tracked touch points */
   GHashTable       *touch_points;
 
+  /* State of the animated view when cursor touches a screen edge */
   struct {
     PhocColorRect         *rect;
     PhocView              *view;
@@ -331,12 +332,16 @@ send_pointer_button (PhocSeat             *seat,
                      uint32_t              button,
                      enum wlr_button_state state)
 {
+  uint32_t serial;
+
   if (should_ignore_pointer_grab (seat, surface)) {
-    wlr_seat_pointer_send_button (seat->seat, time, button, state);
+    serial = wlr_seat_pointer_send_button (seat->seat, time, button, state);
+    phoc_seat_update_last_button_serial (seat, serial);
     return;
   }
 
-  wlr_seat_pointer_notify_button (seat->seat, time, button, state);
+  serial = wlr_seat_pointer_notify_button (seat->seat, time, button, state);
+  phoc_seat_update_last_button_serial (seat, serial);
 }
 
 
@@ -365,20 +370,24 @@ send_touch_down (PhocSeat                    *seat,
                  double                       sx,
                  double                       sy)
 {
+  uint32_t serial;
+
   if (should_ignore_touch_grab (seat, surface)) {
     // currently wlr_seat_touch_send_* functions don't work, so temporarily
     // restore grab to the default one and use notify_* instead
     // See https://gitlab.freedesktop.org/wlroots/wlroots/-/issues/3478
     struct wlr_seat_touch_grab *grab = seat->seat->touch_state.grab;
     seat->seat->touch_state.grab = seat->seat->touch_state.default_grab;
-    wlr_seat_touch_notify_down (seat->seat, surface, event->time_msec,
-                                event->touch_id, sx, sy);
+    serial = wlr_seat_touch_notify_down (seat->seat, surface, event->time_msec,
+                                         event->touch_id, sx, sy);
+    phoc_seat_update_last_touch_serial (seat, serial);
     seat->seat->touch_state.grab = grab;
     return;
   }
 
-  wlr_seat_touch_notify_down (seat->seat, surface, event->time_msec,
-                              event->touch_id, sx, sy);
+  serial =  wlr_seat_touch_notify_down (seat->seat, surface, event->time_msec,
+                                        event->touch_id, sx, sy);
+  phoc_seat_update_last_touch_serial (seat, serial);
 }
 
 
@@ -1137,6 +1146,7 @@ phoc_cursor_update_position (PhocCursor *self, uint32_t time)
   }
 }
 
+
 static void
 phoc_cursor_press_button (PhocCursor              *self,
                           struct wlr_input_device *device,
@@ -1183,6 +1193,7 @@ phoc_cursor_press_button (PhocCursor              *self,
       break;
     }
   } else {
+    /* Mouse press inside server side window decoration */
     if (view && !surface && self->pointer_view)
       seat_view_deco_button (self->pointer_view, sx, sy, button, state);
 

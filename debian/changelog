@@ -1,3 +1,45 @@
+phoc (0.41.0) experimental; urgency=medium
+
+  * seat: Track last button and touch serials
+  * xdg-surface: Validate serials for move and resize.
+    We don't care if the serial is from a touch down or button event event
+    atm.
+    Two more TODOs out of the way
+  * output: Fix phys_height condition.
+    We want to set it when the height is set, not the width.
+    Fixes: 128483f6a ("output: Allow to configure physical width and height")
+
+ -- Guido Günther <agx@sigxcpu.org>  Thu, 15 Aug 2024 08:19:20 +0200
+
+phoc (0.41.0~rc1) experimental; urgency=medium
+
+  * subprojects: Update wlroots to 0.17.4
+  * idle-inhibit: Cancel DBus call before freeing an inhibitor.
+    Otherwise we might end up accessing already gone memory if the async
+    call ending in `on_screensaver_inhibit_finish` is still in progress.
+    Closes: https://gitlab.gnome.org/World/Phosh/phoc/-/issues/375
+  * layer-shell-effects: When folded reject fling that wouldn't unfold.
+    When a surface is folded we reject a fling that doesn't go into the
+    unfold direction.
+    This prevents us picking up the gesture when an ongoing fling on another
+    surface crosses this surface. This can e.g. happen when swipe closing
+    apps in phosh where one crosses the top bar during the fling.
+    Closes: https://gitlab.gnome.org/World/Phosh/phoc/-/issues/380
+
+ -- Guido Günther <agx@sigxcpu.org>  Wed, 07 Aug 2024 19:30:37 +0200
+
+phoc (0.40.1) experimental; urgency=medium
+
+  * layer-surface: Rename helper.
+    The actual unmap happens in `handle_unmap`.
+  * layer-shell: Mark layer cache dirty when OSK changes layers.
+    Fixes: https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1075857
+    Fixes: 109b0afe9 ("output: Cache layer surface ordering")
+    Tested-by: Andrey Skvortsov <andrej.skvortzov@gmail.com>
+  * ci: Add version number consistency check.
+
+ -- Guido Günther <agx@sigxcpu.org>  Tue, 09 Jul 2024 06:57:49 +0200
+
 phoc (0.40.0) experimental; urgency=medium
 
   * keyboard: Modernize indent.
