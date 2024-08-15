@@ -1614,29 +1614,33 @@ phoc_draggable_layer_surface_fling (PhocDraggableLayerSurface *drag_surface,
   switch (wlr_layer_surface->current.anchor) {
   case PHOC_LAYER_SHELL_EFFECT_DRAG_FROM_TOP:
     margin = (int32_t)wlr_layer_surface->current.margin.top;
-    /* Reject fling down when unfolded */
-    if (margin == drag_surface->current.unfolded && v > 0)
+    /* Reject fling down when unfolded and fling up when unfolded*/
+    if ((margin == drag_surface->current.unfolded && v > 0) ||
+        (margin == drag_surface->current.folded && v < 0))
       return FALSE;
     dir = v > 0 ? ANIM_DIR_OUT : ANIM_DIR_IN;
     break;
   case PHOC_LAYER_SHELL_EFFECT_DRAG_FROM_BOTTOM:
     margin = (int32_t)wlr_layer_surface->current.margin.bottom;
-    /* Reject fling up when unfolded */
-    if (margin == drag_surface->current.unfolded && v < 0)
+    /* Reject fling up when unfolded and fling down when folded  */
+    if ((margin == drag_surface->current.unfolded && v < 0) ||
+        (margin == drag_surface->current.folded && v > 0))
       return FALSE;
     dir = v > 0 ? ANIM_DIR_IN : ANIM_DIR_OUT;
     break;
   case PHOC_LAYER_SHELL_EFFECT_DRAG_FROM_RIGHT:
     margin = (int32_t)wlr_layer_surface->current.margin.right;
-    /* Reject fling left when unfolded */
-    if (margin == drag_surface->current.unfolded && v > 0)
+    /* Reject fling left when unfolded and fling right when folded */
+    if ((margin == drag_surface->current.unfolded && v < 0) ||
+        (margin == drag_surface->current.folded && v > 0))
       return FALSE;
     dir = v > 0 ? ANIM_DIR_IN : ANIM_DIR_OUT;
     break;
   case PHOC_LAYER_SHELL_EFFECT_DRAG_FROM_LEFT:
     margin = (int32_t)wlr_layer_surface->current.margin.left;
-    /* Reject fling right when unfolded */
-    if (margin == drag_surface->current.unfolded && v < 0)
+    /* Reject fling right when unfolded and fling left when folded */
+    if ((margin == drag_surface->current.unfolded && v > 0) ||
+        (margin == drag_surface->current.folded && v < 0))
       return FALSE;
     dir = v > 0 ? ANIM_DIR_OUT : ANIM_DIR_IN;
     break;

@@ -1,6 +1,6 @@
 include:
  - project: 'guidog/meta-phosh'
-   ref: '04a85df2f3311f3012b6c49bf353b376ae0f32b2'
+   ref: 'ebb7aef58c96e3d586157f265e14d386ad8766fc'
    file: '/ci/phosh-common-jobs.yml'
  - remote: 'https://gitlab.freedesktop.org/freedesktop/ci-templates/-/raw/d03cddbcff35f26861429fc816c00323f48e99af/templates/ci-fairy.yml'
 
@@ -186,7 +186,11 @@ check-po:
     variables:
       - $PKG_ONLY == "1"
 
-format-check:
+check-consistency:
+  stage: test+docs
+  extends: .phosh-check-consistency
+
+check-format:
   stage: style-checks
   image: ${DEBIAN_IMAGE}
   needs: []
@@ -211,7 +215,7 @@ format-check:
   allow_failure: true
 
 # Sanity checks of MR settings and commit logs
-commit-log-check:
+check-commit-log:
   extends:
     - .fdo.ci-fairy
   stage: style-checks
@@ -226,7 +230,7 @@ commit-log-check:
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == $CI_DEFAULT_BRANCH'
 
-license-check:
+check-license:
   stage: style-checks
   image: ${DEBIAN_IMAGE}
   needs: []

@@ -165,3 +165,7 @@ gboolean           phoc_seat_has_pointer  (PhocSeat *self);
 gboolean           phoc_seat_has_keyboard (PhocSeat *self);
 gboolean           phoc_seat_has_hw_keyboard (PhocSeat *self);
 gboolean           phoc_seat_has_switch   (PhocSeat *self, enum wlr_switch_type type);
+
+void               phoc_seat_update_last_touch_serial (PhocSeat *self, uint32_t serial);
+void               phoc_seat_update_last_button_serial (PhocSeat *self, uint32_t serial);
+uint32_t           phoc_seat_get_last_button_or_touch_serial (PhocSeat *self);

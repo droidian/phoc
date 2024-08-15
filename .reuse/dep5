@@ -81,7 +81,6 @@ Files:
  .gitignore
  .gitlab-ci/Makefile
  .gitlab-ci/README.md
- .gitlab-ci/check-po
  .gitlab-ci/check-style.py
  .gitlab-ci/commit-rules.yml
  .gitlab-ci/debian.Dockerfile

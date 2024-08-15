@@ -1,3 +1,22 @@
+phoc 0.41.0
+-----------
+Released August 2024
+* Don't crash when idle-inhibit changes frequently
+* Don't accept fling gesture when swiping in a non
+  swipeable direction
+* Issues fixed:
+    * https://gitlab.gnome.org/World/Phosh/phoc/-/issues/375
+    * https://gitlab.gnome.org/World/Phosh/phoc/-/issues/380
+* Contributors:
+    * Guido Günther
+
+phoc 0.40.1
+-----------
+Released July 2024
+* Fix crash when OSK changes layers
+* Contributors:
+    * Guido Günther
+
 phoc 0.40.0
 -----------
 Released June 2024

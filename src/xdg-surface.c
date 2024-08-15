@@ -401,9 +401,15 @@ handle_request_move (struct wl_listener *listener, void *data)
   struct wlr_xdg_toplevel_move_event *e = data;
   PhocSeat *seat = phoc_seat_from_wlr_seat (e->seat->seat);
 
-  // TODO verify event serial
   if (!seat || phoc_seat_get_cursor (seat)->mode != PHOC_CURSOR_PASSTHROUGH)
     return;
+
+  if (e->serial != phoc_seat_get_last_button_or_touch_serial (seat)) {
+    g_warning_once ("Invalid serial %" PRIu32 " (%" PRIu32 ") - rejecting move.",
+                    e->serial,
+                    phoc_seat_get_last_button_or_touch_serial (seat));
+    return;
+  }
 
   phoc_seat_begin_move (seat, PHOC_VIEW (self));
 }
@@ -416,10 +422,16 @@ handle_request_resize (struct wl_listener *listener, void *data)
   struct wlr_xdg_toplevel_resize_event *e = data;
   PhocSeat *seat = phoc_seat_from_wlr_seat (e->seat->seat);
 
-  // TODO verify event serial
-  g_assert (seat);
   if (!seat || phoc_seat_get_cursor (seat)->mode != PHOC_CURSOR_PASSTHROUGH)
     return;
+
+  if (e->serial != phoc_seat_get_last_button_or_touch_serial (seat)) {
+    g_warning_once ("Invalid serial %" PRIu32 " (%" PRIu32 ") - rejecting resize.",
+                    e->serial,
+                    phoc_seat_get_last_button_or_touch_serial (seat));
+    return;
+  }
+
 
   phoc_seat_begin_resize (seat, PHOC_VIEW (self), e->edges);
 }

@@ -48,7 +48,7 @@ struct _PhocLayerSurface {
 };
 
 PhocLayerSurface *phoc_layer_surface_new (struct wlr_layer_surface_v1 *layer_surface);
-void              phoc_layer_surface_unmap (PhocLayerSurface *self);
+void              phoc_layer_surface_damage (PhocLayerSurface *self);
 const char       *phoc_layer_surface_get_namespace (PhocLayerSurface *self);
 PhocOutput       *phoc_layer_surface_get_output (PhocLayerSurface *self);
 void              phoc_layer_surface_set_alpha (PhocLayerSurface *self, float alpha);
