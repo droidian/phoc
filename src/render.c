@@ -597,6 +597,7 @@ phoc_renderer_render_output (PhocRenderer *self, PhocOutput *output, PhocRenderC
 
   pixman_region32_copy (&transformed_damage, damage);
   phoc_output_transform_damage (output, &transformed_damage);
+  wlr_output_handle_damage(wlr_output, &transformed_damage);
 
   wlr_render_pass_add_rect (ctx->render_pass,
                             &(struct wlr_render_rect_options){
