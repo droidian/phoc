@@ -506,7 +506,7 @@ phoc_output_draw (PhocOutput *self)
   if (wlr_renderer_is_android(wlr_output->renderer))
     buffer_age = wlr_renderer_get_buffer_age (wlr_output->renderer, buffer);
 
-  render_pass = wlr_renderer_begin_buffer_pass (wlr_output->renderer, buffer, NULL);
+  render_pass = wlr_renderer_begin_buffer_pass_for_output (wlr_output->renderer, buffer, NULL, (void*)wlr_output);
   if (!render_pass) {
     wlr_buffer_unlock (buffer);
     goto out;
