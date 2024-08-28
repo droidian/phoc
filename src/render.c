@@ -33,6 +33,7 @@
 #include <wlr/render/drm_format_set.h>
 #include <wlr/render/wlr_renderer.h>
 #include <wlr/render/gles2.h>
+#include <wlr/render/android.h>
 #include <wlr/render/egl.h>
 #include <wlr/types/wlr_compositor.h>
 #include <wlr/types/wlr_matrix.h>
@@ -474,11 +475,78 @@ view_render_to_buffer_iterator (struct wlr_surface *surface, int sx, int sy, voi
 
 
 /* FIXME: Rework when switching to wlroots 0.18.x git again */
+static gboolean
+phoc_renderer_render_view_to_buffer_android (PhocRenderer      *self,
+                                             PhocView          *view,
+                                             struct wlr_buffer *shm_buffer)
+{
+  struct wlr_surface *surface = view->wlr_surface;
+  void *data;
+  uint32_t format;
+  size_t stride;
+
+  g_return_val_if_fail (surface, false);
+  g_return_val_if_fail (self->wlr_allocator, false);
+  g_return_val_if_fail (shm_buffer, false);
+
+  int32_t width = shm_buffer->width;
+  int32_t height = shm_buffer->height;
+
+  struct wlr_egl *egl = wlr_android_renderer_get_egl (self->wlr_renderer);
+  GLuint tex, fbo;
+
+  if (!surface || !wlr_egl_make_current (egl)) {
+    return false;
+  }
+
+  struct view_render_data render_data ={
+    .view = view,
+    .width = width,
+    .height = height
+  };
+
+  glGenTextures (1, &tex);
+  glBindTexture (GL_TEXTURE_2D, tex);
+  glTexImage2D (GL_TEXTURE_2D, 0, GL_BGRA_EXT, width, height, 0, GL_BGRA_EXT, GL_UNSIGNED_BYTE, NULL);
+  glBindTexture (GL_TEXTURE_2D, 0);
+
+  glGenFramebuffers (1, &fbo);
+  glBindFramebuffer (GL_FRAMEBUFFER, fbo);
+  glFramebufferTexture2D (GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex, 0);
+
+  wlr_renderer_begin (self->wlr_renderer, width, height);
+  wlr_renderer_clear (self->wlr_renderer, (float[])COLOR_TRANSPARENT);
+  wlr_surface_for_each_surface (surface, view_render_to_buffer_iterator, &render_data);
+  wlr_renderer_end (self->wlr_renderer);
+
+  if (!wlr_buffer_begin_data_ptr_access (shm_buffer,
+                                         WLR_BUFFER_DATA_PTR_ACCESS_WRITE,
+                                         &data, &format, &stride)) {
+    return false;
+  }
+
+  wlr_renderer_read_pixels (self->wlr_renderer, DRM_FORMAT_ARGB8888, stride, width, height, 0, 0, 0, 0, data);
+
+  wlr_buffer_end_data_ptr_access (shm_buffer);
+
+  glDeleteFramebuffers (1, &fbo);
+  glDeleteTextures (1, &tex);
+  glBindFramebuffer (GL_FRAMEBUFFER, 0);
+
+  wlr_egl_unset_current (egl);
+
+  return true;
+}
+
 gboolean
 phoc_renderer_render_view_to_buffer (PhocRenderer      *self,
                                      PhocView          *view,
                                      struct wlr_buffer *shm_buffer)
 {
+  /* Do not use wlr_allocator on android */
+  if (wlr_renderer_is_android(self->wlr_renderer))
+    return phoc_renderer_render_view_to_buffer_android (self, view, shm_buffer);
+
   struct wlr_surface *surface = view->wlr_surface;
   struct wlr_buffer *buffer;
   void *data;
