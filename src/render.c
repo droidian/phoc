@@ -467,6 +467,8 @@ view_render_to_buffer_iterator (struct wlr_surface *surface, int sx, int sy, voi
 
   float mat[9];
   wlr_matrix_project_box (mat, &dst_box, wlr_output_transform_invert (surface->current.transform), 0, proj);
+  /* Droidian FIXME: handle this in wlroots? */
+  wlr_matrix_project_box (mat, &dst_box, WL_OUTPUT_TRANSFORM_FLIPPED_180, 0, proj);
   wlr_render_subtexture_with_matrix (self->wlr_renderer, texture, &src_box, mat, 1.0);
 }
 
