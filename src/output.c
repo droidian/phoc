@@ -10,6 +10,7 @@
 #include <wlr/backend/drm.h>
 #include <wlr/config.h>
 #include <wlr/render/swapchain.h>
+#include <wlr/render/android.h>
 #include <wlr/types/wlr_compositor.h>
 #include <wlr/types/wlr_gamma_control_v1.h>
 #include <wlr/types/wlr_output_layout.h>
@@ -501,6 +502,9 @@ phoc_output_draw (PhocOutput *self)
   buffer = wlr_swapchain_acquire (wlr_output->swapchain, &buffer_age);
   if (!buffer)
     goto out;
+
+  if (wlr_renderer_is_android(wlr_output->renderer))
+    buffer_age = wlr_renderer_get_buffer_age (wlr_output->renderer, buffer);
 
   render_pass = wlr_renderer_begin_buffer_pass (wlr_output->renderer, buffer, NULL);
   if (!render_pass) {
