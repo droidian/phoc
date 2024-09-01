@@ -25,6 +25,9 @@
 #include "render.h"
 #include "utils.h"
 
+#include <GLES2/gl2.h>
+#include <GLES2/gl2ext.h>
+
 #include <drm_fourcc.h>
 
 /* help older (0.8.2) libxkbcommon */
@@ -441,7 +444,7 @@ thumbnail_frame_handle_copy (struct wl_client   *wl_client,
     goto unlock_buffer;
   }
 
-  if (attribs.format != DRM_FORMAT_ARGB8888 || attribs.width != frame->width ||
+  if (attribs.width != frame->width ||
       attribs.height != frame->height || attribs.stride != frame->stride) {
     wl_resource_post_error (frame->resource,
                             ZWLR_SCREENCOPY_FRAME_V1_ERROR_INVALID_BUFFER,
@@ -494,6 +497,16 @@ static const struct zwlr_screencopy_frame_v1_interface phoc_phosh_private_screen
   .copy_with_damage = thumbnail_frame_handle_copy_with_damage,
 };
 
+static uint32_t
+get_preferred_read_format (void)
+{
+  const char *exts_str = (const char *)glGetString(GL_EXTENSIONS);
+  if (exts_str != NULL && strstr(exts_str, "GL_EXT_read_format_bgra"))
+    return DRM_FORMAT_ARGB8888;
+
+  return DRM_FORMAT_ABGR8888;
+}
+
 static void
 handle_get_thumbnail (struct wl_client *client,
                       struct wl_resource *phosh_private_resource,
@@ -502,12 +515,16 @@ handle_get_thumbnail (struct wl_client *client,
                       uint32_t max_width,
                       uint32_t max_height)
 {
+  static uint32_t preferred_read_format = 0;
   PhocPhoshPrivateScreencopyFrame *frame = g_new0 (PhocPhoshPrivateScreencopyFrame, 1);
 
   if (frame == NULL) {
     wl_client_post_no_memory (client);
     return;
   }
+
+  if (!preferred_read_format)
+    preferred_read_format = get_preferred_read_format();
 
   int version = wl_resource_get_version (phosh_private_resource);
   frame->resource = wl_resource_create (client, &zwlr_screencopy_frame_v1_interface, version, id);
@@ -547,7 +564,7 @@ handle_get_thumbnail (struct wl_client *client,
   struct wlr_box box;
   phoc_view_get_box (view, &box);
 
-  frame->format = WL_SHM_FORMAT_ARGB8888;
+  frame->format = preferred_read_format;
   frame->width = box.width * view->wlr_surface->current.scale;
   frame->height = box.height * view->wlr_surface->current.scale;
 
