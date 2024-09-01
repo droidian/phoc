@@ -483,11 +483,29 @@ phoc_renderer_render_view_to_buffer_android (PhocRenderer      *self,
   struct wlr_surface *surface = view->wlr_surface;
   void *data;
   uint32_t format;
+  EGLint gl_format;
   size_t stride;
+  struct wlr_shm_attributes attribs;
 
   g_return_val_if_fail (surface, false);
   g_return_val_if_fail (self->wlr_allocator, false);
   g_return_val_if_fail (shm_buffer, false);
+
+  if (!wlr_buffer_get_shm (shm_buffer, &attribs)) {
+    format = DRM_FORMAT_ARGB8888;
+  } else {
+    format = attribs.format;
+  }
+
+  switch (format) {
+  case DRM_FORMAT_XRGB8888:
+  case DRM_FORMAT_ARGB8888:
+    gl_format = GL_BGRA_EXT;
+    break;
+  default:
+    gl_format = GL_RGBA;
+    break;
+  }
 
   int32_t width = shm_buffer->width;
   int32_t height = shm_buffer->height;
@@ -507,7 +525,7 @@ phoc_renderer_render_view_to_buffer_android (PhocRenderer      *self,
 
   glGenTextures (1, &tex);
   glBindTexture (GL_TEXTURE_2D, tex);
-  glTexImage2D (GL_TEXTURE_2D, 0, GL_BGRA_EXT, width, height, 0, GL_BGRA_EXT, GL_UNSIGNED_BYTE, NULL);
+  glTexImage2D (GL_TEXTURE_2D, 0, gl_format, width, height, 0, gl_format, GL_UNSIGNED_BYTE, NULL);
   glBindTexture (GL_TEXTURE_2D, 0);
 
   glGenFramebuffers (1, &fbo);
@@ -525,7 +543,7 @@ phoc_renderer_render_view_to_buffer_android (PhocRenderer      *self,
     return false;
   }
 
-  wlr_renderer_read_pixels (self->wlr_renderer, DRM_FORMAT_ARGB8888, stride, width, height, 0, 0, 0, 0, data);
+  wlr_renderer_read_pixels (self->wlr_renderer, format, stride, width, height, 0, 0, 0, 0, data);
 
   wlr_buffer_end_data_ptr_access (shm_buffer);
 
