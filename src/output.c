@@ -23,7 +23,7 @@
 #include "bling.h"
 #include "cutouts-overlay.h"
 #include "settings.h"
-#include "layers.h"
+#include "layer-shell.h"
 #include "layer-shell-effects.h"
 #include "output.h"
 #include "output-shield.h"
@@ -31,7 +31,7 @@
 #include "render-private.h"
 #include "seat.h"
 #include "server.h"
-#include "text_input.h"
+#include "input-method-relay.h"
 #include "utils.h"
 #include "xwayland-surface.h"
 
@@ -2038,7 +2038,7 @@ should_reveal_shell (PhocOutput *self)
     if (phoc_view_is_mapped (self->fullscreen_view) &&
         phoc_input_method_relay_is_enabled (&seat->im_relay, self->fullscreen_view->wlr_surface)) {
       PhocLayerSurface *osk = phoc_layer_shell_find_osk (self);
-      if (osk && osk->mapped)
+      if (osk && phoc_layer_surface_get_mapped (osk))
         return true;
     }
   }

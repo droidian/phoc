@@ -37,7 +37,7 @@
 #include "cursor.h"
 #include "device-state.h"
 #include "idle-inhibit.h"
-#include "layers.h"
+#include "layer-shell.h"
 #include "output.h"
 #include "seat.h"
 #include "server.h"
@@ -210,7 +210,7 @@ layer_surface_at (PhocOutput                     *output,
     PhocLayerSurface *layer_surface = PHOC_LAYER_SURFACE (l->data);
     struct wlr_surface *sub;
 
-    if (!layer_surface->mapped)
+    if (!phoc_layer_surface_get_mapped (layer_surface))
       continue;
 
     double _sx = ox - layer_surface->geo.x;
@@ -921,7 +921,6 @@ phoc_desktop_new (void)
 {
   return g_object_new (PHOC_TYPE_DESKTOP, NULL);
 }
-
 
 /**
  * phoc_desktop_set_auto_maximize:

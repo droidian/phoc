@@ -10,8 +10,8 @@ Files: src/cursor.*
  src/desktop.*
  src/input.*
  src/keyboard.*
- src/layers.h
- src/layer_shell.c
+ src/layer-shell.h
+ src/layer-shell.c
  src/main.*
  src/output.*
  src/render.*

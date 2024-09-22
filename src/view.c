@@ -9,6 +9,9 @@
 #include <string.h>
 #include <wlr/types/wlr_subcompositor.h>
 #include <wlr/types/wlr_output_layout.h>
+
+#include "phoc-enums.h"
+
 #include "bling.h"
 #include "cursor.h"
 #include "view-deco.h"
@@ -31,6 +34,8 @@ enum {
   PROP_ACTIVATION_TOKEN,
   PROP_IS_MAPPED,
   PROP_ALPHA,
+  PROP_DECORATED,
+  PROP_STATE,
   PROP_LAST_PROP
 };
 static GParamSpec *props[PROP_LAST_PROP];
@@ -50,6 +55,7 @@ typedef struct _PhocViewPrivate {
   float          alpha;
   float          scale;
   PhocViewDeco  *deco;
+  gboolean       decorated;
   PhocViewState  state;
   PhocViewTileDirection tile_direction;
   gboolean       always_on_top;
@@ -78,6 +84,31 @@ G_DEFINE_TYPE_WITH_PRIVATE (PhocView, phoc_view, G_TYPE_OBJECT)
 #define PHOC_VIEW_SELF(p) PHOC_PRIV_CONTAINER(PHOC_VIEW, PhocView, (p))
 
 static bool view_center (PhocView *view, PhocOutput *output);
+
+
+static void
+toggle_decoration (PhocView *self)
+{
+  PhocViewPrivate *priv = phoc_view_get_instance_private (self);
+  gboolean needs_decoration;
+
+  needs_decoration = priv->decorated;
+
+  if (!!needs_decoration == !!priv->deco)
+    return;
+
+  if (needs_decoration) {
+    priv->deco = phoc_view_deco_new (self);
+    phoc_view_add_bling (self, PHOC_BLING (priv->deco));
+    phoc_bling_map (PHOC_BLING (priv->deco));
+  } else {
+    if (priv->deco) {
+      phoc_bling_unmap (PHOC_BLING (priv->deco));
+      phoc_view_remove_bling (self, PHOC_BLING (priv->deco));
+    }
+    g_clear_object (&priv->deco);
+  }
+}
 
 
 static struct wlr_foreign_toplevel_handle_v1 *
@@ -477,32 +508,34 @@ view_arrange_tiled (PhocView *self, PhocOutput *output)
 
 
 void
-phoc_view_maximize (PhocView *view, PhocOutput *output)
+phoc_view_maximize (PhocView *self, PhocOutput *output)
 {
   PhocViewPrivate *priv;
 
-  g_assert (PHOC_IS_VIEW (view));
-  priv = phoc_view_get_instance_private (view);
+  g_assert (PHOC_IS_VIEW (self));
+  priv = phoc_view_get_instance_private (self);
 
-  if (phoc_view_is_maximized (view) && phoc_view_get_output (view) == output)
+  if (phoc_view_is_maximized (self) && phoc_view_get_output (self) == output)
     return;
 
-  if (phoc_view_is_fullscreen (view))
+  if (phoc_view_is_fullscreen (self))
     return;
 
-  PHOC_VIEW_GET_CLASS (view)->set_tiled (view, false);
-  PHOC_VIEW_GET_CLASS (view)->set_maximized (view, true);
+  PHOC_VIEW_GET_CLASS (self)->set_tiled (self, false);
+  PHOC_VIEW_GET_CLASS (self)->set_maximized (self, true);
 
   if (priv->toplevel_handle)
     wlr_foreign_toplevel_handle_v1_set_maximized(priv->toplevel_handle, true);
 
-  view_save (view);
+  view_save (self);
 
   priv->state = PHOC_VIEW_STATE_MAXIMIZED;
-  view_arrange_maximized (view, output);
+  g_object_notify_by_pspec (G_OBJECT (self), props[PROP_STATE]);
+
+  view_arrange_maximized (self, output);
 }
 
-/*
+/**
  * phoc_view_auto_maximize:
  * @view: a view
  *
@@ -523,37 +556,39 @@ phoc_view_auto_maximize (PhocView *view)
  * size and position.
  */
 void
-phoc_view_restore (PhocView *view)
+phoc_view_restore (PhocView *self)
 {
   PhocViewPrivate *priv;
 
-  g_assert (PHOC_IS_VIEW (view));
-  priv = phoc_view_get_instance_private (view);
+  g_assert (PHOC_IS_VIEW (self));
+  priv = phoc_view_get_instance_private (self);
 
-  if (!phoc_view_is_maximized (view) && !phoc_view_is_tiled (view))
+  if (!phoc_view_is_maximized (self) && !phoc_view_is_tiled (self))
     return;
 
-  if (phoc_view_want_auto_maximize (view))
+  if (phoc_view_want_auto_maximize (self))
     return;
 
   struct wlr_box geom;
-  phoc_view_get_geometry (view, &geom);
+  phoc_view_get_geometry (self, &geom);
 
   priv->state = PHOC_VIEW_STATE_FLOATING;
-  if (!wlr_box_empty(&view->saved)) {
-    phoc_view_move_resize (view, view->saved.x - geom.x * priv->scale,
-                           view->saved.y - geom.y * priv->scale,
-                           view->saved.width, view->saved.height);
+  g_object_notify_by_pspec (G_OBJECT (self), props[PROP_STATE]);
+
+  if (!wlr_box_empty(&self->saved)) {
+    phoc_view_move_resize (self, self->saved.x - geom.x * priv->scale,
+                           self->saved.y - geom.y * priv->scale,
+                           self->saved.width, self->saved.height);
   } else {
-    phoc_view_resize (view, 0, 0);
-    view->pending_centering = true;
+    phoc_view_resize (self, 0, 0);
+    self->pending_centering = true;
   }
 
   if (priv->toplevel_handle)
     wlr_foreign_toplevel_handle_v1_set_maximized (priv->toplevel_handle, false);
 
-  PHOC_VIEW_GET_CLASS (view)->set_maximized (view, false);
-  PHOC_VIEW_GET_CLASS (view)->set_tiled (view, false);
+  PHOC_VIEW_GET_CLASS (self)->set_maximized (self, false);
+  PHOC_VIEW_GET_CLASS (self)->set_tiled (self, false);
 }
 
 /**
@@ -747,25 +782,26 @@ phoc_view_move_to_corner (PhocView *self, PhocViewCorner corner)
 
 
 void
-phoc_view_tile (PhocView *view, PhocViewTileDirection direction, PhocOutput *output)
+phoc_view_tile (PhocView *self, PhocViewTileDirection direction, PhocOutput *output)
 {
   PhocViewPrivate *priv;
 
-  g_assert (PHOC_IS_VIEW (view));
-  priv = phoc_view_get_instance_private (view);
+  g_assert (PHOC_IS_VIEW (self));
+  priv = phoc_view_get_instance_private (self);
 
-  if (phoc_view_is_fullscreen (view))
+  if (phoc_view_is_fullscreen (self))
     return;
 
-  view_save (view);
+  view_save (self);
 
   priv->state = PHOC_VIEW_STATE_TILED;
   priv->tile_direction = direction;
 
-  PHOC_VIEW_GET_CLASS (view)->set_maximized (view, false);
-  PHOC_VIEW_GET_CLASS (view)->set_tiled (view, true);
+  PHOC_VIEW_GET_CLASS (self)->set_maximized (self, false);
+  g_object_notify_by_pspec (G_OBJECT (self), props[PROP_STATE]);
+  PHOC_VIEW_GET_CLASS (self)->set_tiled (self, true);
 
-  view_arrange_tiled (view, output);
+  view_arrange_tiled (self, output);
 }
 
 
@@ -1364,6 +1400,9 @@ phoc_view_set_property (GObject      *object,
   case PROP_ALPHA:
     phoc_view_set_alpha (self, g_value_get_float (value));
     break;
+  case PROP_DECORATED:
+    phoc_view_set_decorated (self, g_value_get_boolean (value));
+    break;
   default:
     G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
     break;
@@ -1392,6 +1431,12 @@ phoc_view_get_property (GObject    *object,
     break;
   case PROP_ALPHA:
     g_value_set_float (value, phoc_view_get_alpha (self));
+    break;
+  case PROP_DECORATED:
+    g_value_set_boolean (value, phoc_view_is_decorated (self));
+    break;
+  case PROP_STATE:
+    g_value_set_enum (value, priv->state);
     break;
   default:
     G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -1571,7 +1616,6 @@ phoc_view_class_init (PhocViewClass *klass)
     g_param_spec_boolean ("scale-to-fit", "", "",
                           FALSE,
                           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS | G_PARAM_EXPLICIT_NOTIFY);
-
   /**
    * PhocView:activation-token:
    *
@@ -1590,7 +1634,6 @@ phoc_view_class_init (PhocViewClass *klass)
     g_param_spec_boolean ("is-mapped", "", "",
                           FALSE,
                           G_PARAM_READABLE | G_PARAM_STATIC_STRINGS | G_PARAM_EXPLICIT_NOTIFY);
-
   /**
    * PhocView:alpha:
    *
@@ -1600,11 +1643,30 @@ phoc_view_class_init (PhocViewClass *klass)
     g_param_spec_float ("alpha", "", "",
                         0.0, 1.0, 1.0,
                         G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS | G_PARAM_EXPLICIT_NOTIFY);
+  /**
+   * PhocView:decorated:
+   *
+   * Whether the view should have server side window decorations drawn.
+   */
+  props[PROP_DECORATED] =
+    g_param_spec_boolean ("decorated", "", "",
+                          FALSE,
+                          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS | G_PARAM_EXPLICIT_NOTIFY);
+  /**
+   * PhocView:state:
+   *
+   * The window is maximized, tiled or floating.
+   */
+  props[PROP_STATE] =
+    g_param_spec_enum ("state", "", "",
+                       PHOC_TYPE_VIEW_STATE,
+                       PHOC_VIEW_STATE_FLOATING,
+                       G_PARAM_READABLE | G_PARAM_STATIC_STRINGS | G_PARAM_EXPLICIT_NOTIFY);
 
   g_object_class_install_properties (object_class, PROP_LAST_PROP, props);
 
   /**
-   * PhocView:surface-destroy:
+   * PhocView::surface-destroy:
    *
    * Derived classes emit this signal just before dropping their ref so reference holders
    * can react.
@@ -1634,8 +1696,10 @@ phoc_view_init (PhocView *self)
   wl_list_init(&self->stack);
 
   self->desktop = phoc_server_get_desktop (phoc_server_get_default ());
-}
 
+  g_signal_connect (self, "notify::decorated", G_CALLBACK (toggle_decoration), NULL);
+  g_signal_connect (self, "notify::state", G_CALLBACK (toggle_decoration), NULL);
+}
 
 /**
  * phoc_view_from_wlr_surface:
@@ -1684,7 +1748,6 @@ phoc_view_get_tile_direction (PhocView *self)
 
   return priv->tile_direction;
 }
-
 
 /**
  * phoc_view_get_output:
@@ -1744,6 +1807,8 @@ phoc_view_set_scale_to_fit (PhocView *self, gboolean enable)
  * phoc_view_get_scale_to_fit:
  * @self: The view
  *
+ * Returns the `scale-to-fit` if active for this view.
+ *
  * Returns: %TRUE if scaling of oversized surfaces is enabled, %FALSE otherwise
  */
 gboolean
@@ -1756,7 +1821,6 @@ phoc_view_get_scale_to_fit (PhocView *self)
 
   return priv->scale_to_fit;
 }
-
 
 /**
  * phoc_view_set_activation_token:
@@ -1827,7 +1891,7 @@ phoc_view_flush_activation_token (PhocView *self)
 }
 
 /**
- * phoc_view_get_alpha
+ * phoc_view_get_alpha:
  * @self: The view
  *
  * Get the surface's transparency
@@ -1846,7 +1910,7 @@ phoc_view_get_alpha (PhocView *self)
 }
 
 /**
- * phoc_view_get_scale
+ * phoc_view_get_scale:
  * @self: The view
  *
  * Get the surface's scale
@@ -1865,12 +1929,12 @@ phoc_view_get_scale (PhocView *self)
 }
 
 /**
- * phoc_view_set_decorated
+ * phoc_view_set_decorated:
  * @self: The view
  * @decorated: Whether the compositor should draw window decorations
  *
- * Sets whether the window is decorated. If %TRUE also specifies the
- * decoration.
+ * Sets whether the compositor should draw server side decorations for
+ * this window.
  */
 void
 phoc_view_set_decorated (PhocView *self, gboolean decorated)
@@ -1880,23 +1944,20 @@ phoc_view_set_decorated (PhocView *self, gboolean decorated)
   g_assert (PHOC_IS_VIEW (self));
   priv = phoc_view_get_instance_private (self);
 
-  if (!!priv->deco == !!decorated)
+  if (decorated == priv->decorated)
     return;
 
-  if (decorated) {
-    priv->deco = phoc_view_deco_new (self);
-    phoc_view_add_bling (self, PHOC_BLING (priv->deco));
-    phoc_bling_map (PHOC_BLING (priv->deco));
-  } else {
-    if (priv->deco) {
-      phoc_bling_unmap (PHOC_BLING (priv->deco));
-      phoc_view_remove_bling (self, PHOC_BLING (priv->deco));
-    }
-    g_clear_object (&priv->deco);
-  }
+  priv->decorated = decorated;
+  g_object_notify_by_pspec (G_OBJECT (self), props[PROP_DECORATED]);
 }
 
-
+/**
+ * phoc_view_is_decorated:
+ *
+ * Gets whether the view should be decorated server side.
+ *
+ * Return: `TRUE` if the view should be decorated.
+ */
 gboolean
 phoc_view_is_decorated (PhocView *self)
 {
@@ -1905,7 +1966,7 @@ phoc_view_is_decorated (PhocView *self)
   g_assert (PHOC_IS_VIEW (self));
   priv = phoc_view_get_instance_private (self);
 
-  return !!priv->deco;
+  return priv->decorated;
 }
 
 
@@ -1959,11 +2020,14 @@ phoc_view_get_wlr_surface_at (PhocView *self, double sx, double sy, double *sub_
   return PHOC_VIEW_GET_CLASS (self)->get_wlr_surface_at (self, sx, sy, sub_x, sub_y);
 }
 
-/*
- * phoc_view_want_automaximize:
+/**
+ * phoc_view_want_auto_maximize:
+ * @self: The view
  *
  * Check if a view needs to be auto-maximized. In phoc's auto-maximize
  * mode only toplevels should be maximized.
+ *
+ * Returns: `true` if the view wants to be auto maximized
  */
 bool
 phoc_view_want_auto_maximize (PhocView *view)
@@ -1976,7 +2040,14 @@ phoc_view_want_auto_maximize (PhocView *view)
   return PHOC_VIEW_GET_CLASS (view)->want_auto_maximize(view);
 }
 
-
+/**
+ * phoc_view_get_app_id:
+ * @self: The view
+ *
+ * Get the view's app_id (if any)
+ *
+ * Returns:(nullable): The app_id
+ */
 const char *
 phoc_view_get_app_id (PhocView *self)
 {

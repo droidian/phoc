@@ -13,7 +13,7 @@
 
 #include "phoc-config.h"
 #include "bling.h"
-#include "layers.h"
+#include "layer-shell.h"
 #include "seat.h"
 #include "server.h"
 #include "render.h"
