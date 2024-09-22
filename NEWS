@@ -1,3 +1,13 @@
+phoc 0.42~rc1
+-------------
+Released September 2024
+* Try harder to preserve preedit. This should make the behavior of on
+  screen keyboards that feature text prediction/correction (like
+  e.g. phosh-osk-stub) more predictable.
+* Your usual round of internal cleanups
+* Contributors:
+    * Guido Günther
+
 phoc 0.41.0
 -----------
 Released August 2024

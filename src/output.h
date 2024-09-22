@@ -66,12 +66,25 @@ struct _PhocOutput {
 PhocOutput *phoc_output_new (PhocDesktop       *desktop,
                              struct wlr_output *wlr_output,
                              GError           **error);
-/* Surface iterators */
+/**
+ * PhocSurfaceIterator:
+ * @self: The output
+ * @surface: The surface to iterate over
+ * @box: The part of the surface that overlaps with the output
+ * @scale: The `scale-to-fit` scale
+ * @user_data: User data passed to the iterator
+ *
+ * The iterator function that is invoked by the different iterators
+ * like [method@Output.xdg_surface_for_each_surface] or
+ * [method@Output.layer_surface_for_each_surface] if the iterated
+ * surface overlaps with the output.
+ */
 typedef void (*PhocSurfaceIterator)(PhocOutput         *self,
                                     struct wlr_surface *surface,
                                     struct wlr_box     *box,
                                     float               scale,
                                     void               *user_data);
+/* Surface iterators */
 void        phoc_output_xdg_surface_for_each_surface (PhocOutput *self,
                                                       struct wlr_xdg_surface *xdg_surface,
                                                       double ox,

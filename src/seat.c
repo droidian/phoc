@@ -31,7 +31,7 @@
 #include "seat.h"
 #include "server.h"
 #include "tablet.h"
-#include "text_input.h"
+#include "input-method-relay.h"
 #include "touch.h"
 #include "xcursor.h"
 #include "xwayland-surface.h"

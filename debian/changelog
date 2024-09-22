@@ -1,3 +1,71 @@
+phoc (0.42~rc1) experimental; urgency=medium
+
+  * treewide: Fix docstrings
+  * view: Clarify scale.
+    There's surface scales, scale-to-fit scales, buffer scales, …, let's
+    explain what this one refers to.
+  * output: Document PhocSurfaceIterator.
+    It should rather be PhocSurfaceIteratorFunc as it's the funcion invoked
+    by the various iterators.
+  * layer-surface: Handle destroy in PhocLayerSurface.
+    Another bit moved.
+  * layer-shell: Make child creation/destruction available to PhocLayerSurface.
+    We want to move the PhocLayerSurface handling to the class
+    implementation. Since popups and subsurfaces are currently handled in
+    layer-shell we need to make them available to PhocLayerSurface.
+    We do so by introducing a private header which we can then reuse when we
+    move the popups and subsurfaces out of layer-shell too.
+    This leaks a bit of popup setup details as we expose
+    phoc_layer_popup_unconstrain() too but we can fix that up when
+    introducing the PhocLayerPopup object.
+  * layer-surface: Handle unmap in PhocLayerSurface
+  * layer-surface: Make damage() private.
+    It's only user unmap() is now handled within the class
+  * layer-surface: Handle map in PhocLayerSurface
+  * layer-surface: Handle new_popup in PhocLayerSurface.
+    We leak a bit of popup setup but we'll fix that when introducing an
+    PhocLayerPopup object in the future.
+  * layer-surface: Don't forget to remove new_popup handler
+  * layer-surface: Move surface_commit to PhocLayerSurface
+  * layer-surface: Move adding to output list to PhocLayerSurfce.
+    With this we have the listener setup / removal and list manipulation all
+    in PhocLayerSurface making it match the destruction bits that moved in
+      0a1d0d09e ("layer-surface: Move object destruction to finalize")
+    and `phoc_handle_layer_shell_surface ()` can focus on determining the
+    output and arranging layers.
+  * layer-shell: Make header match symbol prefix.
+    Since the dawn of time the header name didn't match the symbol
+    prefix (`phoc_layer_shell`). Fix that and rename the C file
+    while at that too.
+    Fixes: c960805d9 ("Initial commit")
+  * layer-surface: Add and use phoc_layer_surface_get_mapped()
+  * view: Use self in phoc_view_maximize
+  * view: Use self in view_restore
+  * view: Use self in phoc_view_tile
+  * view: Add decorated property.
+    Use it to toggle the decoration. This will allow us to toggle
+    decorations based on different factors like window state.
+  * view: Add state property.
+    This tracks whether the view is floating, tiled or maximized
+  * text-input: Use C style comments.
+    While we're cleaning up anyway fix some indent too.
+  * text-input: Drop underscore from file name.
+    This makes it match other source files. Rename to the class
+    name while at that.
+  * input-method-relay: Move unsetting focus to separate function.
+    This makes it more descriptive and we'll add more code there soon.
+  * input-method-relay: Submit pending preedit on focus out.
+    This ensures we don't lose the preedit when the client has preedit and
+    loses focus.
+    See https://gitlab.gnome.org/World/Chatty/-/issues/864#note_1962513
+  * input-method-relay: Allow to submit preedit.
+    Add a function that resets the current IMs preedit
+  * cursor: Submit preedit on mouse/touch down.
+    This ensures we submit the preedit when e.g.the user opens a menu
+    or clicks in another location in the text entry field
+
+ -- Guido Günther <agx@sigxcpu.org>  Fri, 20 Sep 2024 15:45:37 +0200
+
 phoc (0.41.0) experimental; urgency=medium
 
   * seat: Track last button and touch serials

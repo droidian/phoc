@@ -49,8 +49,8 @@ Files:
  src/desktop.h
  src/input.c
  src/input.h
- src/layer_shell.c
- src/layers.h
+ src/layer-shell.c
+ src/layer-shell.h
  src/output.c
  src/output.h
  src/pointer.c
@@ -59,8 +59,8 @@ Files:
  src/settings.h
  src/switch.c
  src/tablet.c
- src/text_input.c
- src/text_input.h
+ src/input-method-relay.c
+ src/input-method-relay.h
  src/touch.c
  src/view.c
  src/view.h

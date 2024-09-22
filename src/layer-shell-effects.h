@@ -10,7 +10,7 @@
 #include "keybindings.h"
 
 #include <phoc-layer-shell-effects-unstable-v1-protocol.h>
-#include "layers.h"
+#include "layer-shell.h"
 #include <glib-object.h>
 
 G_BEGIN_DECLS

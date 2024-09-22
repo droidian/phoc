@@ -27,6 +27,7 @@
 #include <linux/input-event-codes.h>
 #include "cursor.h"
 #include "desktop.h"
+#include "input-method-relay.h"
 #include "utils.h"
 #include "view.h"
 #include "xcursor.h"
@@ -1218,6 +1219,8 @@ phoc_cursor_press_button (PhocCursor              *self,
 
   if (!phoc_handle_shell_reveal (surface, lx, ly, PHOC_SHELL_REVEAL_POINTER_THRESHOLD) && !is_touch)
     send_pointer_button (seat, surface, time, button, state);
+
+  phoc_input_method_relay_im_submit (&seat->im_relay, surface);
 }
 
 
@@ -1411,6 +1414,8 @@ phoc_cursor_handle_touch_down (PhocCursor                  *self,
         phoc_seat_set_focus_layer (seat, wlr_layer);
       }
     }
+
+    phoc_input_method_relay_im_submit (&seat->im_relay, surface);
   }
 
   if (G_UNLIKELY (phoc_server_check_debug_flags (server, PHOC_SERVER_DEBUG_FLAG_TOUCH_POINTS))) {
@@ -1790,12 +1795,12 @@ phoc_cursor_add_gesture (PhocCursor   *self,
   priv->gestures = g_slist_append (priv->gestures, g_object_ref (gesture));
 }
 
-
 /**
  * phoc_cursor_get_gestures:
- * @self: The Cursor
+ * @self: The cursor
  *
- * Gets the currently registered gestures @self.
+ * Gets the currently registered gestures of @self.
+ *
  * Returns: (transfer none) (nullable) (element-type PhocGesture): The cursor's gestures
  */
 GSList *
@@ -1809,11 +1814,13 @@ phoc_cursor_get_gestures (PhocCursor *self)
   return priv->gestures;
 }
 
-
 /**
  * phoc_cursor_is_active_touch_id:
- * @self: The Cursor
+ * @self: The cursor
  * @touch_id: touch point ID
+ *
+ * Checks whether the given touch is is in the list of active
+ * touch points.
  *
  * Returns: %TRUE if the touch point is active, otherwise %FALSE
  */
@@ -1821,5 +1828,6 @@ gboolean
 phoc_cursor_is_active_touch_id (PhocCursor *self, int touch_id)
 {
   PhocCursorPrivate *priv = phoc_cursor_get_instance_private (self);
-  return !!g_hash_table_lookup(priv->touch_points, GINT_TO_POINTER (touch_id));
+
+  return !!g_hash_table_lookup (priv->touch_points, GINT_TO_POINTER (touch_id));
 }

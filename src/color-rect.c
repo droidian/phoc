@@ -177,6 +177,7 @@ phoc_color_rect_dispose (GObject *object)
   G_OBJECT_CLASS (phoc_color_rect_parent_class)->dispose (object);
 }
 
+
 static void
 bling_render (PhocBling *bling, PhocRenderContext *ctx)
 {
@@ -262,7 +263,6 @@ bling_interface_init (PhocBlingInterface *iface)
 }
 
 
-
 static void
 phoc_color_rect_class_init (PhocColorRectClass *klass)
 {
@@ -338,7 +338,6 @@ phoc_color_rect_new (PhocBox *box, PhocColor *color)
                        NULL);
 }
 
-
 /**
  * phoc_color_rect_get_box:
  * @self: The color rectangle
@@ -397,7 +396,13 @@ phoc_color_rect_get_color (PhocColorRect *self)
   return self->color;
 }
 
-
+/**
+ * phoc_color_rect_set_alpha:
+ * @self: The color rectangle
+ * @alpha: The alpha value
+ *
+ * Set the rectangle's opacity.
+ */
 void
 phoc_color_rect_set_alpha (PhocColorRect *self, float alpha)
 {
@@ -413,7 +418,14 @@ phoc_color_rect_set_alpha (PhocColorRect *self, float alpha)
   g_object_notify_by_pspec (G_OBJECT (self), props[PROP_COLOR]);
 }
 
-
+/**
+ * phoc_color_rect_get_alpha:
+ * @self: The color rectangle
+ *
+ * Get the rectangle's opacity.
+ *
+ * Returns: the alpha value
+ */
 float
 phoc_color_rect_get_alpha (PhocColorRect *self)
 {
