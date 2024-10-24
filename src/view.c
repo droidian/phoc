@@ -320,17 +320,16 @@ phoc_view_activate (PhocView *self, bool activate)
   priv = phoc_view_get_instance_private (self);
 
   /* UGLY: waydroid windows always need the activate signal */
-  if ((priv->app_id && g_str_has_prefix (priv->app_id, "waydroid.")) || !self->desktop->maximize) {
+  if ((priv->app_id && g_str_has_prefix (priv->app_id, "waydroid.")) || !self->desktop->maximize)
     phoc_view_appear_activated (self, activate);
-  }
 
   if (priv->toplevel_handle)
     wlr_foreign_toplevel_handle_v1_set_activated (priv->toplevel_handle, activate);
 
-  if (activate && phoc_view_is_fullscreen (self)) {
+  if (activate && phoc_view_is_fullscreen (self))
     phoc_output_force_shell_reveal (priv->fullscreen_output, false);
-  }
 }
+
 
 static void
 phoc_view_resize (PhocView *self, uint32_t width, uint32_t height)
@@ -1066,13 +1065,15 @@ phoc_view_unmap (PhocView *view)
   g_object_notify_by_pspec (G_OBJECT (view), props[PROP_IS_MAPPED]);
 }
 
+
 void
-phoc_view_set_initial_focus (PhocView *view)
+phoc_view_set_initial_focus (PhocView *self)
 {
   PhocSeat *seat = phoc_server_get_last_active_seat (phoc_server_get_default ());
 
   /* This also submits any pending activation tokens */
-  phoc_seat_set_focus_view (seat, view);
+  g_debug ("Initial focus view %p, token %s", self, phoc_view_get_activation_token (self));
+  phoc_seat_set_focus_view (seat, self);
 }
 
 /**

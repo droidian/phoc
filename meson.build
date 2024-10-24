@@ -1,5 +1,5 @@
 project('phoc', 'c',
-          version: '0.42.rc1',
+          version: '0.42.0',
           license: 'GPLv3+',
     meson_version: '>= 0.63.0',
   default_options: [
@@ -11,6 +11,7 @@ project('phoc', 'c',
 
 add_project_arguments([
   '-DWLR_USE_UNSTABLE',
+  '-DGMOBILE_USE_UNSTABLE_API',
   '-I' + meson.project_build_root(),
 ], language: 'c')
 

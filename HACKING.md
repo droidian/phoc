@@ -1,9 +1,14 @@
-Building
-========
+# Contributing to Phoc
+
+Below are some basic guidelines on coding style and merge requests
+that hopefully makes it easier for you to land your code.
+
+## Building
+
 For build instructions see the README.md
 
-Pull requests
-=============
+### Merge requests
+
 Before filing a pull request run the tests:
 
 ```sh
@@ -12,16 +17,18 @@ meson test -C _build
 
 Use descriptive commit messages, see
 
-   https://wiki.gnome.org/Git/CommitMessages
+   <https://wiki.gnome.org/Git/CommitMessages>
 
 and check
 
-   https://wiki.openstack.org/wiki/GitCommitMessages
+   <https://wiki.openstack.org/wiki/GitCommitMessages>
 
 for good examples.
 
-Coding Style
-============
+## Coding Patterns
+
+### Coding Style
+
 We're mostly using [libhandy's Coding Style][1].
 
 These are the differences:
@@ -57,4 +64,18 @@ Callbacks for GObject signals should be prefixed with `on_`.
                             seat);
 ```
 
+## Examples
+
+The `examples/` folder contains Wayland clients that exercise certain
+protocols.  This is similar in spirit to [Westons clients][2] or
+[wlr-clients][3].
+
+- phosh-private: A client for the [phosh-private protocol](./protocols/phosh-private.xml)
+- device-state: A client for the [phoc-device-state-unstable-v1 protocol](./protocols/phoc-device-state-unstable-v1.xml)
+- layer-shell-effects: A client for the [phoc-layer-shell-effects-unstable-v1 protocol](./protocols/phoc-layer-shell-effects-unstable-v1.xml)
+
+You can run them against any phoc instance.
+
 [1]: https://gitlab.gnome.org/GNOME/libhandy/-/blob/main/HACKING.md
+[2]: https://gitlab.freedesktop.org/wayland/weston/-/tree/main/clients
+[3]: https://gitlab.freedesktop.org/wlroots/wlr-clients

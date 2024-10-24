@@ -1,12 +1,15 @@
-Phone compositor
-================
+# Phone compositor
+
 [![Code coverage](https://gitlab.gnome.org/World/Phosh/phoc/badges/main/coverage.svg)](https://gitlab.gnome.org/World/Phosh/phoc/-/commits/main)
 
 [wlroots][1] based Phone compositor as used on the Librem5.
 
 Phoc is pronounced like the English word fog.
 
-## Dependencies
+## Building Phoc
+
+### Dependencies
+
 On a Debian based system run:
 
 ```sh
@@ -17,7 +20,7 @@ On a Debian based system run:
 For an explicit list of dependencies check the `Build-Depends` entry in the
 [debian/control][2] file.
 
-## Building
+### Building
 
 We use the meson (and thereby Ninja) build system for phoc. The quickest
 way to get going is to do the following:
@@ -46,7 +49,8 @@ To run from the source tree use
     ./_build/run
 ```
 
-## Test
+### Test
+
 After making source changes run
 
 ```sh
@@ -55,28 +59,28 @@ After making source changes run
 
 to see if anything broke.
 
-# Configuration
+## Configuration
 
 phoc's behaviour can be configured via `GSettings`. For your convienience,
 a set of scripts to manipulate config values is available in `helpers`
 directory.
 
- - `scale-to-fit` toggles automatic scaling of applications that don't fit
-   the screen. This setting is enabled per application using its reported
-   app-id. For instance, to enable scaling of GNOME Maps windows use:
+- `scale-to-fit` toggles automatic scaling of applications that don't fit
+  the screen. This setting is enabled per application using its reported
+  app-id. For instance, to enable scaling of GNOME Maps windows use:
 
-       ./helpers/scale-to-fit org.gnome.Maps on
+      ./helpers/scale-to-fit org.gnome.Maps on
 
- - `auto-maximize` toggles automatic maximization of Wayland windows.
-   Disabling it allows windows to be resized and moved, which may be desired
-   when running phoc on desktop-like setups.
+- `auto-maximize` toggles automatic maximization of Wayland windows.
+  Disabling it allows windows to be resized and moved, which may be desired
+  when running phoc on desktop-like setups.
 
-       ./helpers/auto-maximize off
+      ./helpers/auto-maximize off
 
 Outputs are configured via `phoc.ini` config file - see [`src/phoc.ini.example`][3]
 for more information.
 
-# Debugging
+## Debugging
 
 phoc uses glib so the `G_MESSAGES_DEBUG` environment variable can be
 used to enable more log messages and `G_DEBUG` to assert on warnings
@@ -88,9 +92,9 @@ For more details on these environment variables, read the [documentation for GLi
 There's also a `PHOC_DEBUG` enviroment variable to turn on some debugging
 features. Use `PHOC_DEBUG=help phoc` to see supported flags.
 
-# API docs
+## API docs
 
-API documentation is available at https://world.pages.gitlab.gnome.org/Phosh/phoc/
+API documentation is available at <https://world.pages.gitlab.gnome.org/Phosh/phoc/>
 
 [1]: https://gitlab.freedesktop.org/wlroots/
 [2]: debian/control

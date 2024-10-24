@@ -321,8 +321,9 @@ handle_request_move (struct wl_listener *listener, void *data)
   PhocXWaylandSurface *self = wl_container_of (listener, self, request_move);
   PhocView *view = PHOC_VIEW (self);
   PhocSeat *seat = guess_seat_for_view (view);
+  PhocCursor *cursor = phoc_seat_get_cursor (seat);
 
-  if (!seat || phoc_seat_get_cursor (seat)->mode != PHOC_CURSOR_PASSTHROUGH)
+  if (!seat || phoc_cursor_get_mode (cursor) != PHOC_CURSOR_PASSTHROUGH)
     return;
 
   phoc_seat_begin_move (seat, view);
@@ -334,9 +335,10 @@ handle_request_resize (struct wl_listener *listener, void *data)
   PhocXWaylandSurface *self = wl_container_of (listener, self, request_resize);
   PhocView *view = PHOC_VIEW (self);
   PhocSeat *seat = guess_seat_for_view (view);
+  PhocCursor *cursor = phoc_seat_get_cursor (seat);
   struct wlr_xwayland_resize_event *e = data;
 
-  if (!seat || phoc_seat_get_cursor (seat)->mode != PHOC_CURSOR_PASSTHROUGH)
+  if (!seat || phoc_cursor_get_mode (cursor) != PHOC_CURSOR_PASSTHROUGH)
     return;
 
   phoc_seat_begin_resize (seat, view, e->edges);

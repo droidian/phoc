@@ -15,7 +15,6 @@
 #include "seat.h"
 #include "server.h"
 
-#define GMOBILE_USE_UNSTABLE_API
 #include <gmobile.h>
 
 #include <wlr/types/wlr_drm.h>

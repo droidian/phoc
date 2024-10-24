@@ -1,5 +1,5 @@
-phoc 0.42~rc1
--------------
+phoc 0.42.0
+-----------
 Released September 2024
 * Try harder to preserve preedit. This should make the behavior of on
   screen keyboards that feature text prediction/correction (like

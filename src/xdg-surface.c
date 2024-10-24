@@ -400,8 +400,9 @@ handle_request_move (struct wl_listener *listener, void *data)
   PhocXdgSurface *self = wl_container_of (listener, self, request_move);
   struct wlr_xdg_toplevel_move_event *e = data;
   PhocSeat *seat = phoc_seat_from_wlr_seat (e->seat->seat);
+  PhocCursor *cursor = phoc_seat_get_cursor (seat);
 
-  if (!seat || phoc_seat_get_cursor (seat)->mode != PHOC_CURSOR_PASSTHROUGH)
+  if (!seat || phoc_cursor_get_mode (cursor) != PHOC_CURSOR_PASSTHROUGH)
     return;
 
   if (e->serial != phoc_seat_get_last_button_or_touch_serial (seat)) {
@@ -421,8 +422,9 @@ handle_request_resize (struct wl_listener *listener, void *data)
   PhocXdgSurface *self = wl_container_of (listener, self, request_resize);
   struct wlr_xdg_toplevel_resize_event *e = data;
   PhocSeat *seat = phoc_seat_from_wlr_seat (e->seat->seat);
+  PhocCursor *cursor = phoc_seat_get_cursor (seat);
 
-  if (!seat || phoc_seat_get_cursor (seat)->mode != PHOC_CURSOR_PASSTHROUGH)
+  if (!seat || phoc_cursor_get_mode (cursor) != PHOC_CURSOR_PASSTHROUGH)
     return;
 
   if (e->serial != phoc_seat_get_last_button_or_touch_serial (seat)) {

@@ -1,3 +1,22 @@
+phoc (0.42.0) experimental; urgency=medium
+
+  * cursor: Don't submit pending im state without a surface.
+    Avoids hitting the assert() when dragging a window with server side
+    decorations.
+    Fixes: 11ac332cf ("cursor: Submit preedit on mouse/touch down")
+  * view: Ease focus debugging.
+    Allow to print which view tried to get initial focus with which token.
+  * seat: Ack that phoc_seat_view_from_view always succeeds.
+    If it doesn't it's a programming error.
+  * seat: Simplify phoc_seat_set_focus_layer.
+    As we're using a queue (since some time now) we can make this easier to
+    read.
+  * output: Check correct layer surface.
+    We're checking the stacked surface a couple of lines above. We want
+    to check the target here.
+
+ -- Guido Günther <agx@sigxcpu.org>  Sat, 28 Sep 2024 19:19:34 +0200
+
 phoc (0.42~rc1) experimental; urgency=medium
 
   * treewide: Fix docstrings

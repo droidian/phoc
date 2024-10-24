@@ -2,11 +2,14 @@
 
 #include "phoc-config.h"
 
-#include <assert.h>
-#include <stdlib.h>
 #include "seat.h"
 #include "server.h"
 #include "input-method-relay.h"
+
+#include <gmobile.h>
+
+#include <assert.h>
+#include <stdlib.h>
 
 /**
  * PhocTextInput:
@@ -286,7 +289,7 @@ submit_preedit (PhocInputMethodRelay *self, PhocTextInput *text_input)
 
   preedit = &self->input_method->current.preedit;
 
-  if (!preedit->text)
+  if (gm_str_is_null_or_empty (preedit->text))
     return;
 
   g_debug ("Submitting preedit: %s", preedit->text);

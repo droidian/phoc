@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2021 Purism SPC
+ *               2023-2024 The Phosh Developers
  *
  * SPDX-License-Identifier: GPL-3.0-or-later or MIT
  */
@@ -30,7 +31,6 @@
 #include "input-method-relay.h"
 #include "utils.h"
 #include "view.h"
-#include "xcursor.h"
 
 #define PHOC_ANIM_SUGGEST_STATE_CHANGE_COLOR    (PhocColor){0.0f, 0.6f, 1.0f, 0.5f}
 #define PHOC_ANIM_DURATION_SUGGEST_STATE_CHANGE 200
@@ -45,10 +45,12 @@ static GParamSpec *props[PROP_LAST_PROP];
 typedef struct _PhocCursorPrivate {
   /* Would be good to store on the surface itself */
   PhocDraggableLayerSurface *drag_surface;
-  GSList *gestures;
+  GSList                    *gestures;
 
   /* The compositor tracked touch points */
-  GHashTable       *touch_points;
+  GHashTable                *touch_points;
+
+  gboolean                   has_pointer_motion;
 
   /* State of the animated view when cursor touches a screen edge */
   struct {
@@ -59,10 +61,23 @@ typedef struct _PhocCursorPrivate {
     PhocOutput            *output;
     PhocTimedAnimation    *anim;
   } view_state;
+
+  /* The cursor */
+  PhocCursorMode              mode;
+  struct wl_client           *image_client;
+  struct wlr_surface         *image_surface;
+  struct wl_listener          image_surface_destroy;
+  const char                 *image_name;
+  int32_t                     hotspot_x;
+  int32_t                     hotspot_y;
+  struct wlr_xcursor_manager *xcursor_manager;
+  GSettings                  *interface_settings;
 } PhocCursorPrivate;
 
 
 G_DEFINE_TYPE_WITH_PRIVATE (PhocCursor, phoc_cursor, G_TYPE_OBJECT)
+
+#define PHOC_CURSOR_SELF(p) PHOC_PRIV_CONTAINER(PHOC_CURSOR, PhocCursor, (p))
 
 static void handle_pointer_motion_relative (struct wl_listener *listener, void *data);
 static void handle_pointer_motion_absolute (struct wl_listener *listener, void *data);
@@ -71,6 +86,93 @@ static void handle_pointer_axis (struct wl_listener *listener, void *data);
 static void handle_pointer_frame (struct wl_listener *listener, void *data);
 static void handle_touch_frame (struct wl_listener *listener, void *data);
 
+/* {{{ Cursor image */
+
+static void
+phoc_cursor_show (PhocCursor *self)
+{
+  PhocCursorPrivate *priv = phoc_cursor_get_instance_private (self);
+
+  if (!phoc_seat_has_pointer (self->seat) || !priv->has_pointer_motion)
+    return;
+
+  if (priv->image_surface) {
+    phoc_cursor_set_image (self,
+                           priv->image_client,
+                           priv->image_surface,
+                           priv->hotspot_x,
+                           priv->hotspot_y);
+  } else {
+    phoc_cursor_set_name (self, priv->image_client, priv->image_name);
+  }
+}
+
+
+static void
+phoc_cursor_set_image_surface (PhocCursor *self, struct wlr_surface *surface)
+{
+  PhocCursorPrivate *priv = phoc_cursor_get_instance_private (self);
+
+  wl_list_remove (&priv->image_surface_destroy.link);
+  priv->image_surface = surface;
+
+  wl_list_init (&priv->image_surface_destroy.link);
+  if (surface)
+    wl_signal_add (&surface->events.destroy, &priv->image_surface_destroy);
+}
+
+
+static void
+handle_image_surface_destroy (struct wl_listener *listener, void *data)
+{
+  PhocCursorPrivate *priv = wl_container_of (listener, priv, image_surface_destroy);
+  PhocCursor *self = PHOC_CURSOR_SELF (priv);
+
+  phoc_cursor_set_name (self, priv->image_client, priv->image_name);
+}
+
+
+static void
+handle_request_set_cursor (struct wl_listener *listener,
+                           void               *data)
+{
+  PhocCursor *self = wl_container_of (listener, self, request_set_cursor);
+  struct wlr_seat_pointer_request_set_cursor_event *event = data;
+  struct wlr_surface *focused_surface = event->seat_client->seat->pointer_state.focused_surface;
+  bool has_focused = focused_surface != NULL && focused_surface->resource != NULL;
+  struct wl_client *focused_client = NULL;
+  PhocCursorPrivate *priv = phoc_cursor_get_instance_private (self);
+
+  if (has_focused)
+    focused_client = wl_resource_get_client (focused_surface->resource);
+
+  if (event->seat_client->client != focused_client || priv->mode != PHOC_CURSOR_PASSTHROUGH) {
+    g_debug ("Denying request to set cursor from unfocused client");
+    return;
+  }
+
+  phoc_cursor_set_image (self, focused_client, event->surface, event->hotspot_x, event->hotspot_y);
+}
+
+
+static void
+on_cursor_theme_changed (PhocCursor *self, const char *key, GSettings *settings)
+{
+  g_autofree char* theme = NULL;
+  int size;
+
+  g_assert (PHOC_IS_CURSOR (self));
+  g_assert (G_IS_SETTINGS (settings));
+
+  theme = g_settings_get_string (settings, "cursor-theme");
+  size = g_settings_get_int (settings, "cursor-size");
+  size = size > 0 ? size : PHOC_XCURSOR_SIZE;
+  g_debug ("Setting cursor theme to %s, size: %d", theme, size);
+
+  phoc_cursor_set_xcursor_theme (self, theme, size);
+}
+
+/* {{{ Animated view */
 
 static void
 phoc_cursor_view_state_set_view (PhocCursor *self, PhocView *view)
@@ -248,6 +350,7 @@ phoc_cursor_submit_pending_view_state_change (PhocCursor *self)
   phoc_cursor_clear_view_state_change (self);
 }
 
+/* }}} */
 
 static bool
 should_ignore_touch_grab (PhocSeat           *seat,
@@ -620,10 +723,10 @@ seat_view_deco_motion (PhocSeatView *view, double deco_sx, double deco_sy)
     view->has_button_grab = false;
   } else {
     if (is_titlebar) {
-      phoc_seat_maybe_set_cursor (self->seat, NULL);
+      phoc_cursor_set_name (self, NULL, PHOC_XCURSOR_DEFAULT);
     } else if (edges) {
       const char *resize_name = wlr_xcursor_get_resize_name (edges);
-      phoc_seat_maybe_set_cursor (self->seat, resize_name);
+      phoc_cursor_set_name (self, NULL, resize_name);
     }
   }
 }
@@ -633,7 +736,7 @@ seat_view_deco_leave (PhocSeatView *view)
 {
   PhocCursor *self = phoc_seat_get_cursor (view->seat);
 
-  phoc_seat_maybe_set_cursor (self->seat, NULL);
+  phoc_cursor_set_name (self, NULL, PHOC_XCURSOR_DEFAULT);
   view->has_button_grab = false;
 }
 
@@ -641,6 +744,8 @@ static void
 seat_view_deco_button (PhocSeatView *view, double sx,
                        double sy, uint32_t button, uint32_t state)
 {
+  PhocCursor *self = phoc_seat_get_cursor (view->seat);
+
   if (button == BTN_LEFT && state == WLR_BUTTON_PRESSED) {
     view->has_button_grab = true;
     view->grab_sx = sx;
@@ -651,9 +756,8 @@ seat_view_deco_button (PhocSeatView *view, double sx,
 
   PhocViewDecoPart parts = phoc_view_get_deco_part (view->view, sx, sy);
 
-  if (state == WLR_BUTTON_RELEASED && (parts & PHOC_VIEW_DECO_PART_TITLEBAR)) {
-    phoc_seat_maybe_set_cursor (view->seat, NULL);
-  }
+  if (state == WLR_BUTTON_RELEASED && (parts & PHOC_VIEW_DECO_PART_TITLEBAR))
+    phoc_cursor_set_name (self, NULL, PHOC_XCURSOR_DEFAULT);
 }
 
 static bool
@@ -739,6 +843,7 @@ phoc_passthrough_cursor (PhocCursor *self, uint32_t time)
   PhocSeat *seat = self->seat;
   struct wl_client *client = NULL;
   struct wlr_surface *surface;
+  PhocCursorPrivate *priv = phoc_cursor_get_instance_private (self);
 
   surface = phoc_desktop_wlr_surface_at (desktop, self->cursor->x, self->cursor->y, &sx, &sy, &view);
   if (surface)
@@ -747,9 +852,9 @@ phoc_passthrough_cursor (PhocCursor *self, uint32_t time)
   if (surface && !phoc_seat_allow_input (seat, surface->resource))
     return;
 
-  if (self->cursor_client != client || !client) {
-    phoc_seat_maybe_set_cursor (seat, NULL);
-    self->cursor_client = client;
+  if (priv->image_client != client || !client) {
+    phoc_cursor_set_name (self, NULL, PHOC_XCURSOR_DEFAULT);
+    priv->image_client = client;
   }
 
   if (view) {
@@ -791,12 +896,14 @@ timespec_to_msec (const struct timespec *a)
 static void
 phoc_cursor_constructed (GObject *object)
 {
+  PhocDesktop *desktop = phoc_server_get_desktop (phoc_server_get_default ());
   PhocCursor *self = PHOC_CURSOR (object);
   struct wlr_cursor *wlr_cursor = self->cursor;
+  PhocCursorPrivate *priv = phoc_cursor_get_instance_private (self);
+
+  G_OBJECT_CLASS (phoc_cursor_parent_class)->constructed (object);
 
   g_assert (self->cursor);
-  self->xcursor_manager = wlr_xcursor_manager_create (NULL, PHOC_XCURSOR_SIZE);
-  g_assert (self->xcursor_manager);
 
   wl_signal_add (&wlr_cursor->events.motion, &self->motion);
   self->motion.notify = handle_pointer_motion_relative;
@@ -813,11 +920,24 @@ phoc_cursor_constructed (GObject *object)
   wl_signal_add (&wlr_cursor->events.frame, &self->frame);
   self->frame.notify = handle_pointer_frame;
 
-  wl_signal_add (&wlr_cursor->events.touch_frame,
-                 &self->touch_frame);
+  wl_signal_add (&wlr_cursor->events.touch_frame, &self->touch_frame);
   self->touch_frame.notify = handle_touch_frame;
 
-  G_OBJECT_CLASS (phoc_cursor_parent_class)->constructed (object);
+  g_assert (PHOC_IS_SEAT (self->seat));
+  wl_signal_add (&self->seat->seat->events.request_set_cursor, &self->request_set_cursor);
+  self->request_set_cursor.notify = handle_request_set_cursor;
+
+  wl_list_init (&priv->image_surface_destroy.link);
+  priv->image_surface_destroy.notify = handle_image_surface_destroy;
+
+  wlr_cursor_attach_output_layout (wlr_cursor, desktop->layout);
+
+  priv->interface_settings = g_settings_new ("org.gnome.desktop.interface");
+  g_signal_connect_swapped (priv->interface_settings, "changed::cursor-size",
+                              G_CALLBACK (on_cursor_theme_changed), self);
+  g_signal_connect_swapped (priv->interface_settings, "changed::cursor-theme",
+                              G_CALLBACK (on_cursor_theme_changed), self);
+  on_cursor_theme_changed (self, NULL, priv->interface_settings);
 }
 
 
@@ -838,6 +958,10 @@ phoc_cursor_finalize (GObject *object)
   g_clear_pointer (&priv->touch_points, g_hash_table_destroy);
   g_clear_pointer (&priv->gestures, free_gestures);
 
+  g_clear_object (&priv->interface_settings);
+  phoc_cursor_set_image_surface (self, NULL);
+  wl_list_remove (&self->request_set_cursor.link);
+
   wl_list_remove (&self->motion.link);
   wl_list_remove (&self->motion_absolute.link);
   wl_list_remove (&self->button.link);
@@ -857,10 +981,9 @@ phoc_cursor_finalize (GObject *object)
   wl_list_remove (&self->tool_tip.link);
   wl_list_remove (&self->tool_proximity.link);
   wl_list_remove (&self->tool_button.link);
-  wl_list_remove (&self->request_set_cursor.link);
   wl_list_remove (&self->focus_change.link);
 
-  g_clear_pointer (&self->xcursor_manager, wlr_xcursor_manager_destroy);
+  g_clear_pointer (&priv->xcursor_manager, wlr_xcursor_manager_destroy);
   g_clear_pointer (&self->cursor, wlr_cursor_destroy);
 
   G_OBJECT_CLASS (phoc_cursor_parent_class)->finalize (object);
@@ -1026,7 +1149,6 @@ phoc_cursor_init (PhocCursor *self)
   PhocCursorPrivate *priv = phoc_cursor_get_instance_private (self);
 
   self->cursor = wlr_cursor_create ();
-  self->default_xcursor = PHOC_XCURSOR_DEFAULT;
 
   priv->touch_points = g_hash_table_new_full (g_direct_hash,
                                               g_direct_equal,
@@ -1064,10 +1186,11 @@ void
 phoc_cursor_update_position (PhocCursor *self, uint32_t time)
 {
   PhocDesktop *desktop = phoc_server_get_desktop (phoc_server_get_default ());
+  PhocCursorPrivate *priv = phoc_cursor_get_instance_private (self);
   PhocSeat *seat = self->seat;
   PhocView *view;
 
-  switch (self->mode) {
+  switch (priv->mode) {
   case PHOC_CURSOR_PASSTHROUGH:
     phoc_passthrough_cursor (self, time);
     break;
@@ -1143,7 +1266,7 @@ phoc_cursor_update_position (PhocCursor *self, uint32_t time)
     }
     break;
   default:
-    g_error ("Invalid cursor mode %d", self->mode);
+    g_error ("Invalid cursor mode %d", priv->mode);
   }
 }
 
@@ -1198,10 +1321,10 @@ phoc_cursor_press_button (PhocCursor              *self,
     if (view && !surface && self->pointer_view)
       seat_view_deco_button (self->pointer_view, sx, sy, button, state);
 
-    if (state == WLR_BUTTON_RELEASED && self->mode != PHOC_CURSOR_PASSTHROUGH) {
+    if (state == WLR_BUTTON_RELEASED && priv->mode != PHOC_CURSOR_PASSTHROUGH) {
       if (priv->view_state.view)
         phoc_cursor_submit_pending_view_state_change (self);
-      self->mode = PHOC_CURSOR_PASSTHROUGH;
+      priv->mode = PHOC_CURSOR_PASSTHROUGH;
       phoc_cursor_update_focus (self);
     }
 
@@ -1220,7 +1343,8 @@ phoc_cursor_press_button (PhocCursor              *self,
   if (!phoc_handle_shell_reveal (surface, lx, ly, PHOC_SHELL_REVEAL_POINTER_THRESHOLD) && !is_touch)
     send_pointer_button (seat, surface, time, button, state);
 
-  phoc_input_method_relay_im_submit (&seat->im_relay, surface);
+  if (surface)
+    phoc_input_method_relay_im_submit (&seat->im_relay, surface);
 }
 
 
@@ -1234,7 +1358,12 @@ phoc_cursor_pointer_motion (PhocCursor              *self,
                             guint32                  time_msec)
 {
   PhocDesktop *desktop = phoc_server_get_desktop (phoc_server_get_default ());
+  PhocCursorPrivate *priv = phoc_cursor_get_instance_private (self);
 
+  if (!priv->has_pointer_motion) {
+    priv->has_pointer_motion = TRUE;
+    phoc_cursor_show (self);
+  }
   phoc_desktop_notify_activity (desktop, self->seat);
 
   wlr_relative_pointer_manager_v1_send_relative_motion (desktop->relative_pointer_manager,
@@ -1346,17 +1475,25 @@ phoc_cursor_handle_event (PhocCursor   *self,
   handle_gestures_for_event_at (self, self->cursor->x, self->cursor->y, type, event, size);
 }
 
+
 static void
 handle_pointer_axis (struct wl_listener *listener, void *data)
 {
   PhocDesktop *desktop = phoc_server_get_desktop (phoc_server_get_default ());
   PhocCursor *self = wl_container_of (listener, self, axis);
   struct wlr_pointer_axis_event *event = data;
+  PhocCursorPrivate *priv = phoc_cursor_get_instance_private (self);
 
+  if (!priv->has_pointer_motion) {
+    priv->has_pointer_motion = TRUE;
+    phoc_cursor_show (self);
+  }
   phoc_desktop_notify_activity (desktop, self->seat);
+
   send_pointer_axis (self->seat, self->seat->seat->pointer_state.focused_surface, event->time_msec,
                      event->orientation, event->delta, event->delta_discrete, event->source);
 }
+
 
 static void
 handle_pointer_frame (struct wl_listener *listener, void *data)
@@ -1379,6 +1516,7 @@ phoc_cursor_handle_touch_down (PhocCursor                  *self,
 {
   PhocServer *server = phoc_server_get_default ();
   PhocDesktop *desktop = phoc_server_get_desktop (server);
+  PhocCursorPrivate *priv = phoc_cursor_get_instance_private (self);
   PhocSeat *seat = self->seat;
   PhocTouchPoint *touch_point;
   double lx, ly;
@@ -1388,7 +1526,7 @@ phoc_cursor_handle_touch_down (PhocCursor                  *self,
   ly = touch_point->ly;
   handle_gestures_for_event_at (self, lx, ly, PHOC_EVENT_TOUCH_BEGIN, event, sizeof (*event));
 
-  if (seat->touch_id == -1 && self->mode == PHOC_CURSOR_PASSTHROUGH) {
+  if (seat->touch_id == -1 && priv->mode == PHOC_CURSOR_PASSTHROUGH) {
     seat->touch_id = event->touch_id;
     seat->touch_x = lx;
     seat->touch_y = ly;
@@ -1466,11 +1604,11 @@ phoc_cursor_handle_touch_up (PhocCursor                *self,
   if (!point)
     return;
 
-  if (self->mode != PHOC_CURSOR_PASSTHROUGH) {
+  if (priv->mode != PHOC_CURSOR_PASSTHROUGH) {
     if (priv->view_state.view)
       phoc_cursor_submit_pending_view_state_change (self);
 
-    self->mode = PHOC_CURSOR_PASSTHROUGH;
+    priv->mode = PHOC_CURSOR_PASSTHROUGH;
     phoc_cursor_update_focus (self);
   }
 
@@ -1483,6 +1621,7 @@ phoc_cursor_handle_touch_motion (PhocCursor                    *self,
                                  struct wlr_touch_motion_event *event)
 {
   PhocDesktop *desktop = phoc_server_get_desktop (phoc_server_get_default ());
+  PhocCursorPrivate *priv = phoc_cursor_get_instance_private (self);
   struct wlr_touch_point *point;
   PhocTouchPoint *touch_point;
   double lx, ly;
@@ -1577,7 +1716,7 @@ phoc_cursor_handle_touch_motion (PhocCursor                    *self,
     self->seat->touch_x = lx;
     self->seat->touch_y = ly;
 
-    if (self->mode != PHOC_CURSOR_PASSTHROUGH) {
+    if (priv->mode != PHOC_CURSOR_PASSTHROUGH) {
       wlr_cursor_warp (self->cursor, NULL, lx, ly);
       phoc_cursor_update_position (self, event->time_msec);
     }
@@ -1646,25 +1785,6 @@ phoc_cursor_handle_tool_tip (PhocCursor                       *self,
                             self->cursor->y);
 }
 
-void
-phoc_cursor_handle_request_set_cursor (PhocCursor                                       *self,
-                                       struct wlr_seat_pointer_request_set_cursor_event *event)
-{
-  struct wlr_surface *focused_surface = event->seat_client->seat->pointer_state.focused_surface;
-  bool has_focused = focused_surface != NULL && focused_surface->resource != NULL;
-  struct wl_client *focused_client = NULL;
-
-  if (has_focused)
-    focused_client = wl_resource_get_client (focused_surface->resource);
-
-  if (event->seat_client->client != focused_client || self->mode != PHOC_CURSOR_PASSTHROUGH) {
-    g_debug ("Denying request to set cursor from unfocused client");
-    return;
-  }
-
-  wlr_cursor_set_surface (self->cursor, event->surface, event->hotspot_x, event->hotspot_y);
-  self->cursor_client = event->seat_client->client;
-}
 
 void
 phoc_cursor_handle_focus_change (PhocCursor                                 *self,
@@ -1830,4 +1950,163 @@ phoc_cursor_is_active_touch_id (PhocCursor *self, int touch_id)
   PhocCursorPrivate *priv = phoc_cursor_get_instance_private (self);
 
   return !!g_hash_table_lookup (priv->touch_points, GINT_TO_POINTER (touch_id));
+}
+
+/**
+ * phoc_cursor_set_name:
+ * @self: The cursor
+ * @name: (nullable): a cursor name
+ *
+ * Select a cursor from the cursor theme by its name. To use a surface see
+ * [method@Cursor.set_image].
+ */
+void
+phoc_cursor_set_name (PhocCursor *self, struct wl_client *client, const char *name)
+{
+  PhocCursorPrivate *priv;
+
+  g_assert (PHOC_IS_CURSOR (self));
+  priv = phoc_cursor_get_instance_private (self);
+
+  phoc_cursor_set_image_surface (self, NULL);
+  priv->hotspot_x = priv->hotspot_y = 0;
+  priv->image_name = name;
+  priv->image_client = client;
+
+  /* Seat does not have a usable pointing device */
+  if (!phoc_seat_has_pointer (self->seat) || !priv->has_pointer_motion) {
+    wlr_cursor_unset_image (self->cursor);
+    return;
+  }
+
+  if (!priv->image_name) {
+    wlr_cursor_unset_image (self->cursor);
+    return;
+  }
+
+  wlr_cursor_set_xcursor (self->cursor, priv->xcursor_manager, priv->image_name);
+}
+
+/**
+ * phoc_cursor_set_image:
+ * @self: The cursor
+ * @client: The client to set the image force
+ * @surface: The image surface to use
+ * @hotspot_x: The x coordinate of the hotspot on the surface
+ * @hotspot_y: The y coordinate of the hotspot on the surface
+ *
+ * Set the cursor image via a surface. To use an image from the cursor
+ * theme see [method@Cursor.set_image].
+ */
+void
+phoc_cursor_set_image (PhocCursor         *self,
+                       struct wl_client   *client,
+                       struct wlr_surface *surface,
+                       int32_t             hotspot_x,
+                       int32_t             hotspot_y)
+{
+  PhocCursorPrivate *priv;
+
+  g_assert (PHOC_IS_CURSOR (self));
+  priv = phoc_cursor_get_instance_private (self);
+
+  phoc_cursor_set_image_surface (self, surface);
+  priv->image_name = NULL;
+  priv->hotspot_x = hotspot_x;
+  priv->hotspot_y = hotspot_y;
+  priv->image_client = client;
+
+  /* Seat does not have a usable pointing device */
+  if (!phoc_seat_has_pointer (self->seat) || !priv->has_pointer_motion)
+    return;
+
+  wlr_cursor_set_surface (self->cursor, surface, hotspot_x, hotspot_y);
+}
+
+/**
+ * phoc_cursor_set_mode:
+ * @self: The cursor
+ * @mode: The cursor mode
+ *
+ * Set the cursor mode
+ */
+void
+phoc_cursor_set_mode (PhocCursor *self, PhocCursorMode mode)
+{
+  PhocCursorPrivate *priv;
+
+  g_assert (PHOC_IS_CURSOR (self));
+  priv = phoc_cursor_get_instance_private (self);
+
+  priv->mode = mode;
+}
+
+/**
+ * phoc_cursor_get_mode:
+ * @self: The cursor
+ *
+ * Get the current cursor mode
+ *
+ * Returns: The cursor mode
+ */
+PhocCursorMode
+phoc_cursor_get_mode (PhocCursor *self)
+{
+  PhocCursorPrivate *priv;
+
+  g_assert (PHOC_IS_CURSOR (self));
+  priv = phoc_cursor_get_instance_private (self);
+
+  return priv->mode;
+}
+
+/**
+ * phoc_cursor_set_xcursor_theme:
+ * @self: The cursor
+ * @theme: The theme to set
+ *
+ * Set the current cursor theme
+ */
+void
+phoc_cursor_set_xcursor_theme (PhocCursor *self, const char *theme, uint32_t size)
+{
+  PhocCursorPrivate *priv;
+
+  g_assert (PHOC_IS_CURSOR (self));
+  priv = phoc_cursor_get_instance_private (self);
+
+  g_clear_pointer (&priv->xcursor_manager, wlr_xcursor_manager_destroy);
+  priv->xcursor_manager = wlr_xcursor_manager_create (theme, size);
+  g_assert (priv->xcursor_manager);
+
+  phoc_cursor_configure_xcursor (self);
+}
+
+/**
+ * phoc_cursor_configure_xcursor:
+ * @self: The cursor
+ *
+ * Load cursor theme for the current output scales and set a default
+ * cursor.
+ */
+void
+phoc_cursor_configure_xcursor (PhocCursor *self)
+{
+  PhocCursorPrivate *priv;
+  PhocDesktop *desktop = phoc_server_get_desktop (phoc_server_get_default ());
+  PhocOutput *output;
+
+  g_assert (PHOC_IS_CURSOR (self));
+  priv = phoc_cursor_get_instance_private (self);
+
+  wl_list_for_each (output, &desktop->outputs, link) {
+    float scale = phoc_output_get_scale (output);
+    if (!wlr_xcursor_manager_load (priv->xcursor_manager, scale)) {
+      g_critical ("Cannot load xcursor theme for output '%s' "
+                  "with scale %f", output->wlr_output->name, scale);
+    }
+  }
+
+  phoc_cursor_set_name (self, NULL, PHOC_XCURSOR_DEFAULT);
+  wlr_cursor_warp (self->cursor, NULL, self->cursor->x, self->cursor->y);
 }

@@ -1,6 +1,7 @@
 # Getting started with Phoc development
 
 ## Overview
+
 Phoc is a [Wayland](https://wayland.freedesktop.org/) compositor based on the
 [wlroots](https://gitlab.freedesktop.org/wlroots) library. It's often
 used as a compositor for

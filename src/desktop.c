@@ -46,7 +46,6 @@
 #include "utils.h"
 #include "view.h"
 #include "virtual.h"
-#include "xcursor.h"
 #include "xdg-activation-v1.h"
 #include "wlr-layer-shell-unstable-v1-protocol.h"
 #include "gesture-swipe.h"

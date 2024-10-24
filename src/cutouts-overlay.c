@@ -14,7 +14,6 @@
 #include "render-private.h"
 #include "cutouts-overlay.h"
 
-#define GMOBILE_USE_UNSTABLE_API
 #include <gmobile.h>
 #include <cairo/cairo.h>
 #include <drm_fourcc.h>

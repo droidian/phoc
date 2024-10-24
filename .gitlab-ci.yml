@@ -1,6 +1,6 @@
 include:
  - project: 'guidog/meta-phosh'
-   ref: 'ebb7aef58c96e3d586157f265e14d386ad8766fc'
+   ref: '891d0bd56c7288e8998c313426cf36a61e238a4e'
    file: '/ci/phosh-common-jobs.yml'
  - remote: 'https://gitlab.freedesktop.org/freedesktop/ci-templates/-/raw/d03cddbcff35f26861429fc816c00323f48e99af/templates/ci-fairy.yml'
 
@@ -245,6 +245,13 @@ check-license:
   except:
     variables:
       - $PKG_ONLY == "1"
+
+check-markdown:
+  stage: style-checks
+  variables:
+    PHOSH_MARKDOWN_PATHS: "*.md doc/*.md"
+  extends:
+    - .phosh-check-markdown
 
 package-deb-debian-trixie:arm64:
   stage: package
