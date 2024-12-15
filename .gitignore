@@ -15,3 +15,6 @@ po/notexist
 po/phoc.pot
 subprojects/gmobile
 subprojects/wlroots
+
+# Added by Droidian
+!.circleci/
