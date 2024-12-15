@@ -73,7 +73,7 @@ Homepage: https://gitlab.gnome.org/World/Phosh/phoc
 Rules-Requires-Root: no
 
 Package: phoc
-Architecture: any
+Architecture: arm64
 Depends:
  ${misc:Depends},
  ${shlibs:Depends},
