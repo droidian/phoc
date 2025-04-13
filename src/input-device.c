@@ -166,17 +166,12 @@ phoc_input_device_constructed (GObject *object)
   G_OBJECT_CLASS (phoc_input_device_parent_class)->constructed (object);
 
   priv = phoc_input_device_get_instance_private (self);
-  g_assert (priv->device);
+  if (priv->device) {
+    priv->device_destroy.notify = handle_device_destroy;
+    wl_signal_add (&priv->device->events.destroy, &priv->device_destroy);
 
-  priv->device_destroy.notify = handle_device_destroy;
-  wl_signal_add (&priv->device->events.destroy, &priv->device_destroy);
-
-  if (wlr_input_device_is_libinput (priv->device)) {
-    struct libinput_device *ldev;
-
-    ldev = phoc_input_device_get_libinput_device_handle (self);
-    priv->vendor = g_strdup_printf ("%.4x", libinput_device_get_id_vendor (ldev));
-    priv->product = g_strdup_printf ("%.4x", libinput_device_get_id_product (ldev));
+    priv->vendor = g_strdup_printf ("%.4x", priv->device->vendor);
+    priv->product = g_strdup_printf ("%.4x", priv->device->product);
   }
 }
 
