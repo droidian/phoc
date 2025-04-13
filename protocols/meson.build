@@ -5,9 +5,9 @@ wl_protocol_dir = wayland_protos.get_variable(pkgconfig: 'pkgdatadir')
 wayland_scanner = find_program('wayland-scanner')
 
 wayland_protocols = [
-  [wl_protocol_dir, 'stable/tablet/tablet-v2.xml'],
   [wl_protocol_dir, 'stable/xdg-shell/xdg-shell.xml'],
   [wl_protocol_dir, 'unstable/pointer-constraints/pointer-constraints-unstable-v1.xml'],
+  [wl_protocol_dir, 'unstable/tablet/tablet-unstable-v2.xml'],
   [wl_protocol_dir, 'unstable/xdg-decoration/xdg-decoration-unstable-v1.xml'],
   ['gtk-shell.xml'],
   ['phoc-device-state-unstable-v1.xml'],
