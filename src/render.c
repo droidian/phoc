@@ -41,12 +41,14 @@
 #include <wlr/types/wlr_buffer.h>
 #include <wlr/types/wlr_compositor.h>
 #include <wlr/types/wlr_linux_dmabuf_v1.h>
+#include <wlr/types/wlr_matrix.h>
 #include <wlr/util/region.h>
 #include <wlr/util/transform.h>
 #include <wlr/render/allocator.h>
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
 
+#define COLOR_TRANSPARENT          {0.0f, 0.0f, 0.0f, 0.0f}
 #define COLOR_BLACK                ((struct wlr_render_color){0.0f, 0.0f, 0.0f, 1.0f})
 #define COLOR_MAGENTA_ALPHA(x)     ((struct wlr_render_color){0.5f, 0.0f, 0.5f, (x)})
 
