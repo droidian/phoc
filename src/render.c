@@ -295,7 +295,6 @@ render_touch_points (PhocRenderContext *ctx)
   }
 }
 
-#if 0
 static void
 view_render_to_buffer_iterator (struct wlr_surface *surface, int sx, int sy, void *_data)
 {
@@ -335,7 +334,7 @@ view_render_to_buffer_iterator (struct wlr_surface *surface, int sx, int sy, voi
   wlr_matrix_project_box (mat, &dst_box, wlr_output_transform_invert (surface->current.transform), 0, proj);
   wlr_render_subtexture_with_matrix (self->wlr_renderer, texture, &src_box, mat, 1.0);
 }
-#endif
+
 
 /* FIXME: Rework when switching to wlroots 0.18.x git again */
 gboolean
@@ -343,7 +342,6 @@ phoc_renderer_render_view_to_buffer (PhocRenderer      *self,
                                      PhocView          *view,
                                      struct wlr_buffer *shm_buffer)
 {
-#if 0
   struct wlr_surface *surface = view->wlr_surface;
   struct wlr_buffer *buffer;
   void *data;
@@ -394,8 +392,6 @@ phoc_renderer_render_view_to_buffer (PhocRenderer      *self,
   wlr_buffer_end_data_ptr_access (shm_buffer);
 
   return true;
-#endif
-  return false;
 }
 
 #define DEBUG_DAMAGE_TIMEOUT_US (250.0 * 1000.0)
