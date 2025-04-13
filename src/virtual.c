@@ -39,7 +39,8 @@ phoc_handle_virtual_pointer (struct wl_listener *listener, void *data)
   seat = phoc_input_get_seat (input, seat_name);
   g_return_if_fail (seat);
 
-  g_debug ("New virtual input device: %s %s seat:%s", device->name,
+  g_debug ("New virtual input device: %s (%d:%d) %s seat:%s", device->name,
+           device->vendor, device->product,
            phoc_input_get_device_type (device->type), seat_name);
 
   phoc_seat_add_device (seat, device);
