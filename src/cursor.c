@@ -543,27 +543,21 @@ send_touch_up (PhocSeat                  *seat,
 
 
 static void
-send_touch_cancel (PhocSeat *seat, struct wlr_surface *surface)
+send_touch_cancel (PhocSeat                  *seat,
+                   struct wlr_surface        *surface)
 {
-  struct wl_client *client = wl_resource_get_client (surface->resource);
-  struct wlr_seat_client *seat_client;
-
-  seat_client = wlr_seat_client_for_wl_client (seat->seat, client);
-  if (!seat_client)
-    return;
-
   if (should_ignore_touch_grab (seat, surface)) {
-    /* currently, wlr_seat_touch_send_* functions don't work, so temporarily
-     * restore grab to the default one and use notify_* instead
-     * See https://gitlab.freedesktop.org/wlroots/wlroots/-/issues/3478 */
+    // currently, wlr_seat_touch_send_* functions don't work, so temporarily
+    // restore grab to the default one and use notify_* instead
+    // See https://gitlab.freedesktop.org/wlroots/wlroots/-/issues/3478
     struct wlr_seat_touch_grab *grab = seat->seat->touch_state.grab;
     seat->seat->touch_state.grab = seat->seat->touch_state.default_grab;
-    wlr_seat_touch_notify_cancel (seat->seat, seat_client);
+    wlr_seat_touch_notify_cancel (seat->seat, surface);
     seat->seat->touch_state.grab = grab;
     return;
   }
 
-  wlr_seat_touch_notify_cancel (seat->seat, seat_client);
+  wlr_seat_touch_notify_cancel (seat->seat, surface);
 }
 
 
