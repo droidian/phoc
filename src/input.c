@@ -38,7 +38,7 @@ phoc_input_get_device_type (enum wlr_input_device_type type)
     return "switch";
   case WLR_INPUT_DEVICE_TOUCH:
     return "touch";
-  case WLR_INPUT_DEVICE_TABLET:
+  case WLR_INPUT_DEVICE_TABLET_TOOL:
     return "tablet tool";
   case WLR_INPUT_DEVICE_TABLET_PAD:
     return "tablet pad";
