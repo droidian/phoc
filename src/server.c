@@ -316,8 +316,7 @@ phoc_server_initable_init (GInitable    *initable,
   }
   wl_display_set_global_filter (self->wl_display, phoc_server_filter_globals, self);
 
-  self->backend = wlr_backend_autocreate (wl_display_get_event_loop (self->wl_display),
-                                          &self->session);
+  self->backend = wlr_backend_autocreate (self->wl_display, &self->session);
   if (self->backend == NULL) {
     g_set_error (error,
                  G_FILE_ERROR, G_FILE_ERROR_FAILED,
