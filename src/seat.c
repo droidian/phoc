@@ -551,7 +551,7 @@ seat_set_device_output_mappings (PhocSeat *self, PhocInputDevice *device)
   case WLR_INPUT_DEVICE_TOUCH:
     type = "touch";
     break;
-  case WLR_INPUT_DEVICE_TABLET:
+  case WLR_INPUT_DEVICE_TABLET_TOOL:
     type = "tablet";
     break;
   default:
@@ -810,7 +810,7 @@ phoc_seat_add_input_mapping_settings (PhocSeat *self, PhocInputDevice *device)
     schema = "org.gnome.desktop.peripherals.touchscreen";
     group = "touchscreens";
     break;
-  case WLR_INPUT_DEVICE_TABLET:
+  case WLR_INPUT_DEVICE_TABLET_TOOL:
     schema = "org.gnome.desktop.peripherals.tablet";
     group = "tablets";
     break;
@@ -1214,7 +1214,7 @@ phoc_seat_add_device (PhocSeat *seat, struct wlr_input_device *device)
   case WLR_INPUT_DEVICE_TABLET_PAD:
     seat_add_tablet_pad (seat, device);
     break;
-  case WLR_INPUT_DEVICE_TABLET:
+  case WLR_INPUT_DEVICE_TABLET_TOOL:
     seat_add_tablet_tool (seat, device);
     break;
   default:
