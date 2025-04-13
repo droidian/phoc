@@ -328,7 +328,7 @@ phoc_server_initable_init (GInitable    *initable,
   wlr_renderer = phoc_renderer_get_wlr_renderer (self->renderer);
   wlr_renderer_init_wl_shm (wlr_renderer, self->wl_display);
 
-  if (wlr_renderer_get_texture_formats (wlr_renderer, WLR_BUFFER_CAP_DMABUF)) {
+  if (wlr_renderer_get_dmabuf_texture_formats (wlr_renderer)) {
     wlr_drm_create (self->wl_display, wlr_renderer);
     self->linux_dmabuf_v1 = wlr_linux_dmabuf_v1_create_with_renderer (self->wl_display,
                                                                       PHOC_LINUX_DMABUF_VERSION,
