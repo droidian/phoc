@@ -576,6 +576,7 @@ phoc_output_draw (PhocOutput *self)
   struct wlr_output *wlr_output = self->wlr_output;
   bool needs_frame, scanned_out = false;
   pixman_region32_t buffer_damage, frame_damage;
+  int buffer_age;
   PhocRenderContext render_context;
   struct wlr_buffer *buffer;
   struct wlr_render_pass *render_pass;
@@ -609,7 +610,7 @@ phoc_output_draw (PhocOutput *self)
   if (!wlr_output_configure_primary_swapchain (wlr_output, &pending, &wlr_output->swapchain))
     goto out;
 
-  buffer = wlr_swapchain_acquire (wlr_output->swapchain, NULL);
+  buffer = wlr_swapchain_acquire (wlr_output->swapchain, &buffer_age);
   if (!buffer)
     goto out;
 
@@ -620,7 +621,7 @@ phoc_output_draw (PhocOutput *self)
   }
 
   pixman_region32_init (&buffer_damage);
-  wlr_damage_ring_rotate_buffer (&self->damage_ring, buffer, &buffer_damage);
+  wlr_damage_ring_get_buffer_damage (&self->damage_ring, buffer_age, &buffer_damage);
 
   render_context = (PhocRenderContext){
     .output = self,
@@ -644,6 +645,8 @@ phoc_output_draw (PhocOutput *self)
 
   if (!wlr_output_commit_state (wlr_output, &pending))
     goto out;
+
+  wlr_damage_ring_rotate (&self->damage_ring);
 
  out:
   wlr_output_state_finish (&pending);
