@@ -502,7 +502,7 @@ phoc_server_init (PhocServer *self)
   wl_list_init (&self->new_surface.link);
 
   /* show a spinner the first time output shield is raised */
-  self->show_spinner = TRUE;
+  self->show_spinner = FALSE;
   self->dt_compatibles = gm_device_tree_get_compatibles (NULL, &err);
 
   messages_debug = g_getenv ("G_MESSAGES_DEBUG");
