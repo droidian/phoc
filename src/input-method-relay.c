@@ -240,8 +240,11 @@ handle_text_input_enable (struct wl_listener *listener, void *data)
   if (!text_input_is_focused (text_input->input))
     return;
 
-  wlr_input_method_v2_send_activate (relay->input_method);
-  relay_send_im_done (relay, text_input->input);
+  /* If we match a shell dialog */
+  if (wlr_layer_surface_v1_try_from_wlr_surface (text_input->input->focused_surface)) {
+    wlr_input_method_v2_send_activate (relay->input_method);
+    relay_send_im_done (relay, text_input->input);
+  }
 
   elevate_osk (text_input->input->focused_surface);
 }
@@ -262,6 +265,9 @@ handle_text_input_commit (struct wl_listener *listener, void *data)
     g_debug ("Text input committed, but input method is gone");
     return;
   }
+  if (!relay->input_method->active) {
+    wlr_input_method_v2_send_activate (relay->input_method);
+  }
   relay_send_im_done (relay, text_input->input);
 }
 
@@ -278,7 +284,9 @@ relay_disable_text_input (PhocInputMethodRelay *relay, PhocTextInput *text_input
   if (!text_input_is_focused (text_input->input))
     return;
 
-  wlr_input_method_v2_send_deactivate (relay->input_method);
+  if (relay->input_method->active) {
+    wlr_input_method_v2_send_deactivate (relay->input_method);
+  }
   relay_send_im_done (relay, text_input->input);
 }
 
