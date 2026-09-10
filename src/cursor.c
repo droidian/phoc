@@ -1562,7 +1562,7 @@ void
 phoc_cursor_handle_touch_up (PhocCursor                *self,
                              struct wlr_touch_up_event *event)
 {
-  struct wlr_touch_point *point = wlr_seat_touch_get_point (self->seat->seat, event->touch_id);
+  struct wlr_touch_point *point;
   PhocTouchPoint *touch_point;
   PhocCursorPrivate *priv;
 
@@ -1583,7 +1583,8 @@ phoc_cursor_handle_touch_up (PhocCursor                *self,
     self->seat->touch_id = -1;
 
   /* If the gesture got canceled don't notify any clients */
-  if (!point)
+  point = wlr_seat_touch_get_point (self->seat->seat, event->touch_id);
+  if (point == NULL)
     return;
 
   if (priv->mode != PHOC_CURSOR_PASSTHROUGH) {
