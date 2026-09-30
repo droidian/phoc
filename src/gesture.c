@@ -807,7 +807,7 @@ phoc_gesture_get_sequence_state (PhocGesture       *self,
   g_return_val_if_fail (PHOC_IS_GESTURE (self), PHOC_EVENT_SEQUENCE_NONE);
 
   priv = phoc_gesture_get_instance_private (self);
-  data = g_hash_table_lookup (priv->points, self);
+  data = g_hash_table_lookup (priv->points, sequence);
 
   if (!data)
     return PHOC_EVENT_SEQUENCE_NONE;
